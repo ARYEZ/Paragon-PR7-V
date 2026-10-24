@@ -336,9 +336,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::doublerHighGain, "Doubler High Shelf", { -24.0f, 12.0f, 0.1f }, 0.0f, v30, asDb));
     layout.add (makeFloat (ParamIDs::doublerHighFreq, "Doubler High Shelf Frequency", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 1306.0f, v30, asFrequency));
     layout.add (makeFloat (ParamIDs::doublerOutput, "Doubler Output", { -24.0f, 0.0f, 0.1f }, 0.0f, v30, asDb));
+    // Since 0.9.0, voices start stronger than the guide's recipe, which is
+    // made for tucking a double behind a lead in a mix: louder (-2 dB), more
+    // out of tune (9 cents), further apart in time (18 and 31 ms, both past
+    // the detuning's own 13 ms), and drifting, so a live voice sounds
+    // doubled rather than just wider. 0.7.0's starting settings are kept in
+    // keepDoublerAsSaved, for what was saved with them.
     struct VoiceDefaults { bool on; float gain, pan, delay, detune; };
-    const VoiceDefaults defaults[] = { { true, -6.0f, -1.0f, 9.4f, -4.0f }, { true, -6.0f, 1.0f, 23.7f, 4.0f },
-                                       { false, -12.0f, 1.0f, 16.0f, -7.0f }, { false, -12.0f, -1.0f, 21.0f, 7.0f } };
+    const VoiceDefaults defaults[] = { { true, -2.0f, -1.0f, 18.0f, -9.0f }, { true, -2.0f, 1.0f, 31.0f, 9.0f },
+                                       { false, -6.0f, -0.6f, 24.0f, -14.0f }, { false, -6.0f, 0.6f, 40.0f, 14.0f } };
+    constexpr int v32 = 32;   // DRIFT
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
     {
         const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
@@ -353,6 +360,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (id ("Detune").toRawUTF8(), name + "Detune", { -100.0f, 100.0f, 1.0f }, start.detune, v30, asCentsShift));
         layout.add (makeFloat (id ("Depth").toRawUTF8(), name + "Mod Depth", { -200.0f, 200.0f, 1.0f }, 0.0f, v30, asCentsShift));
         layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Mod Rate", skewed (0.1f, 400.0f, 2.0f, 0.01f), 1.0f, v30, asRate));
+        layout.add (makeFloat (id ("Drift").toRawUTF8(), name + "Drift", { 0.0f, 1.0f, 0.01f }, 0.5f, v32, asPercent));
     }
 
     // Added in plugin version 31: Revival, the compressor's third TYPE,
@@ -368,6 +376,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::revivalCompression, "Revival Compression", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, -12.0f, v31, asDb));
     layout.add (makeFloat (ParamIDs::revivalGain, "Revival Gain", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, 0.0f, v31, asDb));
     return layout;
+}
+
+void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
+                         const std::function<void (const juce::String&, float)>& set)
+{
+    // 0.7.0's starting settings: the Waves Doubler guide's recipe.
+    struct Was { float gain, pan, delay, detune; };
+    const Was was[] = { { -6.0f, -1.0f, 9.4f, -4.0f }, { -6.0f, 1.0f, 23.7f, 4.0f },
+                        { -12.0f, 1.0f, 16.0f, -7.0f }, { -12.0f, -1.0f, 21.0f, 7.0f } };
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        const auto keep = [&] (const char* part, float value)
+        {
+            if (! get (id (part)).has_value())
+                set (id (part), value);
+        };
+        keep ("Gain", was[voice].gain);
+        keep ("Pan", was[voice].pan);
+        keep ("Delay", was[voice].delay);
+        keep ("Detune", was[voice].detune);
+        set (id ("Drift"), 0.0f);
+    }
 }
 
 void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
@@ -392,6 +423,7 @@ void convertOldDoubler (const std::function<std::optional<float> (const juce::St
     {
         const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
         set (id ("On"), voice < 2 ? 1.0f : 0.0f);
+        set (id ("Drift"), 0.0f);   // its wander is in DEPTH and RATE
         if (voice >= 2)
             continue;
         set (id ("Gain"), gainDb);

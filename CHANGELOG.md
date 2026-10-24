@@ -2,6 +2,17 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.9.0
+
+- **A stronger DOUBLER.** You found the doubles too subtle on a voice. There were four reasons, all fixed:
+  - **The takes sat too far back.** The starting settings followed the Waves Doubler guide's recipe (-6 dB), made for tucking a double behind a lead in a mix. Now each take starts at **-2 dB**, nearly as loud as you.
+  - **They never moved.** A copy that's always exactly as late and exactly as out of tune, your ear blends back into your voice: it hears one voice, a bit wider. A real second take wanders. New **DRIFT** on each voice (our own addition): the take's timing wanders slowly at random, up to 6 ms early or late, and its tuning up to 6 cents, each voice its own way. It starts at 50%; 0% is the steady copy it used to be.
+  - **Voice 1 was really closer than its DELAY said.** The detuning takes about 13 ms by itself, so its 9.4 ms came out at about 13: almost on top of your voice. The takes now start at **18 and 31 ms**, more clearly apart, and further out of tune (**9 cents**, from 4).
+  - **On a mono track the takes were halved.** Panned hard to one side, each lost 6 dB more when the two sides were added together. Now each take keeps its full level on a mono output.
+  - Voices 3 and 4 (still off to start) are set up as a wider pair: -6 dB, 60% left and right, 24 and 40 ms, 14 cents.
+- **Your saved rigs and projects sound as they did:** they keep the settings they were saved with and come back with DRIFT at 0. Only a newly switched-on DOUBLER (and the Wide Doubler factory rig) starts with the stronger settings.
+- **Honest limits:** a take whose timing moves bends its pitch a little while it moves, as a singer's does; DRIFT glides slowly so that stays within a few cents (measured: about 8 either way at most, at 100%). How "doubled" it sounds is a matter for your ears: try DRIFT between 30% and 80%.
+
 ## 0.8.0
 
 - **Revival: a vocal compressor in three moves.** A third TYPE for the DYNAMICS compressor, after Classic and Daybreak. Inspired by Waves Renaissance Vox: our own design, following how its user guide describes it.

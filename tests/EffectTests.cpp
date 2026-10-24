@@ -1044,6 +1044,16 @@ TEST_CASE ("DOUBLER, as it starts: a take on each side", "[effects][doubler]")
         difference[i] = output[0][i] - output[1][i];
     CHECK (rms (difference, 0.2) > 0.1f * rms (output[0], 0.2));   // the two sides differ
     CHECK (rms (output[0], 0.2) < 2.0f * rms (input, 0.2));
+
+    // Since 0.9.0 the takes start strong: each nearly as loud as you (-2 dB),
+    // one on each side, so a live voice sounds doubled rather than just wider.
+    EffectRig takesOnly;
+    takesOnly.set (ParamIDs::doublerOn, 1.0f);
+    takesOnly.set (ParamIDs::doublerDirectOn, 0.0f);
+    const auto note = sine (220.0, 0.2f, 1.5);
+    const auto takes = takesOnly.run (note);
+    CHECK_THAT (dB (rms (takes[0], 0.5) / rms (note, 0.5)), WithinAbs (-2.0, 1.5));
+    CHECK_THAT (dB (rms (takes[1], 0.5) / rms (note, 0.5)), WithinAbs (-2.0, 1.5));
 }
 
 TEST_CASE ("Projects saved before the drive MODEL keep the original overdrive", "[effects][drive]")
@@ -1127,7 +1137,7 @@ TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with t
     rig.processor.getStateInformation (current);
     auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
     REQUIRE (currentXml != nullptr);
-    CHECK (currentXml->getIntAttribute ("parameterVersion") == 30);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 32);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")
@@ -2337,7 +2347,7 @@ namespace
     // 0 dB, no detune), the direct voice off: the output is voice 1 alone.
     struct DoublerRig : EffectRig
     {
-        DoublerRig()
+        explicit DoublerRig (int outputChannels = 2) : EffectRig (outputChannels)
         {
             set (ParamIDs::doublerOn, 1.0f);
             set (ParamIDs::doublerDirectOn, 0.0f);
@@ -2346,6 +2356,7 @@ namespace
             setVoice ("Gain", 0.0f);
             setVoice ("Pan", 0.0f);
             setVoice ("Detune", 0.0f);
+            setVoice ("Drift", 0.0f);   // steady, so each test hears only its own setting
         }
         void setVoice (const char* part, float value, int voice = 0) { set (ParamIDs::doublerVoice (voice, part).toRawUTF8(), value); }
     };
@@ -2458,6 +2469,127 @@ TEST_CASE ("DOUBLER: each voice detuned, delayed and placed as set", "[effects][
         CHECK (*high < 75.0);
         CHECK (*low > -75.0);
     }
+}
+
+TEST_CASE ("DOUBLER: DRIFT wanders each take's timing and tuning, like a second take", "[effects][doubler]")
+{
+    // Clicks every 0.3 s for 6 s: when each one comes out of the voice.
+    const auto arrivals = [] (float drift)
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        rig.setVoice ("Drift", drift);
+        auto input = silence (6.2);
+        std::vector<size_t> clicks;
+        for (auto seconds = 0.3; seconds < 6.0; seconds += 0.3)
+            clicks.push_back ((size_t) (seconds * sampleRate));
+        for (const auto click : clicks)
+            input[click] = 1.0f;
+        const auto output = rig.run (input)[0];
+        std::vector<double> times;
+        for (const auto click : clicks)
+            for (auto i = click; i < click + (size_t) (0.08 * sampleRate); ++i)
+                if (std::abs (output[i]) > 0.05f)
+                {
+                    times.push_back ((double) (i - click) / sampleRate * 1000.0);
+                    break;
+                }
+        return times;
+    };
+    const auto spreadOf = [] (const std::vector<double>& times)
+    {
+        const auto [low, high] = std::minmax_element (times.begin(), times.end());
+        return *high - *low;
+    };
+
+    SECTION ("Its timing moves by several milliseconds, within DRIFT's 6 ms either way")
+    {
+        const auto steady = arrivals (0.0f), loose = arrivals (1.0f);
+        REQUIRE (steady.size() == 20);
+        REQUIRE (loose.size() == 20);
+        CHECK (spreadOf (steady) < 0.5);
+        CHECK (spreadOf (loose) > 4.0);
+        for (const auto ms : loose)
+            CHECK_THAT (ms, WithinAbs (40.0, 7.0));
+    }
+
+    SECTION ("Its tuning wanders a few cents, never a warble")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Drift", 1.0f);
+        rig.setVoice ("Delay", 40.0f);
+        const auto output = rig.run (sungVowel (220.0, 6.0))[0];
+        std::vector<double> pitches;
+        for (auto seconds = 0.5; seconds <= 6.0; seconds += 0.25)
+            pitches.push_back (centsBetween (pitchOf ({ output.begin(), output.begin() + (long) (seconds * sampleRate) }), 220.0));
+        const auto [low, high] = std::minmax_element (pitches.begin(), pitches.end());
+        CHECK (*high - *low > 3.0);    // it wanders...
+        CHECK (*high < 15.0);          // ...by a few cents: DRIFT's 6, and a little more while
+        CHECK (*low > -15.0);          // the timing glides (a singer's take drifts this much)
+    }
+
+    SECTION ("Each voice wanders its own way")
+    {
+        DoublerRig rig;
+        for (int voice = 0; voice < 2; ++voice)
+        {
+            rig.setVoice ("On", 1.0f, voice);
+            rig.setVoice ("Gain", 0.0f, voice);
+            rig.setVoice ("Detune", 0.0f, voice);
+            rig.setVoice ("Delay", 40.0f, voice);
+            rig.setVoice ("Drift", 1.0f, voice);
+            rig.setVoice ("Pan", voice == 0 ? -1.0f : 1.0f, voice);
+        }
+        const auto output = rig.run (sungVowel (220.0, 3.0));
+        std::vector<float> difference (output[0].size());
+        for (size_t i = 0; i < difference.size(); ++i)
+            difference[i] = output[0][i] - output[1][i];
+        CHECK (rms (difference, 1.0) > 0.3f * rms (output[0], 1.0));   // same settings, different takes
+    }
+}
+
+TEST_CASE ("Projects saved with 0.7.0's DOUBLER load without DRIFT, as they sounded", "[effects][doubler]")
+{
+    // As 0.7.0 or 0.8.0 saved it: parameterVersion 30, no Drift parameters.
+    EffectRig original;
+    original.set (ParamIDs::doublerVoice (0, "Gain").toRawUTF8(), -6.0f);
+    juce::MemoryBlock saved;
+    original.processor.getStateInformation (saved);
+    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
+    REQUIRE (xml != nullptr);
+    xml->setAttribute ("parameterVersion", 30);
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+        xml->removeChildElement (xml->getChildByAttribute ("id", ParamIDs::doublerVoice (voice, "Drift")), true);
+    juce::MemoryBlock older;
+    juce::AudioProcessor::copyXmlToBinary (*xml, older);
+
+    EffectRig rig;
+    rig.processor.setStateInformation (older.getData(), (int) older.getSize());
+    const auto voice = [&rig] (int v, const char* part)
+    {
+        return rig.processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (v, part))->load();
+    };
+    for (int v = 0; v < effects::Doubler::numVoices; ++v)
+        CHECK (voice (v, "Drift") == 0.0f);
+    CHECK_THAT (voice (0, "Gain"), WithinAbs (-6.0, 0.01));   // as saved
+}
+
+TEST_CASE ("DOUBLER on a mono track: the takes at their full level", "[effects][doubler]")
+{
+    // Panned hard left, on a mono output: as loud as its GAIN says, not half.
+    const auto note = sungVowel (220.0, 1.0);
+    DoublerRig rig (1);
+    rig.setVoice ("Pan", -1.0f);
+    const auto output = rig.run (note);
+    REQUIRE (output.size() == 1);
+    CHECK_THAT (dB (rms (output[0], 0.3) / rms (note, 0.3)), WithinAbs (0.0, 1.0));
+
+    // And your own voice too, panned or not.
+    DoublerRig direct (1);
+    direct.setVoice ("On", 0.0f);
+    direct.set (ParamIDs::doublerDirectOn, 1.0f);
+    direct.set (ParamIDs::doublerDirectPan, 1.0f);
+    CHECK (maxAbsDifference (note, direct.run (note)[0], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
 }
 
 TEST_CASE ("DOUBLER: the direct voice, and the shelves on the doubles", "[effects][doubler]")

@@ -231,7 +231,7 @@ private:
     struct HarmonyVoiceParameters { std::atomic<float>* parts[8] {}; };
     std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
     effects::Doubler doubler;
-    struct DoublerVoiceParameters { std::atomic<float>* parts[9] {}; };
+    struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };
     std::array<DoublerVoiceParameters, effects::Doubler::numVoices> doublerVoiceParameters {};
     effects::Modulation modulation;
     effects::Delay delay;

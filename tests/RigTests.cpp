@@ -97,7 +97,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 30);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 32);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -437,4 +437,28 @@ TEST_CASE ("A rig file saved before reverb types loads with the original reverb"
     Rig current;   // saved by this version: written with its reverb type, and read back as it is
     current.parameters["reverbType"] = 4.0f;
     CHECK (Rig::fromXml (*current.toXml())->parameters.at ("reverbType") == 4.0f);
+}
+
+TEST_CASE ("Rigs saved with 0.7.0's DOUBLER keep their sound: no DRIFT, its old starting settings", "[rigs]")
+{
+    // As 0.7.0 or 0.8.0 wrote it: voice 1's GAIN saved, voice 2's left at its start.
+    const auto old = Rig::fromXml (*juce::XmlDocument::parse (
+        "<ParagonRig version=\"1\" parameterVersion=\"30\" name=\"Doubled\" bank=\"A\" number=\"4\">"
+        "  <Param id=\"doublerOn\" value=\"1\"/><Param id=\"dv1Gain\" value=\"-9\"/>"
+        "</ParagonRig>"));
+    REQUIRE (old.has_value());
+    const auto& p = old->parameters;
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (0, "Gain")), WithinAbs (-9.0, 0.001));    // as saved
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (1, "Gain")), WithinAbs (-6.0, 0.001));    // 0.7.0's start, not 0.9.0's -2
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (0, "Delay")), WithinAbs (9.4, 0.001));
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (1, "Detune")), WithinAbs (4.0, 0.001));
+    for (int voice = 0; voice < 4; ++voice)
+        CHECK (p.at (ParamIDs::doublerVoice (voice, "Drift")) == 0.0f);
+
+    // A rig saved now isn't touched.
+    Rig current;
+    current.parameters = { { "doublerOn", 1.0f } };
+    const auto reloaded = Rig::fromXml (*juce::XmlDocument::parse (current.toXml()->toString()));
+    REQUIRE (reloaded.has_value());
+    CHECK (reloaded->parameters.count (ParamIDs::doublerVoice (0, "Drift")) == 0);
 }

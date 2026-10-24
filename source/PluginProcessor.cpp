@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 30;
+    constexpr int parameterVersion = 32;
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -374,6 +374,7 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         voice.detuneCents = parts[6]->load();
         voice.depthCents = parts[7]->load();
         voice.rateHz = parts[8]->load();
+        voice.drift = parts[9]->load();
     }
     doublerSettings.directOn = isOn (ParamIDs::doublerDirectOn);
     doublerSettings.directGainDb = param (ParamIDs::doublerDirectGain);
@@ -782,6 +783,9 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     // ...and the two-take DOUBLER (RATE, DEPTH, MIX): now its four voices.
     if (savedWith < 30)
         convertOldDoubler (get, set);
+    // ...and 0.7.0's DOUBLER, before DRIFT and its stronger start.
+    else if (savedWith < 32)
+        keepDoublerAsSaved (get, set);
     parameters.replaceState (state);
 
     // Restoring the project changed parameters, which marked the rig as

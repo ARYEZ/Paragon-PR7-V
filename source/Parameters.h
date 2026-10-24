@@ -188,7 +188,8 @@ namespace ParamIDs
     inline constexpr auto revivalCompression = "revivalCompression";
     inline constexpr auto revivalGain        = "revivalGain";
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
-    inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate" };
+    // Drift (version 32) is appended: only ever add to the end.
+    inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };
     inline juce::String doublerVoice (int voice, const juce::String& part) { return "dv" + juce::String (voice + 1) + part; }
 
     // Global settings: kept when switching rigs. Everything else is part of a rig.
@@ -229,5 +230,11 @@ void moveOldDoublerSettings (const std::function<std::optional<float> (const cha
 // sets up voices 1 and 2 to sound close to it (its takes 19 and 27 ms late,
 // one each side, at MIX's level, with a wobble of about the same depth and
 // speed; the new voices are truly detuned, so it's close rather than exact).
+// Settings saved with 0.7.0's or 0.8.0's DOUBLER (before its DRIFT and
+// stronger starting settings in 0.9.0): no DRIFT, and any voice setting not
+// saved keeps the value it started with then, so they sound as they did.
+void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
+                         const std::function<void (const juce::String&, float)>& set);
+
 void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
                         const std::function<void (const juce::String&, float)>& set);

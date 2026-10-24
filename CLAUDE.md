@@ -88,6 +88,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - **Harmony:** stage 1 done in 0.6.0 (see above).
   - **De-esser:** done in 0.5.0.
   - **Doubler:** stomp 3 since 0.3.0; in 0.7.0 rebuilt as four voices inspired by Waves Doubler (the owner sent its user guide). `effects::Doubler`: per voice gain/pan/delay/feedback/octave/detune/depth/rate (`dv1Gain`...), DIRECT, OUTPUT, shelves on the voices, FB HIGH-PASS, MOD RESET; `DoublerPanel` is a table. Detune uses `PitchShifter`, whose own ~12.6 ms delay is the shortest DELAY. Not built: Waves' ALIGN, RANGE and graphs. The 0.3.0 RATE/DEPTH/MIX convert (`convertOldDoubler`, parameter version 30), close rather than identical.
+    - 0.9.0 (the owner: "doesn't feel very strong"): **DRIFT** per voice (`dv1Drift`, v32, our addition): slow random timing (±6 ms, 0.7 s glides) and pitch (±6 cents) wander, seeded per voice. Moving timing bends pitch; cancelling that with the detune can't work (the shifter's own delay undoes the move), so the timing glides slowly instead. Stronger starting settings (-2 dB, ±9 cents, 18/31 ms, drift 50%); `keepDoublerAsSaved` keeps 0.7.0's for rigs/projects saved before version 32. Mono output sums voices at full gain.
   - **Formant shift:** "chipmunk" to "giant" without changing the pitch.
   - **Vocoder or robot** voice.
   - **Megaphone / telephone / radio** lo-fi voices (LO-FI is a start).

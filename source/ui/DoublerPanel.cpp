@@ -6,15 +6,16 @@
 
 namespace
 {
-    const char* columnNames[] = { "VOICE", "GAIN", "PAN", "DELAY", "FDBK", "OCT", "DETUNE", "DEPTH", "RATE" };
-    const char* columnParts[] = { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate" };
+    const char* columnNames[] = { "VOICE", "GAIN", "PAN", "DELAY", "FDBK", "OCT", "DETUNE", "DEPTH", "RATE", "DRIFT" };
+    const char* columnParts[] = { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };
     const char* columnTips[] = { "Voice on or off", "The voice's level", "Where the voice sits, left to right",
                                  "How late the voice is, in ms (the detuning itself takes about 13 ms)",
                                  "How much of the voice goes back into its own delay, for repeats",
                                  "An octave down", "How far out of tune the voice is, in cents (100 = a semitone); 2-12 sounds like a double",
                                  "How far the voice's tuning wobbles either way, in cents (positive starts upwards)",
-                                 "How fast the wobble goes, in Hz" };
-    constexpr int columnWidths[] = { 34, 46, 46, 44, 40, 30, 44, 44, 44 };
+                                 "How fast the wobble goes, in Hz",
+                                 "How loose the take is: its timing and tuning wander slowly at random, as a real second take does" };
+    constexpr int columnWidths[] = { 32, 44, 42, 40, 36, 26, 40, 38, 36, 38 };
 }
 
 DoublerPanel::DoublerPanel (juce::AudioProcessorValueTreeState& state, std::function<void()> resetModulation)
@@ -86,7 +87,7 @@ void DoublerPanel::resized()
     area.removeFromTop (34);   // header: icon and name (and GRAPHIC EQ, placed by the main view)
 
     // Left: the voice table.
-    auto tableArea = area.removeFromLeft (402);
+    auto tableArea = area.removeFromLeft (399);
     auto headings = tableArea.removeFromTop (14);
     std::array<juce::Range<int>, numColumns> columns;
     for (int column = 0; column < numColumns; ++column)
@@ -94,7 +95,7 @@ void DoublerPanel::resized()
         const auto cell = headings.removeFromLeft (columnWidths[column]);
         columns[(size_t) column] = { cell.getX(), cell.getRight() };
         labels.push_back ({ columnNames[column], cell });
-        headings.removeFromLeft (4);
+        headings.removeFromLeft (3);
     }
     tableArea.removeFromTop (4);
     const auto rowHeight = tableArea.getHeight() / effects::Doubler::numVoices;

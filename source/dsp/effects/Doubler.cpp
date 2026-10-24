@@ -15,13 +15,34 @@ namespace effects
         }
     }
 
+    void Doubler::Wander::prepare (double sampleRate, int seed, float glideSeconds)
+    {
+        random.setSeed (seed);
+        rate = (float) sampleRate;
+        glide = 1.0f - std::exp (-1.0f / (glideSeconds * rate));
+        goal = first = value = 0.0f;
+        countdown = 0;
+    }
+
+    float Doubler::Wander::next() noexcept
+    {
+        if (--countdown <= 0)
+        {
+            goal = random.nextFloat() * 2.0f - 1.0f;
+            countdown = (int) (rate * (0.5f + random.nextFloat()));
+        }
+        first += (goal - first) * glide;
+        value += (first - value) * glide;
+        return value;
+    }
+
     void Doubler::prepare (double newSampleRate, int maxBlockSize)
     {
         sampleRate = newSampleRate;
         const juce::dsp::ProcessSpec mono { sampleRate, (juce::uint32) maxBlockSize, 1 };
         for (auto& voice : voices)
         {
-            voice.delay.setMaximumDelayInSamples ((int) std::ceil (maxDelayMs * 0.001 * sampleRate) + 8);
+            voice.delay.setMaximumDelayInSamples ((int) std::ceil ((maxDelayMs + maxDriftMs) * 0.001 * sampleRate) + 8);
             voice.delay.prepare (mono);
             voice.shifter.prepare (sampleRate);
             voice.feedbackFilter.prepare (mono);
@@ -34,6 +55,12 @@ namespace effects
             voice.left.setCurrentAndTargetValue (0.0f);
             voice.right.setCurrentAndTargetValue (0.0f);
             voice.lfoPhase = voice.lastOut = 0.0f;
+            // Each voice wanders its own way (and the same way every time, for
+            // tests). The timing glides slowly: the faster a delay moves, the
+            // more it bends the pitch, and 0.7 s keeps that to a few cents.
+            const auto index = (int) (&voice - voices.data());
+            voice.timing.prepare (sampleRate, 101 + 2 * index, 0.7f);
+            voice.pitch.prepare (sampleRate, 202 + 2 * index, 0.25f);
         }
         nominalDelayMs = (float) (voices[0].shifter.getRestingDelay() / sampleRate * 1000.0);
 
@@ -110,20 +137,26 @@ namespace effects
                 const auto inLeft = outLeft[i], inRight = stereo ? outRight[i] : outLeft[i];
                 const auto mono = 0.5f * (inLeft + inRight);
 
-                auto wetLeft = 0.0f, wetRight = 0.0f;
+                auto wetLeft = 0.0f, wetRight = 0.0f, wetMono = 0.0f;
                 for (size_t v = 0; v < voices.size(); ++v)
                 {
                     const auto& setting = settings.voices[v];
                     auto& voice = voices[v];
                     const auto leftGain = voice.left.getNextValue(), rightGain = voice.right.getNextValue();
-                    const auto delay = voice.delaySamples.getNextValue();
+                    const auto drift = juce::jlimit (0.0f, 1.0f, setting.drift);
+                    const auto timingWander = voice.timing.next(), pitchWander = voice.pitch.next();
+                    const auto delay = juce::jlimit (0.0f, (float) maxDelayMs * 0.001f * (float) sampleRate + maxDriftMs * 0.001f * (float) sampleRate,
+                                                     voice.delaySamples.getNextValue()
+                                                         + drift * timingWander * maxDriftMs * 0.001f * (float) sampleRate);
                     if (leftGain <= 0.0f && rightGain <= 0.0f && ! voice.left.isSmoothing())
                         continue;   // silent: save the work
 
-                    // The wobble: a sine around DETUNE; a positive DEPTH starts upwards.
+                    // The wobble: a sine around DETUNE; a positive DEPTH starts
+                    // upwards. DRIFT wanders around that too.
                     voice.lfoPhase += setting.rateHz / (float) sampleRate;
                     voice.lfoPhase -= std::floor (voice.lfoPhase);
-                    const auto cents = setting.detuneCents + setting.depthCents * std::sin (juce::MathConstants<float>::twoPi * voice.lfoPhase);
+                    const auto cents = setting.detuneCents + setting.depthCents * std::sin (juce::MathConstants<float>::twoPi * voice.lfoPhase)
+                                     + drift * pitchWander * maxDriftCents;
                     const auto ratio = std::pow (2.0f, cents / 1200.0f) * (setting.octaveDown ? 0.5f : 1.0f);
 
                     // Feedback: some of the voice back into its own delay, its lows cut.
@@ -134,23 +167,23 @@ namespace effects
 
                     wetLeft += leftGain * out;
                     wetRight += rightGain * out;
+                    wetMono += juce::jmax (leftGain, rightGain) * out;   // mono: at its full GAIN, whatever its PAN
                 }
 
-                // The shelves shape the voices, not the direct voice.
-                wetLeft = highShelf[0].processSample (lowShelf[0].processSample (wetLeft));
-                wetRight = highShelf[1].processSample (lowShelf[1].processSample (wetRight));
-
                 const auto gain = output.getNextValue();
-                const auto left = gain * (directLeft.getNextValue() * inLeft + wetLeft);
-                const auto right = gain * (directRight.getNextValue() * inRight + wetRight);
+                const auto directL = directLeft.getNextValue(), directR = directRight.getNextValue();
                 if (stereo)
                 {
-                    outLeft[i] = left;
-                    outRight[i] = right;
+                    // The shelves shape the voices, not the direct voice.
+                    wetLeft = highShelf[0].processSample (lowShelf[0].processSample (wetLeft));
+                    wetRight = highShelf[1].processSample (lowShelf[1].processSample (wetRight));
+                    outLeft[i] = gain * (directL * inLeft + wetLeft);
+                    outRight[i] = gain * (directR * inRight + wetRight);
                 }
                 else
                 {
-                    outLeft[i] = 0.5f * (left + right);
+                    wetMono = highShelf[0].processSample (lowShelf[0].processSample (wetMono));
+                    outLeft[i] = gain * (juce::jmax (directL, directR) * inLeft + wetMono);
                 }
             }
         });

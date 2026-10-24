@@ -17,8 +17,19 @@ namespace effects
     //
     //   GAIN, PAN, DELAY (0-100 ms), FEEDBACK (some of the voice back into
     //   its own delay, through the FEEDBACK HIGH-PASS), OCTAVE (an octave
-    //   down), DETUNE (cents), and its own pitch wobble: DEPTH (cents either
-    //   way; positive starts upwards) at RATE.
+    //   down), DETUNE (cents), its own pitch wobble: DEPTH (cents either
+    //   way; positive starts upwards) at RATE, and DRIFT.
+    //
+    // DRIFT (our own addition, not on Waves Doubler) is what makes a copy
+    // sound like another take: a slow, random wander in its timing (up to
+    // 6 ms either way) and pitch (up to 6 cents), different for each voice,
+    // as a singer's second take is a little early here, a little late and
+    // flat there. A steady copy, however detuned, the ear blends back into
+    // the voice. Timing that moves bends the pitch a little while it moves,
+    // as a singer's does; it glides slowly, so that stays within a few cents.
+    //
+    // On a mono output the voices sum at their full GAIN, whatever their PAN,
+    // rather than at half, so they don't vanish on a mono track.
     //
     // Then a low and a high shelf on the voices (not the direct voice), the
     // DIRECT voice's own gain and pan, and an OUTPUT gain for everything.
@@ -44,7 +55,10 @@ namespace effects
             float detuneCents = 0.0f;
             float depthCents = 0.0f;   // the wobble, either way of DETUNE
             float rateHz = 1.0f;
+            float drift = 0.0f;        // 0 to 1
         };
+
+        static constexpr float maxDriftMs = 6.0f, maxDriftCents = 6.0f;
 
         struct Settings
         {
@@ -71,6 +85,19 @@ namespace effects
         float getDetuneDelayMs() const noexcept { return nominalDelayMs; }
 
     private:
+        // A slow random wander between -1 and 1: a new random goal every
+        // half to one and a half seconds, glided to through two smoothing
+        // stages (each `glideSeconds`), so it never jumps.
+        struct Wander
+        {
+            void prepare (double sampleRate, int seed, float glideSeconds);
+            float next() noexcept;
+
+            juce::Random random;
+            float goal = 0.0f, first = 0.0f, value = 0.0f, glide = 0.0f, rate = 48000.0f;
+            int countdown = 0;
+        };
+
         struct VoiceState
         {
             juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> delay { 1 << 14 };
@@ -78,6 +105,7 @@ namespace effects
             juce::dsp::StateVariableTPTFilter<float> feedbackFilter;
             juce::SmoothedValue<float> delaySamples, left, right;
             float lfoPhase = 0.0f, lastOut = 0.0f;
+            Wander timing, pitch;
         };
 
         void updateShelves (const Settings&) noexcept;

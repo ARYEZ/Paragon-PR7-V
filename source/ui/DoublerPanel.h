@@ -8,7 +8,7 @@
 // half of Waves Doubler (the owner's reference), to fit the dock.
 //
 //   left   a row per voice: VOICE (on), GAIN, PAN, DELAY, FDBK, OCT, DETUNE,
-//          DEPTH, RATE, as number boxes: drag up or down, double-click to reset
+//          DEPTH, RATE, DRIFT, as number boxes: drag up or down, double-click to reset
 //   right  DIRECT (on, gain, pan) and OUTPUT; the LOW and HIGH shelves on the
 //          voices (on, gain, frequency); the feedback's high-pass; MOD RESET
 class DoublerPanel final : public juce::Component
@@ -39,7 +39,7 @@ private:
     std::vector<std::unique_ptr<Switch>> switches;
 
     // The voice table: [voice][column], columns as in the header.
-    static constexpr int numColumns = 9;
+    static constexpr int numColumns = 10;
     std::array<std::array<juce::Component*, numColumns>, effects::Doubler::numVoices> table {};
 
     juce::Component *directOn = nullptr, *directGain = nullptr, *directPan = nullptr, *output = nullptr;

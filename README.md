@@ -57,10 +57,11 @@ descriptions below still talk about guitar.
     truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
     take sung alongside rather than a chorus. Its panel is a table, a row per voice: **GAIN**, **PAN**, **DELAY**
     (0-100 ms; the detuning itself takes about 13 ms, so shorter settings come out at about that), **FDBK** (repeats),
-    **OCT** (an octave down), **DETUNE** (cents), and a pitch wobble, **DEPTH** at **RATE**. Beside it: your own voice
+    **OCT** (an octave down), **DETUNE** (cents), a pitch wobble, **DEPTH** at **RATE**, and **DRIFT** (how loose the take
+    is: its timing and tuning wander slowly at random, as a real second take's do). Beside it: your own voice
     (**DIRECT** on, gain, pan), **OUTPUT**, LOW and HIGH shelves on the doubles only, **FB HIGH-PASS** (keeps repeats
     clear) and **MOD RESET** (starts every wobble together). Drag a box up or down; double-click to reset. It starts
-    with two voices, one each side. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects move to this
+    with two strong voices, one each side, drifting. On a mono track the voices stay at full level. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects move to this
     stomp by themselves.)
   - **4 Pitch:** **HARMONY** (inspired by Waves Harmony) and the octaver. The stomp brings back whichever were on; its
     first press switches on HARMONY. Its panel has two views:
