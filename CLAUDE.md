@@ -93,6 +93,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - **Megaphone / telephone / radio** lo-fi voices (LO-FI is a start).
 - **Already useful as they are:**
   - The Daybreak compressor and the gate.
+  - **Revival** (0.8.0): the compressor's third TYPE, inspired by Waves Renaissance Vox (the owner sent its short user guide). GATE (soft 2:1 expander on the peaks), COMPRESSION (one fader: threshold 0 to -36 dB, ratio 1:1 to 4:1, make-up so 0 dBFS stays 0 dBFS), GAIN (no-look-ahead peak limiter ceiling). Gate → comp → limiter, in `CompGate::processRevival`; params `revivalGate`, `revivalCompression`, `revivalGain` (v31). Attack/release and the curve are our choices; the guide gives none.
   - The graphic EQ (bands may move up for voice).
   - Delay and reverb: slap, plate, hall and throws.
   - Mod: chorus and flanger.

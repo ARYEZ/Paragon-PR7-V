@@ -354,6 +354,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (id ("Depth").toRawUTF8(), name + "Mod Depth", { -200.0f, 200.0f, 1.0f }, 0.0f, v30, asCentsShift));
         layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Mod Rate", skewed (0.1f, 400.0f, 2.0f, 0.01f), 1.0f, v30, asRate));
     }
+
+    // Added in plugin version 31: Revival, the compressor's third TYPE,
+    // inspired by Waves Renaissance Vox. GATE starts off; COMPRESSION at
+    // -12 dB, a moderate squeeze; GAIN (the ceiling) at 0 dB, full scale.
+    constexpr int v31 = 31;
+    const ToText asRevivalGate = [] (float value, int)
+    {
+        return value <= effects::CompGate::revivalGateOffDb ? juce::String ("Off") : juce::String (value, 1) + " dB";
+    };
+    layout.add (makeFloat (ParamIDs::revivalGate, "Revival Gate", { effects::CompGate::revivalGateOffDb, 0.0f, 0.5f },
+                           effects::CompGate::revivalGateOffDb, v31, asRevivalGate));
+    layout.add (makeFloat (ParamIDs::revivalCompression, "Revival Compression", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, -12.0f, v31, asDb));
+    layout.add (makeFloat (ParamIDs::revivalGain, "Revival Gain", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, 0.0f, v31, asDb));
     return layout;
 }
 

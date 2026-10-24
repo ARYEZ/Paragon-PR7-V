@@ -325,9 +325,19 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // de-esser's is the DE-ESS block in the signal chain, after DYNAMICS).
     addStomp (1, "DYNAMICS", { ParamIDs::compOn, ParamIDs::deessOn }, compBlock, [this]
     {
-        auto text = valueText (ParamIDs::compThreshold) + "  " + valueText (ParamIDs::compRatio);
-        if (rawValue (ParamIDs::gateThreshold) > effects::CompGate::gateOffDb)
-            text << "  + gate";
+        juce::String text;
+        if (juce::roundToInt (rawValue (ParamIDs::compType)) == (int) effects::CompGate::Type::revival)
+        {
+            text << "Revival  " << valueText (ParamIDs::revivalCompression);
+            if (rawValue (ParamIDs::revivalGate) > effects::CompGate::revivalGateOffDb)
+                text << "  + gate";
+        }
+        else
+        {
+            text << valueText (ParamIDs::compThreshold) << "  " << valueText (ParamIDs::compRatio);
+            if (rawValue (ParamIDs::gateThreshold) > effects::CompGate::gateOffDb)
+                text << "  + gate";
+        }
         if (rawValue (ParamIDs::deessOn) > 0.5f)
             text << "  + de-ess";
         return text;
@@ -386,7 +396,9 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // starts with the block's on switch.
     using Group = EffectPanel::Group;
     // The compressor's TYPE shows only its own knobs: Classic's THRESHOLD and
-    // RATIO, or Daybreak's COMP, DETAIL, MIX and INTENSITY.
+    // RATIO, Daybreak's COMP, DETAIL, MIX and INTENSITY, or Revival's
+    // COMPRESSION and GAIN (in place of LEVEL) and its own GATE (in place of
+    // the noise gate's THRESHOLD).
     panels[pitchBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "TUNING", { { ParamIDs::pitchTune, "TUNING" } } },
         { "OCTAVER", { { ParamIDs::octOn, "ON" }, { ParamIDs::octSubTwo, "2 DOWN" }, { ParamIDs::octSubOne, "1 DOWN" },
@@ -398,13 +410,18 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         return [this, type] { return juce::roundToInt (rawValue (ParamIDs::compType)) == (int) type; };
     };
     const auto classic = compIs (effects::CompGate::Type::classic), daybreak = compIs (effects::CompGate::Type::daybreak);
+    const auto revival = compIs (effects::CompGate::Type::revival);
+    const auto notRevival = [revival] { return ! revival(); };
     panels[compBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "COMPRESSOR", { { ParamIDs::compOn, "ON" }, { ParamIDs::compType, "TYPE" },
                           { ParamIDs::compThreshold, "THRESHOLD", classic, true }, { ParamIDs::compRatio, "RATIO", classic, true },
                           { ParamIDs::compAmount, "COMP", daybreak, true }, { ParamIDs::compDetail, "DETAIL", daybreak, true },
                           { ParamIDs::compMix, "MIX", daybreak, true }, { ParamIDs::compIntensity, "INTENSITY", daybreak, true },
-                          { ParamIDs::compLevel, "LEVEL" } } },
-        { "NOISE GATE", { { ParamIDs::gateThreshold, "THRESHOLD" } } } });
+                          { ParamIDs::revivalCompression, "COMPRESSION", revival, true },
+                          { ParamIDs::revivalGain, "GAIN", revival, true },
+                          { ParamIDs::compLevel, "LEVEL", notRevival, true } } },
+        { "NOISE GATE", { { ParamIDs::gateThreshold, "THRESHOLD", notRevival, true },
+                          { ParamIDs::revivalGate, "GATE", revival, true } } } });
     panels[compBlock]->setMeter ([this] { return audioProcessor.getCompGainReductionDb(); });
     // The de-esser, after the compressor; the DYNAMICS stomp switches both.
     panels[deEssBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {

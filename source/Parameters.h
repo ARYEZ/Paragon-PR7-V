@@ -181,6 +181,12 @@ namespace ParamIDs
     inline constexpr auto doublerHighGain   = "doublerHighGain";
     inline constexpr auto doublerHighFreq   = "doublerHighFreq";
     inline constexpr auto doublerOutput     = "doublerOutput";
+
+    // Version 31: Revival, the compressor's third TYPE (inspired by Waves
+    // Renaissance Vox): its GATE, COMPRESSION and GAIN.
+    inline constexpr auto revivalGate        = "revivalGate";
+    inline constexpr auto revivalCompression = "revivalCompression";
+    inline constexpr auto revivalGain        = "revivalGain";
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate" };
     inline juce::String doublerVoice (int voice, const juce::String& part) { return "dv" + juce::String (voice + 1) + part; }

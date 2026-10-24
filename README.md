@@ -40,10 +40,12 @@ descriptions below still talk about guitar.
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
   delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
-  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has two TYPEs:
-    **Classic** (threshold, ratio, level) and **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL. The panel shows a
-    gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
+  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
+    **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
+    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
+    **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
+    **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
+    it). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
     what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.

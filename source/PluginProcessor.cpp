@@ -267,7 +267,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     compGate.process (monoBlock, { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
                                    param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
                                    (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
-                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity) });
+                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
+                                   param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) });
     // The de-esser after the compressor, whose make-up gain brings esses up.
     deEsser.process (monoBlock, { isOn (ParamIDs::deessOn), param (ParamIDs::deessFreq), param (ParamIDs::deessAmount),
                                   isOn (ParamIDs::deessListen) });

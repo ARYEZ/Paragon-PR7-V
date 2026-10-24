@@ -244,6 +244,92 @@ TEST_CASE ("Daybreak compressor: COMP, DETAIL, MIX and INTENSITY do what they sa
     }
 }
 
+TEST_CASE ("Revival compressor: GATE, COMPRESSION and GAIN do what they say", "[effects][comp][revival]")
+{
+    const auto revival = [] (EffectRig& rig, float compressionDb, float gainDb = 0.0f, float gateDb = effects::CompGate::revivalGateOffDb)
+    {
+        rig.set (ParamIDs::compOn, 1.0f);
+        rig.set (ParamIDs::compType, (float) effects::CompGate::Type::revival);
+        rig.set (ParamIDs::revivalCompression, compressionDb);
+        rig.set (ParamIDs::revivalGain, gainDb);
+        rig.set (ParamIDs::revivalGate, gateDb);
+        rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);   // the master limiter out of the way
+    };
+    const auto levelOut = [&] (float inDb, float compressionDb, float gainDb = 0.0f, float gateDb = effects::CompGate::revivalGateOffDb)
+    {
+        EffectRig rig;
+        revival (rig, compressionDb, gainDb, gateDb);
+        return dB (rms (rig.runMono (sine (440.0, juce::Decibels::decibelsToGain (inDb), 1.0)), 0.5)
+                   / rms (sine (440.0, juce::Decibels::decibelsToGain (inDb), 1.0), 0.5));
+    };
+
+    SECTION ("Its curve: a full-scale peak stays at full scale; lower COMPRESSION brings the rest up")
+    {
+        for (const auto compression : { 0.0f, -12.0f, -24.0f, -36.0f })
+            CHECK_THAT (effects::CompGate::revivalCurveDb (0.0f, compression), WithinAbs (0.0, 0.01));
+        CHECK (effects::CompGate::revivalCurveDb (-30.0f, -24.0f) > effects::CompGate::revivalCurveDb (-30.0f, -6.0f) + 10.0f);
+        CHECK (effects::CompGate::revivalCurveDb (-30.0f, 0.0f) == 0.0f);   // 0: nothing at all
+    }
+
+    SECTION ("Pulling COMPRESSION down evens the voice out and makes it louder")
+    {
+        // 24 dB between a loud and a soft note going in...
+        const auto spreadAt = [&] (float compression) { return (levelOut (-6.0f, compression) - 6.0f) - (levelOut (-30.0f, compression) - 30.0f); };
+        CHECK_THAT (spreadAt (0.0f), WithinAbs (24.0, 0.5));
+        CHECK (spreadAt (-36.0f) < 10.0f);                      // ...much less coming out
+        CHECK (levelOut (-30.0f, -24.0f) > levelOut (-30.0f, -6.0f) + 8.0f);   // and the soft one louder
+
+        EffectRig rig;
+        revival (rig, -24.0f);
+        rig.runMono (sine (440.0, 0.5f, 0.5));
+        CHECK (rig.processor.getCompGainReductionDb() < -6.0f);   // the TOTAL meter shows it working
+    }
+
+    SECTION ("GAIN is a ceiling: nothing comes out above it, however hard it's pushed")
+    {
+        for (const auto gain : { 0.0f, -6.0f, -18.0f })
+        {
+            EffectRig rig;
+            revival (rig, -36.0f, gain);
+            const auto output = rig.runMono (sine (440.0, 0.9f, 1.0));
+            auto peak = 0.0f;
+            for (size_t i = (size_t) (0.2 * sampleRate); i < output.size(); ++i)
+                peak = std::max (peak, std::abs (output[i]));
+            CHECK (dB (peak) <= gain + 0.1f);
+            CHECK (dB (peak) > gain - 1.0f);   // and it's right up at it: the limiter holds it there
+        }
+    }
+
+    SECTION ("GATE eases quiet sounds down gently and leaves the voice alone")
+    {
+        // GATE at -30 dB: a sound 20 dB under it is taken well down; one 6 dB
+        // under, by about 6 dB (2:1, gently); the voice well above, untouched.
+        CHECK (levelOut (-50.0f, 0.0f, 0.0f, -30.0f) < levelOut (-50.0f, 0.0f) - 15.0f);
+        const auto sixUnder = levelOut (-36.0f, 0.0f, 0.0f, -30.0f) - levelOut (-36.0f, 0.0f);
+        CHECK_THAT (sixUnder, WithinAbs (-6.0, 1.5));
+        CHECK_THAT (levelOut (-10.0f, 0.0f, 0.0f, -30.0f) - levelOut (-10.0f, 0.0f), WithinAbs (0.0, 0.2));
+        {
+            // A low note above GATE: left exactly as it was, not fluttered by its slow waves.
+            EffectRig rig;
+            revival (rig, 0.0f, 0.0f, -30.0f);
+            const auto low = sine (110.0, juce::Decibels::decibelsToGain (-20.0f), 1.0);
+            CHECK (maxAbsDifference (rig.runMono (low), low, (size_t) (0.3 * sampleRate)) < 1.0e-3f);
+        }
+        // Off: quiet sounds pass as they are.
+        CHECK_THAT (levelOut (-60.0f, 0.0f), WithinAbs (0.0, 0.05));
+    }
+
+    SECTION ("Classic's noise gate and LEVEL don't act on Revival")
+    {
+        EffectRig rig;
+        revival (rig, 0.0f);
+        rig.set (ParamIDs::gateThreshold, -20.0f);
+        rig.set (ParamIDs::compLevel, 12.0f);
+        const auto input = sine (440.0, juce::Decibels::decibelsToGain (-40.0f), 1.0);
+        CHECK_THAT (dB (rms (rig.runMono (input), 0.5) / rms (input, 0.5)), WithinAbs (0.0, 0.05));
+    }
+}
+
 TEST_CASE ("GLITCH: each mode chops, repeats or smears the guitar as it says", "[effects][glitch]")
 {
     const auto glitchRig = [] (EffectRig& rig, effects::Glitch::Mode mode, float density, float chaos, float pitch = 0.0f, float mixAmount = 1.0f)

@@ -42,6 +42,36 @@ namespace effects
         }
     }
 
+    namespace
+    {
+        // Revival's COMPRESSION fader: down from 0 to -36 dB lowers the
+        // threshold to match and raises the ratio from 1:1 (nothing at all)
+        // to 4:1, with a 6 dB soft knee. Our own choice of curve: the guide
+        // says only that the one fader sets both.
+        Curve revivalCurve (float compressionDb) noexcept
+        {
+            const auto depth = juce::jlimit (0.0f, 1.0f, compressionDb / CompGate::revivalMinDb);
+            return { juce::jmin (0.0f, compressionDb), 1.0f + 3.0f * depth, 6.0f };
+        }
+
+        // The make-up gives back all it takes from a full-scale peak, so
+        // pulling COMPRESSION down brings everything up towards full scale,
+        // where the limiter takes over: "gain reduction increases, as does
+        // output level".
+        float revivalMakeUpDb (const Curve& curve) noexcept { return -gainFor (0.0f, curve); }
+
+        constexpr float gateRatio = 2.0f;           // 1 dB below GATE: 1 dB more down. Gentle.
+        constexpr float gateKneeDb = 10.0f;         // so it starts easing a little above GATE
+        constexpr float gateRangeDb = 40.0f;        // the most it takes
+        constexpr float limiterReleaseSeconds = 0.1f;
+    }
+
+    float CompGate::revivalCurveDb (float inputDb, float compressionDb) noexcept
+    {
+        const auto curve = revivalCurve (compressionDb);
+        return gainFor (inputDb, curve) + revivalMakeUpDb (curve);
+    }
+
     float CompGate::daybreakCurveDb (float inputDb, float amount, bool intensity) noexcept
     {
         return gainFor (inputDb, daybreakCurve (amount, intensity));
@@ -67,6 +97,12 @@ namespace effects
         mix.reset (sampleRate, 0.05);
         daybreakMakeUp.reset (sampleRate, 0.05);
         envelope = sidechainState = 0.0f;
+        gateLevel = gateGainDb = sustainedDb = limiterEnvelope = 0.0f;
+        compLevelDb = -120.0f;
+        revivalThreshold.reset (sampleRate, 0.05);
+        revivalCeiling.reset (sampleRate, 0.05);
+        revivalThreshold.setCurrentAndTargetValue (-12.0f);
+        revivalCeiling.setCurrentAndTargetValue (1.0f);
         bypass.prepare (sampleRate, maxBlockSize);
     }
 
@@ -78,6 +114,13 @@ namespace effects
         bypass.process (monoBlock, settings.on, [&] (juce::dsp::AudioBlock<float> block)
         {
             juce::dsp::ProcessContextReplacing<float> context (block);
+
+            if (settings.type == Type::revival)
+            {
+                // Its own gate and output stage: no noise gate, no LEVEL.
+                processRevival (block, settings);
+                return;
+            }
 
             if (settings.gateThresholdDb > gateOffDb)
             {
@@ -146,6 +189,73 @@ namespace effects
             const auto compressed = dry * juce::Decibels::decibelsToGain (reductionDb) * daybreakMakeUp.getNextValue();
             const auto mixNow = mix.getNextValue();
             samples[i] = dry * (1.0f - mixNow) + compressed * mixNow;
+        }
+        gainReductionDb.store (mostReduction);
+    }
+
+    void CompGate::processRevival (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    {
+        const auto gateOn = settings.revivalGateDb > revivalGateOffDb;
+        const auto compressionDb = juce::jlimit (revivalMinDb, 0.0f, settings.revivalCompDb);
+        revivalThreshold.setTargetValue (compressionDb);
+        revivalCeiling.setTargetValue (juce::Decibels::decibelsToGain (juce::jlimit (revivalMinDb, 0.0f, settings.revivalGainDb)));
+
+        // The gate follows the voice's peaks (the guide sets GATE by the
+        // input meter's peaks), held over 50 ms so a low note's waves don't
+        // flutter it. It opens in 2 ms and closes over 150 ms, so word
+        // endings fade rather than cut.
+        const auto gateDetector = std::exp (-1.0f / (0.05f * (float) sampleRate));
+        const auto gateOpen = coefficientFor (sampleRate, 0.002f);
+        const auto gateClose = coefficientFor (sampleRate, 0.15f);
+        // The compressor grabs in 3 ms. It lets go in 60 ms after a short
+        // peak, slowing to 400 ms while it's been working for a while, so a
+        // held note isn't pumped (our take on a program-dependent release).
+        const auto compAttack = coefficientFor (sampleRate, 0.003f);
+        const auto sustainedRise = coefficientFor (sampleRate, 0.5f);
+        const auto limiterRelease = std::exp (-1.0f / (limiterReleaseSeconds * (float) sampleRate));
+
+        auto* samples = block.getChannelPointer (0);
+        auto mostReduction = 0.0f;
+        for (size_t i = 0; i < block.getNumSamples(); ++i)
+        {
+            auto x = samples[i];
+
+            // GATE: downward expansion below it, with a soft knee.
+            auto gateTargetDb = 0.0f;
+            gateLevel = juce::jmax (std::abs (x), gateLevel * gateDetector);
+            if (gateOn)
+            {
+                const auto levelDb = juce::Decibels::gainToDecibels (gateLevel, -120.0f);
+                const auto under = settings.revivalGateDb - levelDb;   // positive below GATE
+                const auto slope = gateRatio - 1.0f;
+                if (2.0f * under > gateKneeDb)
+                    gateTargetDb = -slope * under;
+                else if (2.0f * under > -gateKneeDb)
+                    gateTargetDb = -slope * juce::square (under + gateKneeDb * 0.5f) / (2.0f * gateKneeDb);
+                gateTargetDb = juce::jmax (-gateRangeDb, gateTargetDb);
+            }
+            gateGainDb += (gateTargetDb - gateGainDb) * (gateTargetDb > gateGainDb ? gateOpen : gateClose);
+            x *= juce::Decibels::decibelsToGain (gateGainDb);
+
+            // COMPRESSION, after the gate.
+            const auto curve = revivalCurve (revivalThreshold.getNextValue());
+            const auto inDb = juce::Decibels::gainToDecibels (std::abs (x), -120.0f);
+            const auto release = coefficientFor (sampleRate, 0.06f + 0.34f * juce::jlimit (0.0f, 1.0f, sustainedDb / 6.0f));
+            compLevelDb += (inDb - compLevelDb) * (inDb > compLevelDb ? compAttack : release);
+            const auto compDb = gainFor (compLevelDb, curve);
+            sustainedDb += (-compDb - sustainedDb) * sustainedRise;
+            x *= juce::Decibels::decibelsToGain (compDb + revivalMakeUpDb (curve));
+
+            mostReduction = juce::jmin (mostReduction, gateGainDb + compDb);
+
+            // GAIN: a peak limiter at the ceiling. It turns down at once and
+            // lets go over 100 ms; no look-ahead, so no latency.
+            const auto ceiling = revivalCeiling.getNextValue();
+            limiterEnvelope = juce::jmax (std::abs (x), limiterEnvelope * limiterRelease);
+            if (limiterEnvelope > ceiling)
+                x *= ceiling / limiterEnvelope;
+
+            samples[i] = x;
         }
         gainReductionDb.store (mostReduction);
     }
