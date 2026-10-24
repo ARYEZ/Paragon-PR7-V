@@ -200,6 +200,18 @@ namespace ParamIDs
     inline constexpr auto delayModRate    = "delayModRate";
     inline constexpr auto delayAnalog     = "delayAnalog";
     inline constexpr auto delayLoFi       = "delayLoFi";
+    // Version 34: the reverb's controls inspired by the Lexicon LXP reverbs.
+    inline constexpr auto reverbDecay     = "reverbDecay";
+    inline constexpr auto reverbBassRt    = "reverbBassRt";
+    inline constexpr auto reverbCrossover = "reverbCrossover";
+    inline constexpr auto reverbRolloff   = "reverbRolloff";
+    inline constexpr auto reverbDiffusion = "reverbDiffusion";
+    inline constexpr auto reverbEarly     = "reverbEarly";
+    inline constexpr auto reverbLevel     = "reverbLevel";
+    inline constexpr auto reverbSpread    = "reverbSpread";
+    inline constexpr auto reverbShape     = "reverbShape";
+    inline constexpr auto reverbSpin      = "reverbSpin";
+    inline constexpr auto reverbWander    = "reverbWander";
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     // Drift (version 32) is appended: only ever add to the end.
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };

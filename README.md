@@ -88,8 +88,11 @@ descriptions below still talk about guitar.
     ping-pong's START side; FLIP LEFT / RIGHT); and **COLOUR** (LOW CUT and HIGH CUT on the repeats, MOD DEPTH and RATE,
     ANALOG 1 Warm / 2 Round / 3 Hiss / 4 Grit, LO-FI), inspired by Waves H-Delay. FEEDBACK goes to 200%: past 100% the
     repeats build up and hold.
-  - **7 Reverb:** eight types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse and Classic (the original), with
-    SIZE, PRE-DELAY, TONE and MIX. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
+  - **7 Reverb:** nine types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse, Chamber and Classic (the original),
+    with SIZE, DECAY, PRE-DELAY, TONE and MIX. Inspired by the Lexicon LXP reverbs, its panel has four pages: **MAIN**;
+    **DECAY** (BASS RT and CROSSOVER: lows longer or shorter than the rest; ROLLOFF); **SPACE** (DIFFUSION, the EARLY and
+    REVERB levels, SPREAD and SHAPE for building, gated and inverse reverbs); and **MOTION** (SPIN and WANDER). Hover over
+    the REVERB stomp to see the tail's length in seconds. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
     singing and lets them swell back in the gaps, and both let their tails ring out when switched off.
 - **More blocks in the signal chain** (no stomp: click them in the strip at the bottom):
   - **Filter / Pitch:** an auto-wah (envelope filter), a pitch shifter (two octaves down to two up, blended with the

@@ -401,6 +401,37 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::delayModRate, "Delay Mod Rate", skewed (0.05f, 20.0f, 1.0f, 0.01f), 0.5f, v33, asHz));
     layout.add (makeChoice (ParamIDs::delayAnalog, "Delay Analog", v33, effects::Delay::analogNames, 0));
     layout.add (makeSwitch (ParamIDs::delayLoFi, "Delay Lo-Fi", v33, false));
+
+    // Added in plugin version 34: the reverb's controls inspired by the
+    // Lexicon LXP reverbs. Each starts where it changes nothing (DECAY,
+    // DIFFUSION, SPIN and WANDER at 100% of the type's own; BASS RT 1.0x;
+    // ROLLOFF off; EARLY and REVERB at 0 dB; no SPREAD), so saved settings
+    // sound as they did.
+    constexpr int v34 = 34;
+    const ToText asTimes = [] (float value, int) { return juce::String (value, 2) + "x"; };
+    const ToText asRolloff = [] (float hz, int)
+    {
+        if (hz >= effects::Reverb::rolloffOffHz - 1.0f)
+            return juce::String ("Off");
+        return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz";
+    };
+    const ToText asReverbLevel = [] (float db, int)
+    {
+        return db <= effects::Reverb::levelOffDb ? juce::String ("Off") : juce::String (db, 1) + " dB";
+    };
+    layout.add (makeFloat (ParamIDs::reverbDecay, "Reverb Decay", skewed (0.1f, 8.0f, 1.0f, 0.01f), 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbBassRt, "Reverb Bass RT", skewed (0.25f, 4.0f, 1.0f, 0.01f), 1.0f, v34, asTimes));
+    layout.add (makeFloat (ParamIDs::reverbCrossover, "Reverb Bass Crossover", skewed (50.0f, 2000.0f, 300.0f, 1.0f), 300.0f, v34,
+                           [] (float hz, int) { return juce::String (juce::roundToInt (hz)) + " Hz"; }));
+    layout.add (makeFloat (ParamIDs::reverbRolloff, "Reverb Rolloff", skewed (500.0f, effects::Reverb::rolloffOffHz, 5000.0f, 1.0f),
+                           effects::Reverb::rolloffOffHz, v34, asRolloff));
+    layout.add (makeFloat (ParamIDs::reverbDiffusion, "Reverb Diffusion", { 0.0f, 1.25f, 0.01f }, 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbEarly, "Reverb Early Level", { effects::Reverb::levelOffDb, 6.0f, 0.1f }, 0.0f, v34, asReverbLevel));
+    layout.add (makeFloat (ParamIDs::reverbLevel, "Reverb Tail Level", { effects::Reverb::levelOffDb, 6.0f, 0.1f }, 0.0f, v34, asReverbLevel));
+    layout.add (makeFloat (ParamIDs::reverbSpread, "Reverb Spread", { 0.0f, effects::Reverb::maxSpreadMs, 1.0f }, 0.0f, v34, asMs));
+    layout.add (makeFloat (ParamIDs::reverbShape, "Reverb Shape", { 0.0f, 1.0f, 0.01f }, 0.5f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbSpin, "Reverb Spin", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbWander, "Reverb Wander", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
     return layout;
 }
 

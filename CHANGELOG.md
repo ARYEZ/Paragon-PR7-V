@@ -2,6 +2,24 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.11.0
+
+- **Includes 0.10.0's bigger DELAY** (its notes are below): 0.10.0 was never published, because its macOS build failed its tests.
+- **A bigger REVERB, inspired by the Lexicon LXP reverbs.** Our own design, following how their manual describes them. The REVERB panel now has four pages, like a rack reverb's edit pages:
+  - **MAIN:** as before, plus **DECAY**: how long the tail rings, as a percentage of what TYPE and SIZE give (200% is twice as long, 50% half). It's a percentage rather than seconds so that switching TYPE still gives each space its own natural length. **Hover over the REVERB stomp to see the length in seconds.**
+  - **DECAY page:**
+    - **BASS RT and CROSSOVER:** below CROSSOVER, the lows ring longer (above 1.0x) or shorter (below 1.0x) than the rest. Real halls hold their lows longer; for a voice, shorter lows (around 0.7x) keep the reverb from muddying it.
+    - **ROLLOFF:** a high cut on the reverb's output, to take the sizzle off. Off at the top.
+  - **SPACE page:**
+    - **DIFFUSION:** how fast the first echoes melt into a smooth wash. Turn it down to hear them as separate repeats.
+    - **EARLY and REVERB:** the first reflections and the tail, each at its own level. All EARLY and no REVERB gives a tight, close room sound.
+    - **SPREAD and SHAPE:** the sound fed into the reverb over a stretch of time (SPREAD, up to 300 ms) rather than all at once; SHAPE puts most of it early, evenly (50%) or late. With SHAPE high and DECAY short, the reverb builds and then stops: the gated sound of the 80s, or an inverse reverb.
+  - **MOTION page:** **SPIN** (how fast the tail's movement is) and **WANDER** (how far it moves). Less makes it still and pure, more makes it lush and chorused.
+- **New type: CHAMBER.** An echo chamber, the original studio reverb: a small, hard room that turns dense straight away with no slap off its walls. Shorter than a hall, smoother than a room; a classic on vocals.
+- The new controls work on Room, Hall, Cathedral, Plate, Digital, Reverse and Chamber. Classic and Spring keep their own sound (their controls on the new pages are greyed).
+- **Your rigs sound the same:** every new control starts where it changes nothing.
+- **Not built:** the LXP's individual echo and reflection editors, Tap Slope, and its moving display. TONE still does the job of its RT Hi Cut.
+
 ## 0.10.0
 
 - **A bigger DELAY, inspired by Waves H-Delay.** Our own design, following how its user guide describes it. The eight types (Digital, Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer, Ducking) stay, and every one of them gets the new controls. The DELAY panel now has three pages:

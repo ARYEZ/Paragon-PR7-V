@@ -1312,6 +1312,40 @@ TEST_CASE ("Delay repeats at the set time", "[effects][delay]")
     }
 }
 
+TEST_CASE ("Delay engine on its own: one echo, at the set time, at full level", "[effects][delay]")
+{
+    // The DELAY effect without the rest of the plugin, so a failure here
+    // (rather than only in the plugin tests) points at the engine itself.
+    effects::Delay delay;
+    delay.prepare (sampleRate, blockSize);
+    effects::Delay::Settings settings;
+    settings.on = true;
+    settings.syncIndex = 0;
+    settings.timeMs = 100.0f;
+    settings.feedback = 0.0f;
+    settings.mix = 1.0f;
+    CAPTURE (effects::Delay::delaySeconds (settings, 120.0), effects::Delay::delaySecondsRight (settings, 120.0));
+
+    juce::AudioBuffer<float> buffer (2, (int) (0.3 * sampleRate));
+    buffer.clear();
+    buffer.setSample (0, 0, 0.5f);
+    buffer.setSample (1, 0, 0.5f);
+    for (int start = 0; start < buffer.getNumSamples(); start += blockSize)
+    {
+        const auto count = juce::jmin (blockSize, buffer.getNumSamples() - start);
+        delay.process (juce::dsp::AudioBlock<float> (buffer).getSubBlock ((size_t) start, (size_t) count), settings, 120.0);
+    }
+    // Where the echo came, and how loud.
+    int loudest = 1;
+    for (int i = 1; i < buffer.getNumSamples(); ++i)
+        if (std::abs (buffer.getSample (0, i)) > std::abs (buffer.getSample (0, loudest)))
+            loudest = i;
+    CAPTURE (loudest, buffer.getSample (0, loudest), buffer.getSample (1, 4800));
+    CHECK (loudest == 4800);
+    CHECK_THAT (buffer.getSample (0, 4800), WithinAbs (0.5, 0.01));
+    CHECK_THAT (buffer.getSample (1, 4800), WithinAbs (0.5, 0.01));
+}
+
 TEST_CASE ("Delay: the controls inspired by H-Delay do what they say", "[effects][delay]")
 {
     const auto delayRig = [] (EffectRig& rig, float timeMs = 100.0f, float feedback = 0.0f)
@@ -1917,6 +1951,139 @@ TEST_CASE ("Reverb types: each is a stable stereo space of its own", "[effects][
         const auto mids = band (1200.0f);
         CHECK (mids > 4.0f * band (50.0f));
         CHECK (mids > 4.0f * band (12000.0f));
+    }
+}
+
+TEST_CASE ("Reverb: the controls inspired by Lexicon LXP do what they say", "[effects][reverb]")
+{
+    using ReverbType = effects::Reverb::Type;
+    const auto play = [] (ReverbType type, std::initializer_list<std::pair<const char*, float>> settings, const std::vector<float>& input)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::reverbOn, 1.0f);
+        rig.set (ParamIDs::reverbType, (float) type);
+        rig.set (ParamIDs::reverbMix, 1.0f);
+        rig.set (ParamIDs::reverbPreDelay, 0.0f);
+        for (const auto& [id, value] : settings)
+            rig.set (id, value);
+        return rig.run (input)[0];
+    };
+    // An octave band of a signal (around `hz`).
+    const auto band = [] (const std::vector<float>& samples, float hz)
+    {
+        juce::dsp::IIR::Filter<float> first, second;
+        first.coefficients = second.coefficients = juce::dsp::IIR::Coefficients<float>::makeBandPass (sampleRate, hz, 1.4f);
+        auto filtered = samples;
+        for (auto& sample : filtered)
+            sample = second.processSample (first.processSample (sample));
+        return filtered;
+    };
+    // Echo density: how many moments in a stretch have real sound in them
+    // (above a tenth of the stretch's loudest), as a share of the stretch.
+    const auto density = [] (const std::vector<float>& samples, double from, double to)
+    {
+        const auto start = (size_t) (from * sampleRate), end = (size_t) (to * sampleRate);
+        auto peak = 0.0f;
+        for (auto i = start; i < end; ++i)
+            peak = std::max (peak, std::abs (samples[i]));
+        int busy = 0;
+        for (auto i = start; i < end; ++i)
+            busy += std::abs (samples[i]) > 0.1f * peak ? 1 : 0;
+        return (double) busy / (double) (end - start);
+    };
+    // How long the tail takes to fall 60 dB, from how fast it falls between two moments.
+    const auto rt60 = [] (const std::vector<float>& samples, double from, double to)
+    {
+        const auto early = dB (rms (samples, from - 0.05, from + 0.05)), late = dB (rms (samples, to - 0.05, to + 0.05));
+        return 60.0 * (to - from) / (double) (early - late);
+    };
+
+    SECTION ("DECAY stretches the tail: 200% rings twice as long, and the stomp shows the seconds")
+    {
+        const auto normal = rt60 (play (ReverbType::hall, {}, impulse (4.0, 0.5f)), 0.3, 1.3);
+        const auto longer = rt60 (play (ReverbType::hall, { { ParamIDs::reverbDecay, 2.0f } }, impulse (4.0, 0.5f)), 0.3, 1.3);
+        CHECK_THAT (longer / normal, WithinAbs (2.0, 0.3));
+        CHECK_THAT (effects::Reverb::decaySeconds (ReverbType::hall, 0.5f, 2.0f), WithinAbs (2.0 * effects::Reverb::decaySeconds (ReverbType::hall, 0.5f), 1.0e-4));
+    }
+
+    SECTION ("BASS RT: the lows ring longer than the rest at 2x, and the mids don't change")
+    {
+        // CROSSOVER well above the lows measured, as you'd set it for them.
+        const auto hallWith = [&] (float bassRt) { return play (ReverbType::hall, { { ParamIDs::reverbBassRt, bassRt }, { ParamIDs::reverbCrossover, 800.0f } }, impulse (4.0, 0.5f)); };
+        const auto lowRt = [&] (float bassRt) { return rt60 (band (hallWith (bassRt), 100.0f), 0.3, 1.3); };
+        const auto midRt = [&] (float bassRt) { return rt60 (band (hallWith (bassRt), 3000.0f), 0.3, 1.3); };
+        CHECK_THAT (lowRt (2.0f) / lowRt (1.0f), WithinAbs (2.0, 0.3));
+        CHECK_THAT (midRt (2.0f) / midRt (1.0f), WithinAbs (1.0, 0.15));
+    }
+
+    SECTION ("ROLLOFF cuts the reverb's highs on the way out")
+    {
+        const auto at = [&] (float rolloff, float hz) { return rms (band (play (ReverbType::plate, { { ParamIDs::reverbRolloff, rolloff } }, impulse (1.0, 0.5f)), hz), 0.02, 0.6); };
+        CHECK (dB (at (1500.0f, 8000.0f) / at (effects::Reverb::rolloffOffHz, 8000.0f)) < -20.0f);
+        CHECK (dB (at (1500.0f, 300.0f) / at (effects::Reverb::rolloffOffHz, 300.0f)) > -3.0f);
+    }
+
+    SECTION ("EARLY and REVERB: the first reflections and the tail, each on its own")
+    {
+        // A room's reflections are its first 40 ms; its tail goes on long after.
+        const auto room = [&] (float early, float tail) { return play (ReverbType::room, { { ParamIDs::reverbEarly, early }, { ParamIDs::reverbLevel, tail } }, impulse (1.0, 0.5f)); };
+        const auto both = room (0.0f, 0.0f), tailOnly = room (effects::Reverb::levelOffDb, 0.0f), earlyOnly = room (0.0f, effects::Reverb::levelOffDb);
+        CHECK (rms (tailOnly, 0.003, 0.03) < 0.7f * rms (both, 0.003, 0.03));   // without them, the start is quieter
+        CHECK (rms (earlyOnly, 0.3, 0.6) < 1.0e-6f);                           // without the tail, nothing late
+        CHECK (rms (earlyOnly, 0.003, 0.03) > 1.0e-3f);                        // but the reflections still there
+    }
+
+    SECTION ("SPREAD and SHAPE: fed in across the window, early or late in it")
+    {
+        // When the first 400 ms's energy comes, on average.
+        const auto centre = [&] (float shape)
+        {
+            const auto output = play (ReverbType::hall, { { ParamIDs::reverbSpread, 250.0f }, { ParamIDs::reverbShape, shape },
+                                                          { ParamIDs::reverbDecay, 0.3f } }, impulse (0.6, 0.5f));
+            double weighted = 0.0, total = 0.0;
+            for (size_t i = 10; i < (size_t) (0.4 * sampleRate); ++i)
+            {
+                const auto energy = (double) output[i] * output[i];
+                weighted += energy * (double) i / sampleRate;
+                total += energy;
+            }
+            return weighted / total;
+        };
+        CHECK (centre (1.0f) > centre (0.0f) + 0.06);   // SHAPE late: the reverb builds, then stops (a gated sound)
+    }
+
+    SECTION ("DIFFUSION: less of it leaves the first echoes apart, as distinct clicks")
+    {
+        const auto busy = [&] (float diffusion) { return density (play (ReverbType::plate, { { ParamIDs::reverbDiffusion, diffusion } }, impulse (0.3, 0.5f)), 0.002, 0.06); };
+        CHECK (busy (1.25f) > 3.0 * busy (0.0f));
+    }
+
+    SECTION ("SPIN and WANDER move the tail; at 0 it holds still")
+    {
+        const auto still = play (ReverbType::digital, { { ParamIDs::reverbWander, 0.0f } }, impulse (1.5, 0.5f));
+        const auto moving = play (ReverbType::digital, { { ParamIDs::reverbWander, 4.0f }, { ParamIDs::reverbSpin, 3.0f } }, impulse (1.5, 0.5f));
+        REQUIRE (allFinite (moving));
+        std::vector<float> difference (still.size());
+        for (size_t i = 0; i < difference.size(); ++i)
+            difference[i] = moving[i] - still[i];
+        CHECK (rms (difference, 0.5, 1.4) > 0.3f * rms (still, 0.5, 1.4));
+    }
+
+    SECTION ("CHAMBER: dense at once, shorter than a hall")
+    {
+        const auto chamber = play (ReverbType::chamber, {}, impulse (2.0, 0.5f)), hall = play (ReverbType::hall, {}, impulse (2.0, 0.5f));
+        CHECK (density (chamber, 0.002, 0.04) > 1.5 * density (hall, 0.002, 0.04));   // a hall starts sparse
+        CHECK (rms (chamber, 1.4, 1.6) < rms (hall, 1.4, 1.6));
+    }
+
+    SECTION ("Classic and Spring don't take them")
+    {
+        for (const auto type : { ReverbType::classic, ReverbType::spring })
+        {
+            const auto plain = play (type, {}, impulse (0.8, 0.5f));
+            const auto set = play (type, { { ParamIDs::reverbDecay, 3.0f }, { ParamIDs::reverbRolloff, 1000.0f }, { ParamIDs::reverbSpread, 200.0f } }, impulse (0.8, 0.5f));
+            CHECK (maxAbsDifference (plain, set) < 1.0e-6f);
+        }
     }
 }
 

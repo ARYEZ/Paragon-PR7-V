@@ -376,7 +376,10 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (7, "REVERB", { ParamIDs::reverbOn }, reverbBlock, [this]
     {
-        return valueText (ParamIDs::reverbType) + "  Mix " + valueText (ParamIDs::reverbMix);
+        // The tail's length in seconds, from TYPE, SIZE and DECAY together (as LXP's display shows it).
+        const auto type = (effects::Reverb::Type) juce::roundToInt (rawValue (ParamIDs::reverbType));
+        const auto seconds = effects::Reverb::decaySeconds (type, rawValue (ParamIDs::reverbSize), rawValue (ParamIDs::reverbDecay));
+        return valueText (ParamIDs::reverbType) + "  " + juce::String (seconds, seconds < 10.0f ? 1 : 0) + " s  Mix " + valueText (ParamIDs::reverbMix);
     });
 
     addAndMakeVisible (pedal);   // first, so everything on the pedal sits on top of it
@@ -468,10 +471,24 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         { "MODULATION", { { ParamIDs::delayModDepth, "DEPTH" }, { ParamIDs::delayModRate, "RATE" } }, 2 },
         { "CHARACTER", { { ParamIDs::delayAnalog, "ANALOG" }, { ParamIDs::delayLoFi, "LO-FI" } }, 2 } });
     panels[delayBlock]->setPages ({ "MAIN", "STEREO", "COLOUR" });
+    // REVERB's four pages (since 0.11.0, with the controls inspired by the
+    // Lexicon LXP reverbs, for every type but Classic and Spring, which grey
+    // them out): MAIN; DECAY (BASS RT and its CROSSOVER, ROLLOFF); SPACE
+    // (DIFFUSION, the EARLY and REVERB levels, SPREAD and SHAPE); MOTION
+    // (SPIN and WANDER).
+    const auto lxp = [this] { return effects::Reverb::hasNetworkControls ((effects::Reverb::Type) juce::roundToInt (rawValue (ParamIDs::reverbType))); };
     panels[reverbBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "REVERB", { { ParamIDs::reverbOn, "ON" }, { ParamIDs::reverbType, "TYPE" }, { ParamIDs::reverbSize, "SIZE" },
+                      { ParamIDs::reverbDecay, "DECAY", lxp },
                       { ParamIDs::reverbPreDelay, "PRE-DELAY" }, { ParamIDs::reverbTone, "TONE" }, { ParamIDs::reverbMix, "MIX" },
-                      { ParamIDs::reverbDuck, "DUCK" } } } });
+                      { ParamIDs::reverbDuck, "DUCK" } } },
+        { "BASS", { { ParamIDs::reverbBassRt, "BASS RT", lxp }, { ParamIDs::reverbCrossover, "CROSSOVER", lxp } }, 1 },
+        { "OUTPUT", { { ParamIDs::reverbRolloff, "ROLLOFF", lxp } }, 1 },
+        { "DIFFUSION", { { ParamIDs::reverbDiffusion, "DIFFUSION", lxp } }, 2 },
+        { "LEVELS", { { ParamIDs::reverbEarly, "EARLY", lxp }, { ParamIDs::reverbLevel, "REVERB", lxp } }, 2 },
+        { "BUILD", { { ParamIDs::reverbSpread, "SPREAD", lxp }, { ParamIDs::reverbShape, "SHAPE", lxp } }, 2 },
+        { "MOTION", { { ParamIDs::reverbSpin, "SPIN", lxp }, { ParamIDs::reverbWander, "WANDER", lxp } }, 3 } });
+    panels[reverbBlock]->setPages ({ "MAIN", "DECAY", "SPACE", "MOTION" });
     // GLITCH's LENGTH is a time, or a note value while synced: the one that
     // applies shows.
     const auto glitchSynced = [this] { return rawValue (ParamIDs::glitchSync) > 0.5f; };

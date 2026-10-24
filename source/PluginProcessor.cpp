@@ -425,9 +425,26 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     delaySettings.analog = (effects::Delay::Analog) (int) param (ParamIDs::delayAnalog);
     delaySettings.loFi = isOn (ParamIDs::delayLoFi);
     delay.process (stereoBlock, delaySettings, getTempoBpm());
-    reverb.process (stereoBlock, { isOn (ParamIDs::reverbOn), (effects::Reverb::Type) (int) param (ParamIDs::reverbType),
-                                   param (ParamIDs::reverbSize), param (ParamIDs::reverbTone), param (ParamIDs::reverbMix) * morph,
-                                   param (ParamIDs::reverbPreDelay), param (ParamIDs::reverbDuck) });
+    effects::Reverb::Settings reverbSettings;
+    reverbSettings.on = isOn (ParamIDs::reverbOn);
+    reverbSettings.type = (effects::Reverb::Type) (int) param (ParamIDs::reverbType);
+    reverbSettings.size = param (ParamIDs::reverbSize);
+    reverbSettings.tone = param (ParamIDs::reverbTone);
+    reverbSettings.mix = param (ParamIDs::reverbMix) * morph;
+    reverbSettings.preDelayMs = param (ParamIDs::reverbPreDelay);
+    reverbSettings.duck = param (ParamIDs::reverbDuck);
+    reverbSettings.decay = param (ParamIDs::reverbDecay);
+    reverbSettings.bassRt = param (ParamIDs::reverbBassRt);
+    reverbSettings.crossoverHz = param (ParamIDs::reverbCrossover);
+    reverbSettings.rolloffHz = param (ParamIDs::reverbRolloff);
+    reverbSettings.diffusion = param (ParamIDs::reverbDiffusion);
+    reverbSettings.earlyDb = param (ParamIDs::reverbEarly);
+    reverbSettings.reverbDb = param (ParamIDs::reverbLevel);
+    reverbSettings.spreadMs = param (ParamIDs::reverbSpread);
+    reverbSettings.shape = param (ParamIDs::reverbShape);
+    reverbSettings.spin = param (ParamIDs::reverbSpin);
+    reverbSettings.wander = param (ParamIDs::reverbWander);
+    reverb.process (stereoBlock, reverbSettings);
 
     // LO-FI last, so the whole sound goes through the phone. Assigned to the
     // expression pedal, the pedal fades it in: full band at the heel, lo-fi at the toe.
