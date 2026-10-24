@@ -154,6 +154,24 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_BLOCK", {}); block.isNotEmpty())
         if (auto* chain = findType<SignalChain> (*editor))
             chain->onSelect (block.getIntValue());
+    // PARAGON_SNAPSHOT_PITCHVIEW=octave shows PITCH's OCTAVE / FREEZE view rather than HARMONY.
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PITCHVIEW", {}) == "octave")
+    {
+        std::vector<juce::TextButton*> buttons;
+        std::function<void (juce::Component&)> collect = [&] (juce::Component& parent)
+        {
+            for (auto* child : parent.getChildren())
+            {
+                if (auto* button = dynamic_cast<juce::TextButton*> (child))
+                    buttons.push_back (button);
+                collect (*child);
+            }
+        };
+        collect (*editor);
+        for (auto* button : buttons)
+            if (button->getButtonText() == "OCTAVE / FREEZE")
+                button->onClick();
+    }
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);
     editor->resized();

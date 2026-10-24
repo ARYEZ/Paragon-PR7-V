@@ -33,6 +33,9 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
     outputGainDb = parameters.getRawParameterValue (ParamIDs::outputGain);
     for (int band = 0; band < effects::GraphicEq::numBands; ++band)
         eqGainDb[(size_t) band] = parameters.getRawParameterValue (ParamIDs::eqBands[band]);
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (int part = 0; part < ParamIDs::harmonyVoiceParts.size(); ++part)
+            harmonyVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::harmonyVoice (voice, ParamIDs::harmonyVoiceParts[part]));
 
     rigLibrary = std::make_unique<RigLibrary>();
 
@@ -90,6 +93,8 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     limiter.reset (param (ParamIDs::outputLimiter));
     graphicEq.prepare (sampleRate, preparedBlockSize);
     doubler.prepare (sampleRate, preparedBlockSize);
+    harmony.prepare (sampleRate, preparedBlockSize);
+    cleanVoice.setSize (1, preparedBlockSize);
     modulation.prepare (sampleRate, preparedBlockSize);
     delay.prepare (sampleRate, preparedBlockSize);
     reverb.prepare (sampleRate, preparedBlockSize);
@@ -244,6 +249,7 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     // (above all the compressor) reacts to them. The INPUT meter, just
     // before, shows what the mic sends, for setting the gain.
     lowCut.process (monoBlock, param (ParamIDs::inputLowCut));
+    cleanVoice.copyFrom (0, 0, mono, numSamples);   // for HARMONY to read the sung note from
 
     // PITCH: TUNING, OCTAVER and FREEZE, before the effects shape the voice.
     pitchBlock.process (monoBlock, { param (ParamIDs::pitchTune), isOn (ParamIDs::octOn), param (ParamIDs::octSubTwo),
@@ -322,6 +328,31 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     // to each effect's own MIX setting at the toe. (The effects smooth their
     // mix, so sweeping the pedal doesn't click.)
     const auto morph = expressionTarget == ExpressionTargets::morph ? pedal : 1.0f;
+
+    // HARMONY: voices made from the processed voice (so they share its
+    // tone), in the key read from the clean one.
+    effects::Harmony::Settings harmonySettings;
+    harmonySettings.on = isOn (ParamIDs::harmonyOn);
+    harmonySettings.key = (int) param (ParamIDs::harmonyKey);
+    harmonySettings.scale = (Scales::Scale) (int) param (ParamIDs::harmonyScale);
+    harmonySettings.sourceDb = param (ParamIDs::harmonySource);
+    harmonySettings.harmonyDb = param (ParamIDs::harmonyLevel);
+    harmonySettings.correctFormant = param (ParamIDs::harmonyCorrectFormant);
+    harmonySettings.spread = param (ParamIDs::harmonySpread);
+    for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
+    {
+        const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
+        auto& voice = harmonySettings.voices[v];
+        voice.active = parts[0]->load() > 0.5f;
+        voice.on = parts[1]->load() > 0.5f;
+        voice.semitones = parts[2]->load();
+        voice.cents = parts[3]->load();
+        voice.formant = parts[4]->load();
+        voice.correct = parts[5]->load() > 0.5f;
+        voice.pan = parts[6]->load();
+        voice.levelDb = parts[7]->load();
+    }
+    harmony.process (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings);
 
     doubler.process (stereoBlock, { isOn (ParamIDs::doublerOn), param (ParamIDs::doublerRate), param (ParamIDs::doublerDepth),
                                     param (ParamIDs::doublerMix) * morph });

@@ -12,6 +12,7 @@
 #include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/GraphicEq.h"
+#include "dsp/effects/Harmony.h"
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
@@ -156,6 +157,8 @@ public:
     LevelMeterSource& getInputMeter() noexcept { return inputMeter; }
     // How hard the compressor is working (dB, 0 or less), for its meter.
     float getCompGainReductionDb() const noexcept { return compGate.getGainReductionDb(); }
+    // The note HARMONY hears being sung (a MIDI number), or -1 between notes. For its panel.
+    float getHarmonySungNote() const noexcept { return harmony.getSungNote(); }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -220,6 +223,11 @@ private:
     effects::FilterPitch filterPitch;   // after the compressor, before the drive
     effects::Drive drive;
     effects::Presence presence;
+    effects::Harmony harmony;   // HARMONY: first in the stereo part, before the doubler
+    juce::AudioBuffer<float> cleanVoice;   // the voice just after LOW CUT, for HARMONY to read the note from
+    // HARMONY's eight voices' settings, looked up once rather than by name every block.
+    struct HarmonyVoiceParameters { std::atomic<float>* parts[8] {}; };
+    std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
     effects::Doubler doubler;
     effects::Modulation modulation;
     effects::Delay delay;

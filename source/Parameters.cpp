@@ -7,6 +7,7 @@
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
+#include "dsp/effects/Harmony.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
@@ -33,17 +34,12 @@ namespace
         return (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
     };
     const ToText asRatio = [] (float value, int) { return juce::String (value, 1) + ":1"; };
-    // TUNING: the key a standard-tuned guitar ends up in, or a capo.
+    // TUNING: how far the whole voice is shifted, in semitones. (PR7-G
+    // showed guitar tunings here: "E standard", "Capo 2"...)
     const ToText asTuning = [] (float value, int)
     {
         const auto semitones = juce::roundToInt (value);
-        if (semitones == 0)
-            return juce::String ("E standard");
-        if (semitones > 0)
-            return "Capo " + juce::String (semitones);
-        const char* keys[] = { "Eb", "D", "C#", "C", "B", "Bb", "A", "Ab", "G", "F#", "F", "E (-1 oct)" };
-        const auto key = juce::String (keys[juce::jlimit (0, 11, -semitones - 1)]);
-        return semitones == -12 ? key : key + " (" + juce::String (semitones) + ")";
+        return (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
     };
     const ToText asLowCut = [] (float hz, int)
     {
@@ -271,6 +267,48 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::deessFreq, "De-Esser Frequency", skewed (2000.0f, 12000.0f, 6000.0f, 10.0f), 6000.0f, v28, asKHz));
     layout.add (makeFloat (ParamIDs::deessAmount, "De-Esser Amount", { 0.0f, 18.0f, 0.1f }, 6.0f, v28, asDb));
     layout.add (makeSwitch (ParamIDs::deessListen, "De-Esser Listen", v28, false));
+
+    // Added in plugin version 29: HARMONY. Off by default. Two voices are
+    // set up to start with, a third above on the left and a fifth above on
+    // the right: the classic three-part harmony.
+    constexpr int v29 = 29;
+    const ToText asLevel = [] (float db, int) { return db <= effects::Harmony::silentDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+    const ToText asInterval = [] (float semitones, int)
+    {
+        const auto value = juce::roundToInt (semitones);
+        return value == 0 ? juce::String ("U") : (value > 0 ? "+" : "") + juce::String (value);   // U: unison, as Waves Harmony shows it
+    };
+    const ToText asCents = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)) + " ct"; };
+    const ToText asPan = [] (float pan, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+        return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+    };
+    const ToText asSemitoneShift = [] (float semitones, int) { return (semitones > 0.0f ? "+" : "") + juce::String (semitones, 1) + " st"; };
+    layout.add (makeSwitch (ParamIDs::harmonyOn, "Harmony On", v29, false));
+    layout.add (makeChoice (ParamIDs::harmonyKey, "Harmony Key", v29, Scales::keyNames, 0));
+    layout.add (makeChoice (ParamIDs::harmonyScale, "Harmony Scale", v29, Scales::scaleNames, (int) Scales::Scale::major));
+    layout.add (makeFloat (ParamIDs::harmonySource, "Harmony Source", { effects::Harmony::silentDb, 6.0f, 0.1f }, 0.0f, v29, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyLevel, "Harmony Level", { effects::Harmony::silentDb, 6.0f, 0.1f }, 0.0f, v29, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyCorrectFormant, "Harmony Correct Formant", { 0.0f, 1.0f, 0.01f }, 1.0f, v29, asPercent));
+    layout.add (makeFloat (ParamIDs::harmonySpread, "Harmony Spread", { 0.0f, 1.0f, 0.01f }, 1.0f, v29, asPercent));
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::harmonyVoice (voice, part); };
+        const auto name = "Harmony " + juce::String (voice + 1) + " ";
+        const auto starts = voice < 2;
+        layout.add (makeSwitch (id ("Active").toRawUTF8(), name + "Active", v29, starts));
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v29, true));
+        layout.add (makeFloat (id ("Pitch").toRawUTF8(), name + "Pitch", { -24.0f, 24.0f, 1.0f },
+                               voice == 0 ? 4.0f : voice == 1 ? 7.0f : 0.0f, v29, asInterval));
+        layout.add (makeFloat (id ("Fine").toRawUTF8(), name + "Fine", { -50.0f, 50.0f, 1.0f }, 0.0f, v29, asCents));
+        layout.add (makeFloat (id ("Formant").toRawUTF8(), name + "Formant", { -12.0f, 12.0f, 0.1f }, 0.0f, v29, asSemitoneShift));
+        layout.add (makeSwitch (id ("Correct").toRawUTF8(), name + "Correct", v29, true));
+        layout.add (makeFloat (id ("Pan").toRawUTF8(), name + "Pan", { -1.0f, 1.0f, 0.01f },
+                               voice == 0 ? -0.5f : voice == 1 ? 0.5f : 0.0f, v29, asPan));
+        layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Harmony::silentDb, 6.0f, 0.1f },
+                               starts ? -3.0f : 0.0f, v29, asLevel));
+    }
     return layout;
 }
 

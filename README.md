@@ -29,7 +29,8 @@ descriptions below still talk about guitar.
 | V1 | PR7-V: its own plugin; LOW CUT for the mic; seven stomps, no amp or cabinet | ✅ Done |
 | V2 | Master limiter by OUTPUT | ✅ Done |
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
-| V4 | Harmony in PITCH, inspired by Waves Harmony | Next |
+| V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
+| V5 | Harmony: CORRECT (pitch correction), Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -38,7 +39,7 @@ descriptions below still talk about guitar.
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
-  delay → reverb → lo-fi → output → limiter. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has two TYPEs:
     **Classic** (threshold, ratio, level) and **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
     DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL. The panel shows a
@@ -54,9 +55,23 @@ descriptions below still talk about guitar.
     "take" each side, each a little late and drifting slowly in timing and pitch. RATE is how quickly the takes drift,
     DEPTH how loose they are, MIX how loud. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects
     move to this stomp by themselves.)
-  - **4 Pitch:** the stomp switches the **OCTAVER**, which blends two octaves down, one down, the dry voice and one up.
-    In its panel, **TUNING** shifts everything -12 to +12 semitones, and **FREEZE** (its own switch) holds what you just
-    sang as an endless pad you can sing over (with LEVEL, ATTACK and RELEASE).
+  - **4 Pitch:** **HARMONY** (inspired by Waves Harmony) and the octaver. The stomp brings back whichever were on; its
+    first press switches on HARMONY. Its panel has two views:
+    - **HARMONY:** up to eight harmony voices made from your own voice, kept in the song's **KEY** and **SCALE** (set these
+      first; they stay put when you change rigs). **SINGING** shows the note it hears. On the **graph** each voice is a dot
+      with its interval (+4 a third up, +7 a fifth, U unison): left to right is its pan, bottom to top its level. Click an
+      empty spot to add a voice, drag to move it, scroll over it to change its interval, right-click to remove it; the
+      tabs **1-8** pick a voice (or add one in the middle). For the picked voice: **ON**, **CORRECT** (keep it in the key:
+      when the exact interval isn't in the key, it takes the in-key one of the same kind, a third stays a third),
+      **PITCH** (-24 to +24 semitones), **FINE** (cents) and **FORMANT** (the voice's character: lower for a bigger
+      singer, higher for a smaller one, without changing the note). The mix: **SOURCE** (your own voice), **HARMONY** (all
+      the voices), **SPREAD** (stereo width) and **CORR. FORMANT** (100%: raised voices keep your vowels, like another
+      singer; 0%: they move with the pitch, like a sped-up tape). It starts with a third above on the left and a fifth
+      above on the right. The harmonies come out a few milliseconds after you (two vocal pulses: about 8 ms on a high
+      note to 25 ms on a low one); your own voice isn't delayed.
+    - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
+      one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
+      sing over (with LEVEL, ATTACK and RELEASE).
   - **5 Modulation:** ten types: chorus, flanger, phaser, tremolo, Dimension chorus, Uni-Vibe, rotary (Leslie),
     vibrato, harmonic tremolo and auto-pan. SYNC locks the rate to the tapped or DAW tempo.
   - **6 Delay:** syncs to your DAW's tempo (or set SYNC to Off for milliseconds), has a tone control for darker repeats,

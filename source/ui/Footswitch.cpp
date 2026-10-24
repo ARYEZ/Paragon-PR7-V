@@ -4,11 +4,12 @@
 #include "ParagonLookAndFeel.h"
 
 Footswitch::Footswitch (int numberToShow, const juce::String& nameToShow, juce::AudioProcessorValueTreeState& parametersToUse,
-                        juce::StringArray onParameterIdsToUse)
+                        juce::StringArray onParameterIdsToUse, juce::StringArray firstOnIdsToUse)
     : number (numberToShow),
       name (nameToShow),
       parameters (parametersToUse),
-      onParameterIds (std::move (onParameterIdsToUse))
+      onParameterIds (std::move (onParameterIdsToUse)),
+      firstOnIds (std::move (firstOnIdsToUse))
 {
     setTitle (name + " footswitch");
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
@@ -28,13 +29,26 @@ bool Footswitch::isAnyOn() const
 
 void Footswitch::toggle()
 {
-    const auto newValue = isAnyOn() ? 0.0f : 1.0f;
+    juce::StringArray turnOn;
+    if (isAnyOn())
+    {
+        // Off: remember what was on, to bring exactly that back.
+        wereOn.clear();
+        for (const auto& id : onParameterIds)
+            if (parameters.getRawParameterValue (id)->load() > 0.5f)
+                wereOn.add (id);
+    }
+    else
+    {
+        turnOn = ! wereOn.isEmpty() ? wereOn : ! firstOnIds.isEmpty() ? firstOnIds : onParameterIds;
+    }
+
     for (const auto& id : onParameterIds)
     {
         auto* parameter = parameters.getParameter (id);
         // Begin/end tell the DAW this is one user action, for automation recording.
         parameter->beginChangeGesture();
-        parameter->setValueNotifyingHost (newValue);
+        parameter->setValueNotifyingHost (turnOn.contains (id) ? 1.0f : 0.0f);
         parameter->endChangeGesture();
     }
     refresh();

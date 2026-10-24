@@ -7,16 +7,19 @@
 // pad turns the block on or off; clicking the name selects the block so its
 // knobs show in the edit panel.
 //
-// A footswitch can control several on/off parameters at once (footswitch 4
-// controls both delay and reverb). If any of them is on, the LED is lit and
-// pressing turns them all off; otherwise pressing turns them all on.
+// A footswitch can control several on/off parameters at once (DYNAMICS:
+// the compressor and the de-esser; PITCH: harmony and the octaver). If any
+// of them is on, the LED is lit and pressing turns them all off,
+// remembering which were on; pressing again turns those back on. With
+// nothing remembered (the first press), it turns on `firstOnIds`, or all of
+// them if that's empty.
 class Footswitch final : public juce::Component,
                          public juce::SettableTooltipClient,
                          private juce::Timer
 {
 public:
     Footswitch (int number, const juce::String& name, juce::AudioProcessorValueTreeState& parameters,
-                juce::StringArray onParameterIds);
+                juce::StringArray onParameterIds, juce::StringArray firstOnIds = {});
 
     // Returns the text under the name, e.g. "Drive 5.0  Tone 5.0".
     std::function<juce::String()> describe;
@@ -39,7 +42,8 @@ private:
     int number;
     juce::String name;
     juce::AudioProcessorValueTreeState& parameters;
-    juce::StringArray onParameterIds;
+    juce::StringArray onParameterIds, firstOnIds;
+    juce::StringArray wereOn;   // what was on when it was last switched off
     bool selected = false, lastOn = false;
     juce::String summary;
     juce::Rectangle<int> ledArea, switchArea, nameArea;

@@ -154,13 +154,28 @@ namespace ParamIDs
     inline constexpr auto deessAmount = "deessAmount";   // dB: the most it turns the esses down
     inline constexpr auto deessListen = "deessListen";   // hear only what's taken away
 
+    // Version 29: HARMONY, on the PITCH stomp (inspired by Waves Harmony).
+    inline constexpr auto harmonyOn             = "harmonyOn";
+    inline constexpr auto harmonyKey            = "harmonyKey";            // C to B
+    inline constexpr auto harmonyScale          = "harmonyScale";
+    inline constexpr auto harmonySource         = "harmonySource";         // dB: the singer's own voice
+    inline constexpr auto harmonyLevel          = "harmonyLevel";          // dB: all the harmony voices
+    inline constexpr auto harmonyCorrectFormant = "harmonyCorrectFormant"; // 0 to 1
+    inline constexpr auto harmonySpread         = "harmonySpread";         // 0 to 1
+    // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
+    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
+    inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the
     // pedal is assigned to, and its range, are saved with each rig. LOW CUT
     // goes with INPUT: it's set for your microphone and room, not a sound.
-    // LIMITER goes with OUTPUT, for the same reason.
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter };
+    // LIMITER goes with OUTPUT, for the same reason. HARMONY's KEY and SCALE
+    // belong to the song, not the sound, so a rig change keeps them (as
+    // Waves Harmony's lock does).
+    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
+                                               harmonyKey, harmonyScale };
 }
 
 namespace ExpressionTargets

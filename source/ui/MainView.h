@@ -7,6 +7,7 @@
 #include "ui/EffectPanel.h"
 #include "ui/Finish.h"
 #include "ui/GraphicEqPanel.h"
+#include "ui/HarmonyPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/LedDisplay.h"
 #include "ui/LevelMeter.h"
@@ -160,6 +161,11 @@ private:
     ExpressionPanel expressionPanel;
     std::array<std::unique_ptr<EffectPanel>, numBlocks> panels;   // empty at eqBlock: the EQ has its own panel
     GraphicEqPanel eqPanel;
+    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE (the
+    // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
+    HarmonyPanel harmonyPanel;
+    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
+    bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default
     SignalChain signalChain;
     int selectedBlock = eqBlock;

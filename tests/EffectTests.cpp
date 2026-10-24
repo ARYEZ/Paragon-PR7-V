@@ -1473,6 +1473,15 @@ TEST_CASE ("Full chain runs comfortably faster than real time", "[effects][perfo
     rig.set (ParamIDs::fpType, (float) effects::FilterPitch::Type::pitchShifter);
     rig.set (ParamIDs::fpInterval, 24.0f);
     rig.set (ParamIDs::modType, (float) effects::Modulation::Type::rotary);
+    // HARMONY with all eight voices, the highest two octaves up (each laid
+    // down from the most overlapping slices).
+    rig.set (ParamIDs::harmonyOn, 1.0f);
+    const float intervals[] = { 4, 7, 12, -12, 16, 19, 24, -5 };
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        rig.set (ParamIDs::harmonyVoice (voice, "Active").toRawUTF8(), 1.0f);
+        rig.set (ParamIDs::harmonyVoice (voice, "Pitch").toRawUTF8(), intervals[voice]);
+    }
 
     const auto input = sine (220.0, 0.3f, 5.0);
     const auto startMs = juce::Time::getMillisecondCounterHiRes();
@@ -2008,5 +2017,221 @@ TEST_CASE ("DE-ESSER: turns the esses down and leaves the vowels alone", "[effec
         rig.set (ParamIDs::deessAmount, 18.0f);   // set up, but switched off
         const auto input = ess (0.3);
         CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+    }
+}
+
+namespace
+{
+    // A sung vowel: a note at `hz` with its overtones up to 4 kHz, shaped
+    // by one vocal resonance (formant) at `formantHz`, as a voice's are.
+    std::vector<float> sungVowel (double hz, double seconds, double formantHz = 800.0)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (int harmonic = 1; harmonic * hz < 4000.0; ++harmonic)
+        {
+            const auto f = harmonic * hz;
+            const auto amplitude = (float) (0.05 * (0.06 + 1.0 / (1.0 + std::pow ((f - formantHz) / 180.0, 2.0))));
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += amplitude * (float) std::sin (juce::MathConstants<double>::twoPi * f * (double) i / sampleRate + harmonic);
+        }
+        return samples;
+    }
+
+    // The pitch of the last part of a signal, in Hz (0 if there's no clear note).
+    double pitchOf (const std::vector<float>& samples)
+    {
+        PitchDetector detector { 60.0, 1100.0 };
+        detector.prepare (sampleRate);
+        const auto length = detector.windowSizeAtHostRate();
+        const auto result = detector.detect (samples.data() + (samples.size() - (size_t) length), length);
+        return result.has_value() ? result->frequency : 0.0;
+    }
+
+    double centsBetween (double hz, double reference) { return 1200.0 * std::log2 (hz / reference); }
+
+    // A rig with HARMONY on, only voice 1 sounding (in the middle, at 0 dB),
+    // and the singer's own voice turned off, so the output is voice 1 alone.
+    struct HarmonyRig : EffectRig
+    {
+        HarmonyRig (float semitones, int key = 0, Scales::Scale scale = Scales::Scale::major)
+        {
+            set (ParamIDs::harmonyOn, 1.0f);
+            set (ParamIDs::harmonySource, effects::Harmony::silentDb);
+            set (ParamIDs::harmonyKey, (float) key);
+            set (ParamIDs::harmonyScale, (float) scale);
+            setVoice ("Pitch", semitones);
+            setVoice ("Pan", 0.0f);
+            setVoice ("Level", 0.0f);
+            set (ParamIDs::harmonyVoice (1, "Active").toRawUTF8(), 0.0f);
+        }
+        void setVoice (const char* part, float value, int voice = 0) { set (ParamIDs::harmonyVoice (voice, part).toRawUTF8(), value); }
+    };
+}
+
+TEST_CASE ("HARMONY: voices sing the interval, corrected into the key", "[effects][harmony]")
+{
+    const auto harmonyOf = [] (HarmonyRig& rig, double sungHz) { return pitchOf (rig.run (sungVowel (sungHz, 1.0))[0]); };
+    const auto A3 = 220.0, D3 = 146.832, E4 = 329.628, F3 = 174.614, Fsharp3 = 184.997;
+
+    SECTION ("A fifth up (+7) on an A, in C major, is the E above")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), E4)) < 5.0);
+    }
+
+    SECTION ("+4 on a D in C major: F#, the major third, isn't in the key, so it sings F, the minor third")
+    {
+        HarmonyRig rig (4.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), F3)) < 5.0);
+    }
+
+    SECTION ("The same +4 on a D in A major (F# is in the key) sings F#")
+    {
+        HarmonyRig rig (4.0f, 9 /* A */);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), Fsharp3)) < 5.0);
+    }
+
+    SECTION ("CORRECT off: exactly +4, whatever the key")
+    {
+        HarmonyRig rig (4.0f);
+        rig.setVoice ("Correct", 0.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), Fsharp3)) < 5.0);
+    }
+
+    SECTION ("A singer 20 cents flat gets a harmony in tune; uncorrected, it's as flat as they are")
+    {
+        const auto flatA = A3 * std::pow (2.0, -20.0 / 1200.0);
+        HarmonyRig corrected (7.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (corrected, flatA), E4)) < 5.0);
+
+        HarmonyRig free (7.0f);
+        free.setVoice ("Correct", 0.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (free, flatA), E4) + 20.0) < 5.0);
+    }
+
+    SECTION ("FINE adds cents on top")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Fine", 30.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), E4) - 30.0) < 5.0);
+    }
+
+    SECTION ("Down an octave (-12)")
+    {
+        HarmonyRig rig (-12.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), A3 / 2.0)) < 5.0);
+    }
+}
+
+TEST_CASE ("HARMONY: a raised voice keeps its vowel (formants), unless CORRECT FORMANT is turned down", "[effects][harmony]")
+{
+    // Where a voice's resonance (its formant: what makes an "ah" an "ah")
+    // sits: the frequency of its loudest overtone. The test vowel's is
+    // built at 800 Hz.
+    const auto resonanceOf = [] (const std::vector<float>& samples, double hz)
+    {
+        auto loudest = 0.0f;
+        auto where = 0.0;
+        for (int harmonic = 1; harmonic * hz < 4000.0; ++harmonic)
+            if (const auto level = levelAt (samples, harmonic * hz, 0.4); level > loudest)
+            {
+                loudest = level;
+                where = harmonic * hz;
+            }
+        return where;
+    };
+
+    const auto sung = 150.0, raised = 150.0 * std::pow (2.0, 7.0 / 12.0);   // a fifth up: 224.7 Hz
+    const auto input = sungVowel (sung, 1.0, 800.0);
+    INFO ("The sung vowel's resonance: " << resonanceOf (input, sung) << " Hz");
+
+    // CORRECT FORMANT at 100% (the default): the resonance stays near 800 Hz
+    // (its nearest overtones a fifth up are 674 and 899 Hz): a person singing
+    // a fifth higher.
+    HarmonyRig natural (7.0f);
+    natural.setVoice ("Correct", 0.0f);   // exactly +7, so the overtones are where we measure
+    const auto kept = resonanceOf (natural.run (input)[0], raised);
+    CHECK (kept > 650.0);
+    CHECK (kept < 950.0);
+
+    // At 0%: the resonance moves up with the pitch, to about 1200 Hz: a sped-up tape.
+    HarmonyRig chipmunk (7.0f);
+    chipmunk.setVoice ("Correct", 0.0f);
+    chipmunk.set (ParamIDs::harmonyCorrectFormant, 0.0f);
+    CHECK (resonanceOf (chipmunk.run (input)[0], raised) > 1050.0);
+
+    // FORMANT down a fifth: the resonance moves down to about 530 Hz: a bigger singer, same note.
+    HarmonyRig deeper (7.0f);
+    deeper.setVoice ("Correct", 0.0f);
+    deeper.setVoice ("Formant", -7.0f);
+    CHECK (resonanceOf (deeper.run (input)[0], raised) < 600.0);
+}
+
+TEST_CASE ("HARMONY: levels, pan, source and switching off", "[effects][harmony]")
+{
+    const auto input = sungVowel (220.0, 1.0);
+
+    SECTION ("Off, the voice comes through exactly as it went in")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::harmonyLevel, 6.0f);   // set up, but switched off
+        const auto output = rig.run (input);
+        CHECK (maxAbsDifference (input, output[0]) < 1.0e-6f);
+        CHECK (maxAbsDifference (input, output[1]) < 1.0e-6f);
+    }
+
+    SECTION ("On with every voice silent, SOURCE at 0 dB is exactly the voice")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::harmonyOn, 1.0f);
+        rig.set (ParamIDs::harmonyLevel, effects::Harmony::silentDb);
+        CHECK (maxAbsDifference (input, rig.run (input)[0], (size_t) (0.05 * sampleRate)) < 1.0e-5f);
+    }
+
+    SECTION ("A voice panned hard left is only on the left")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Pan", -1.0f);
+        const auto output = rig.run (input);
+        CHECK (rms (output[0], 0.3) > 0.01f);
+        CHECK (rms (output[1], 0.3) < 1.0e-4f);
+    }
+
+    SECTION ("A voice's LEVEL, and HARMONY's overall level, set its loudness")
+    {
+        const auto loudness = [&input] (float voiceDb, float harmonyDb)
+        {
+            HarmonyRig rig (7.0f);
+            rig.setVoice ("Level", voiceDb);
+            rig.set (ParamIDs::harmonyLevel, harmonyDb);
+            return rms (rig.run (input)[0], 0.3);
+        };
+        const auto full = loudness (0.0f, 0.0f);
+        CHECK_THAT (dB (loudness (-6.0f, 0.0f) / full), WithinAbs (-6.0, 0.5));
+        CHECK_THAT (dB (loudness (0.0f, -10.0f) / full), WithinAbs (-10.0, 0.5));
+    }
+
+    SECTION ("A raised voice is about as loud as the singer")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK_THAT (dB (rms (rig.run (input)[0], 0.3) / rms (input, 0.3)), WithinAbs (0.0, 3.0));
+    }
+
+    SECTION ("Breath and consonants (no note) come through safely at the singer's pitch")
+    {
+        HarmonyRig rig (7.0f);
+        juce::Random random (42);
+        std::vector<float> breath ((size_t) sampleRate / 2);
+        for (auto& sample : breath)
+            sample = 0.1f * (random.nextFloat() * 2.0f - 1.0f);
+        const auto output = rig.run (breath)[0];
+        CHECK (allFinite (output));
+        CHECK (rms (output, 0.2) < 2.0f * rms (breath, 0.2));
+    }
+
+    SECTION ("The singer's own voice still has no delay: the plugin reports none")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK (rig.processor.getLatencySamples() == 0);
     }
 }

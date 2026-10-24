@@ -188,8 +188,10 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       selectedRig (processorToShow),
       expressionPanel (processorToShow.getParameters()),
       eqPanel (processorToShow.getParameters()),
+      harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); }),
       signalChain (processorToShow.getParameters(), {
-          { "PITCH", Icons::Type::pitch, ParagonColours::pitch, juce::String (ParamIDs::octOn) + "," + ParamIDs::freezeOn },
+          { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
+            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
           { "DYNAMICS", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
           { "DE-ESS", Icons::Type::deEsser, ParagonColours::deEsser, ParamIDs::deessOn },
           { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::filterPitch, ParamIDs::fpOn },
@@ -308,10 +310,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // the top row shapes the voice, the bottom row adds to it. (PITCH works
     // first in the sound, where it tracks the clean voice best: see the
     // processor.)
-    const auto addStomp = [this, &state] (int number, const char* name, juce::StringArray onIds, int block, std::function<juce::String()> describe)
+    const auto addStomp = [this, &state] (int number, const char* name, juce::StringArray onIds, int block,
+                                          std::function<juce::String()> describe, juce::StringArray firstOn = {})
     {
         auto& footswitch = footswitches[(size_t) number - 1];
-        footswitch = std::make_unique<Footswitch> (number, name, state, std::move (onIds));
+        footswitch = std::make_unique<Footswitch> (number, name, state, std::move (onIds), std::move (firstOn));
         footswitch->describe = std::move (describe);
         footswitch->onSelect = [this, block] { selectBlock (block); };
         footswitch->refresh();
@@ -336,12 +339,18 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     {
         return "Mix " + valueText (ParamIDs::doublerMix) + "  Depth " + valueText (ParamIDs::doublerDepth);
     });
-    // The octaver for now; FREEZE has its own switch in the panel (one
-    // press turning both on at once would hold a note by surprise).
-    addStomp (4, "PITCH", { ParamIDs::octOn }, pitchBlock, [this]
+    // HARMONY and the octaver; it brings back whichever were on, and the
+    // first time, HARMONY. FREEZE has its own switch in the panel (a press
+    // turning it on too would hold a note by surprise).
+    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn }, pitchBlock, [this]
     {
-        return "1 Down " + valueText (ParamIDs::octSubOne) + "  1 Up " + valueText (ParamIDs::octUp);
-    });
+        juce::StringArray parts;
+        if (rawValue (ParamIDs::harmonyOn) > 0.5f)
+            parts.add ("Harmony " + valueText (ParamIDs::harmonyKey) + " " + valueText (ParamIDs::harmonyScale));
+        if (rawValue (ParamIDs::octOn) > 0.5f)
+            parts.add ("Octaver");
+        return parts.joinIntoString ("  ");
+    }, { ParamIDs::harmonyOn });
     addStomp (5, "MODULATION", { ParamIDs::modOn }, modBlock, [this]
     {
         return valueText (ParamIDs::modType) + "  " + valueText (rawValue (ParamIDs::modSync) > 0.5f ? ParamIDs::modSync : ParamIDs::modRate);
@@ -461,6 +470,18 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         addChildComponent (*panels[i]);
     }
     addChildComponent (eqPanel);
+    addChildComponent (harmonyPanel);
+    for (auto* view : { &harmonyView, &octaveView })
+    {
+        view->setClickingTogglesState (true);
+        view->setRadioGroupId (4211);
+        view->setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+        view->setColour (juce::TextButton::textColourOnId, ParagonColours::accent);   // the view showing, in orange
+        addChildComponent (*view);
+    }
+    harmonyView.setToggleState (true, juce::dontSendNotification);
+    harmonyView.onClick = [this] { pitchShowsHarmony = true; selectBlock (selectedBlock); };
+    octaveView.onClick = [this] { pitchShowsHarmony = false; selectBlock (selectedBlock); };
 
     closePanel.setTooltip ("Back to the graphic EQ");
     closePanel.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
@@ -518,8 +539,18 @@ void MainView::selectBlock (int block)
     const auto onProcessorPage = page == Page::processor;
     for (size_t i = 0; i < panels.size(); ++i)
         if (panels[i] != nullptr)
-            panels[i]->setVisible ((int) i == block && onProcessorPage);
+            panels[i]->setVisible ((int) i == block && onProcessorPage && ! (block == pitchBlock && pitchShowsHarmony));
     eqPanel.setVisible (block == eqBlock && onProcessorPage);
+    const auto showingPitch = block == pitchBlock && onProcessorPage;
+    harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
+    harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
+    octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
+    for (auto* view : { &harmonyView, &octaveView })
+    {
+        view->setVisible (showingPitch);
+        if (showingPitch)
+            view->toFront (false);
+    }
     closePanel.setVisible (block != eqBlock && onProcessorPage);
     if (block != eqBlock)
         closePanel.toFront (false);
@@ -816,6 +847,10 @@ void MainView::resized()
         if (panel != nullptr)
             panel->setBounds (summaryArea);
     eqPanel.setBounds (summaryArea);
+    harmonyPanel.setBounds (summaryArea);
+    // PITCH's view tabs sit in its header, after the icon and name.
+    harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
+    octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);
     closePanel.setBounds (summaryArea.withSizeKeepingCentre (0, 0).withX (summaryArea.getRight() - 130).withY (summaryArea.getY() + 10)
                               .withSize (118, 24));
     expressionPanel.setBounds (mock (1344, 568, 1662, 822));
