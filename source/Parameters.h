@@ -148,6 +148,12 @@ namespace ParamIDs
     // top setting is OFF.
     inline constexpr auto outputLimiter = "outputLimiter";   // the ceiling, dB
 
+    // Version 28: the DE-ESSER, in DYNAMICS after the compressor.
+    inline constexpr auto deessOn     = "deessOn";
+    inline constexpr auto deessFreq   = "deessFreq";     // Hz
+    inline constexpr auto deessAmount = "deessAmount";   // dB: the most it turns the esses down
+    inline constexpr auto deessListen = "deessListen";   // hear only what's taken away
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the

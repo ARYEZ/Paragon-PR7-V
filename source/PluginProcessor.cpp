@@ -81,6 +81,7 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     bypassAmount.setCurrentAndTargetValue (isOn (ParamIDs::bypass) ? 1.0f : 0.0f);
     compGate.prepare (sampleRate, preparedBlockSize);
     filterPitch.prepare (sampleRate, preparedBlockSize);
+    deEsser.prepare (sampleRate, preparedBlockSize);
     drive.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
     lowCut.prepare (sampleRate, preparedBlockSize);
@@ -258,6 +259,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
                                    param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
                                    (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
                                    param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity) });
+    // The de-esser after the compressor, whose make-up gain brings esses up.
+    deEsser.process (monoBlock, { isOn (ParamIDs::deessOn), param (ParamIDs::deessFreq), param (ParamIDs::deessAmount),
+                                  isOn (ParamIDs::deessListen) });
     // PITCH / WHAMMY: the pedal bends the pitch shifter from no shift at
     // the heel to its INTERVAL at the toe, like a DigiTech Whammy.
     // WHAMMY-WAH: the pedal plays the Whammy-Wah type. Unassigned, it rests at the heel.

@@ -262,6 +262,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // default, the usual safety margin under digital full scale.
     layout.add (makeFloat (ParamIDs::outputLimiter, "Limiter", { effects::Limiter::minCeilingDb, effects::Limiter::offDb, 0.1f },
                            -1.0f, 27, asCeiling));
+
+    // Added in plugin version 28: the DE-ESSER. Off by default. 6 kHz is
+    // where most esses sit; 6 dB is a firm but natural first setting.
+    constexpr int v28 = 28;
+    const ToText asKHz = [] (float hz, int) { return juce::String (hz / 1000.0f, 1) + " kHz"; };
+    layout.add (makeSwitch (ParamIDs::deessOn, "De-Esser On", v28, false));
+    layout.add (makeFloat (ParamIDs::deessFreq, "De-Esser Frequency", skewed (2000.0f, 12000.0f, 6000.0f, 10.0f), 6000.0f, v28, asKHz));
+    layout.add (makeFloat (ParamIDs::deessAmount, "De-Esser Amount", { 0.0f, 18.0f, 0.1f }, 6.0f, v28, asDb));
+    layout.add (makeSwitch (ParamIDs::deessListen, "De-Esser Listen", v28, false));
     return layout;
 }
 

@@ -1903,3 +1903,110 @@ TEST_CASE ("LIMITER: nothing leaves above the ceiling; normal levels are untouch
         CHECK (rig.processor.getLatencySamples() == 0);   // no look-ahead: nothing delays the voice
     }
 }
+
+namespace
+{
+    // A sung "ah" at 220 Hz: the note and its overtones up to about 3 kHz,
+    // each quieter than the last, as a voice's are. It fades in over 10 ms,
+    // as a sung note does: starting instantly would be a click, which is
+    // bright and sibilant enough for a de-esser to catch.
+    std::vector<float> vowel (double seconds, float level = 0.3f)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (int harmonic = 1; harmonic * 220.0 < 3000.0; ++harmonic)
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += level / (float) harmonic
+                            * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * harmonic * (double) i / sampleRate);
+        const auto fade = (size_t) (0.01 * sampleRate);
+        for (size_t i = 0; i < std::min (fade, samples.size()); ++i)
+            samples[i] *= 0.5f - 0.5f * (float) std::cos (juce::MathConstants<double>::pi * (double) i / (double) fade);
+        return samples;
+    }
+
+    // An "s": energy spread over the top, between about 6 and 10 kHz
+    // (shifted down to `lowestHz` and up from there for other voices).
+    std::vector<float> ess (double seconds, float level = 0.1f, double lowestHz = 6100.0)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (const auto hz : { lowestHz, lowestHz * 1.2, lowestHz * 1.34, lowestHz * 1.57 })
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += level * (float) std::sin (juce::MathConstants<double>::twoPi * hz * (double) i / sampleRate + hz);
+        return samples;
+    }
+}
+
+TEST_CASE ("DE-ESSER: turns the esses down and leaves the vowels alone", "[effects][deesser]")
+{
+    const auto deEssed = [] (const std::vector<float>& input, float amountDb = 6.0f, float frequencyHz = 6000.0f, bool listen = false)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::deessOn, 1.0f);
+        rig.set (ParamIDs::deessAmount, amountDb);
+        rig.set (ParamIDs::deessFreq, frequencyHz);
+        rig.set (ParamIDs::deessListen, listen ? 1.0f : 0.0f);
+        return rig.runMono (input);
+    };
+
+    SECTION ("A vowel comes through exactly as it went in")
+    {
+        const auto input = vowel (0.5);
+        CHECK (maxAbsDifference (input, deEssed (input, 18.0f)) < 1.0e-6f);
+    }
+
+    SECTION ("An ess is turned down by AMOUNT")
+    {
+        const auto input = ess (0.5);
+        for (const auto amount : { 6.0f, 12.0f })
+        {
+            INFO ("AMOUNT " << amount);
+            CHECK_THAT (dB (rms (deEssed (input, amount), 0.1) / rms (input, 0.1)), WithinAbs (-amount, 1.5));
+        }
+        CHECK_THAT (dB (rms (deEssed (input, 0.0f), 0.1) / rms (input, 0.1)), WithinAbs (0.0, 0.01));   // AMOUNT 0: nothing
+    }
+
+    SECTION ("It follows the singing: the ess in a phrase is turned down, the vowels either side aren't")
+    {
+        auto input = vowel (0.4);
+        const auto s = ess (0.2);
+        const auto after = vowel (0.4);
+        input.insert (input.end(), s.begin(), s.end());
+        input.insert (input.end(), after.begin(), after.end());
+        const auto output = deEssed (input, 10.0f);
+        CHECK_THAT (dB (rms (output, 0.45, 0.6) / rms (input, 0.45, 0.6)), WithinAbs (-10.0, 2.0));   // the ess
+        CHECK (maxAbsDifference (input, output) > 0.0f);
+        CHECK_THAT (dB (rms (output, 0.1, 0.38) / rms (input, 0.1, 0.38)), WithinAbs (0.0, 0.01));    // the vowel before
+        CHECK_THAT (dB (rms (output, 0.8, 1.0) / rms (input, 0.8, 1.0)), WithinAbs (0.0, 0.05));      // and after (once released)
+    }
+
+    SECTION ("It reacts the same to a quiet ess and a loud one")
+    {
+        CHECK_THAT (dB (rms (deEssed (ess (0.5, 0.01f)), 0.1) / rms (ess (0.5, 0.01f), 0.1)),
+                    WithinAbs (dB (rms (deEssed (ess (0.5, 0.2f)), 0.1) / rms (ess (0.5, 0.2f), 0.1)), 0.5));
+    }
+
+    SECTION ("FREQUENCY: set above a low ess it misses it; set below, it catches it")
+    {
+        const auto lowEss = ess (0.5, 0.1f, 3200.0);   // a lower, darker "sh"
+        CHECK (dB (rms (deEssed (lowEss, 12.0f, 11000.0f), 0.1) / rms (lowEss, 0.1)) > -3.0f);
+        CHECK (dB (rms (deEssed (lowEss, 12.0f, 2500.0f), 0.1) / rms (lowEss, 0.1)) < -8.0f);
+    }
+
+    SECTION ("LISTEN plays only what's taken away: the esses, and silence for the vowels")
+    {
+        const auto vowelHeard = deEssed (vowel (0.5), 6.0f, 6000.0f, true);
+        CHECK (rms (vowelHeard, 0.1) < 1.0e-5f);
+
+        // At 6 dB, half the ess's level is taken away, so that's what LISTEN plays.
+        const auto input = ess (0.5);
+        const auto essHeard = deEssed (input, 6.0f, 6000.0f, true);
+        CHECK_THAT (dB (rms (essHeard, 0.1) / rms (input, 0.1)), WithinAbs (-6.0, 2.0));
+    }
+
+    SECTION ("Off, it's exactly the input")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::deessAmount, 18.0f);   // set up, but switched off
+        const auto input = ess (0.3);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+    }
+}

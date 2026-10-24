@@ -28,7 +28,8 @@ descriptions below still talk about guitar.
 | 7 | Detail and polish pass against the mockup | ✅ Done |
 | V1 | PR7-V: its own plugin; LOW CUT for the mic; seven stomps, no amp or cabinet | ✅ Done |
 | V2 | Master limiter by OUTPUT | ✅ Done |
-| V3 | De-esser in DYNAMICS, harmony in PITCH | Next |
+| V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
+| V4 | Harmony in PITCH, inspired by Waves Harmony | Next |
 
 ## Using it
 
@@ -36,12 +37,15 @@ descriptions below still talk about guitar.
   **LOW CUT** under it is a high-pass filter, first in the chain (see below).
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
-  chain: low cut → pitch → dynamics → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
+  chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
   delay → reverb → lo-fi → output → limiter. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has two TYPEs:
     **Classic** (threshold, ratio, level) and **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
     DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL. The panel shows a
-    gain-reduction meter.
+    gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
+    after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
+    are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
+    what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
   - **2 Saturation:** four models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
     **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
     mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,

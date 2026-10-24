@@ -191,6 +191,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch, juce::String (ParamIDs::octOn) + "," + ParamIDs::freezeOn },
           { "DYNAMICS", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
+          { "DE-ESS", Icons::Type::deEsser, ParagonColours::deEsser, ParamIDs::deessOn },
           { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::filterPitch, ParamIDs::fpOn },
           { "SATURATION", Icons::Type::drive, ParagonColours::drive, ParamIDs::driveOn },
           { "EQ", Icons::Type::eq, ParagonColours::eq, ParamIDs::eqOn },
@@ -307,44 +308,49 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // the top row shapes the voice, the bottom row adds to it. (PITCH works
     // first in the sound, where it tracks the clean voice best: see the
     // processor.)
-    const auto addStomp = [this, &state] (int number, const char* name, const char* onId, int block, std::function<juce::String()> describe)
+    const auto addStomp = [this, &state] (int number, const char* name, juce::StringArray onIds, int block, std::function<juce::String()> describe)
     {
         auto& footswitch = footswitches[(size_t) number - 1];
-        footswitch = std::make_unique<Footswitch> (number, name, state, juce::StringArray { onId });
+        footswitch = std::make_unique<Footswitch> (number, name, state, std::move (onIds));
         footswitch->describe = std::move (describe);
         footswitch->onSelect = [this, block] { selectBlock (block); };
         footswitch->refresh();
     };
-    addStomp (1, "DYNAMICS", ParamIDs::compOn, compBlock, [this]
+    // DYNAMICS switches the compressor and the de-esser together, the usual
+    // pair on a voice; each also has its own ON in its panel (the
+    // de-esser's is the DE-ESS block in the signal chain, after DYNAMICS).
+    addStomp (1, "DYNAMICS", { ParamIDs::compOn, ParamIDs::deessOn }, compBlock, [this]
     {
         auto text = valueText (ParamIDs::compThreshold) + "  " + valueText (ParamIDs::compRatio);
         if (rawValue (ParamIDs::gateThreshold) > effects::CompGate::gateOffDb)
             text << "  + gate";
+        if (rawValue (ParamIDs::deessOn) > 0.5f)
+            text << "  + de-ess";
         return text;
     });
-    addStomp (2, "SATURATION", ParamIDs::driveOn, driveBlock, [this]
+    addStomp (2, "SATURATION", { ParamIDs::driveOn }, driveBlock, [this]
     {
         return valueText (ParamIDs::driveModel) + "  Drive " + valueText (ParamIDs::driveGain);
     });
-    addStomp (3, "DOUBLER", ParamIDs::doublerOn, doublerBlock, [this]
+    addStomp (3, "DOUBLER", { ParamIDs::doublerOn }, doublerBlock, [this]
     {
         return "Mix " + valueText (ParamIDs::doublerMix) + "  Depth " + valueText (ParamIDs::doublerDepth);
     });
     // The octaver for now; FREEZE has its own switch in the panel (one
     // press turning both on at once would hold a note by surprise).
-    addStomp (4, "PITCH", ParamIDs::octOn, pitchBlock, [this]
+    addStomp (4, "PITCH", { ParamIDs::octOn }, pitchBlock, [this]
     {
         return "1 Down " + valueText (ParamIDs::octSubOne) + "  1 Up " + valueText (ParamIDs::octUp);
     });
-    addStomp (5, "MODULATION", ParamIDs::modOn, modBlock, [this]
+    addStomp (5, "MODULATION", { ParamIDs::modOn }, modBlock, [this]
     {
         return valueText (ParamIDs::modType) + "  " + valueText (rawValue (ParamIDs::modSync) > 0.5f ? ParamIDs::modSync : ParamIDs::modRate);
     });
-    addStomp (6, "DELAY", ParamIDs::delayOn, delayBlock, [this]
+    addStomp (6, "DELAY", { ParamIDs::delayOn }, delayBlock, [this]
     {
         return valueText (ParamIDs::delayType) + "  " + valueText (rawValue (ParamIDs::delaySync) > 0.5f ? ParamIDs::delaySync : ParamIDs::delayTime);
     });
-    addStomp (7, "REVERB", ParamIDs::reverbOn, reverbBlock, [this]
+    addStomp (7, "REVERB", { ParamIDs::reverbOn }, reverbBlock, [this]
     {
         return valueText (ParamIDs::reverbType) + "  Mix " + valueText (ParamIDs::reverbMix);
     });
@@ -386,6 +392,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                           { ParamIDs::compLevel, "LEVEL" } } },
         { "NOISE GATE", { { ParamIDs::gateThreshold, "THRESHOLD" } } } });
     panels[compBlock]->setMeter ([this] { return audioProcessor.getCompGainReductionDb(); });
+    // The de-esser, after the compressor; the DYNAMICS stomp switches both.
+    panels[deEssBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
+        { "DE-ESSER", { { ParamIDs::deessOn, "ON" }, { ParamIDs::deessFreq, "FREQUENCY" }, { ParamIDs::deessAmount, "AMOUNT" },
+                        { ParamIDs::deessListen, "LISTEN" } } } });
+    panels[deEssBlock]->setMeter ([this] { return audioProcessor.getDeEsserReductionDb(); });
     const auto fpIs = [this] (effects::FilterPitch::Type type)
     {
         return [this, type] { return juce::roundToInt (rawValue (ParamIDs::fpType)) == (int) type; };
@@ -433,13 +444,14 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         { "LO-FI", { { ParamIDs::lofiOn, "ON" }, { ParamIDs::lofiType, "TYPE" }, { ParamIDs::lofiAmount, "AMOUNT" },
                      { ParamIDs::lofiNoise, "NOISE" }, { ParamIDs::lofiMix, "MIX" }, { ParamIDs::lofiLevel, "LEVEL" } } } });
     const std::pair<Icons::Type, juce::Colour> headers[] = {
-        { Icons::Type::pitch, ParagonColours::pitch }, { Icons::Type::comp, ParagonColours::comp }, { Icons::Type::filterPitch, ParagonColours::filterPitch },
+        { Icons::Type::pitch, ParagonColours::pitch }, { Icons::Type::comp, ParagonColours::comp },
+        { Icons::Type::deEsser, ParagonColours::deEsser }, { Icons::Type::filterPitch, ParagonColours::filterPitch },
         { Icons::Type::drive, ParagonColours::drive },
         { Icons::Type::eq, ParagonColours::eq }, { Icons::Type::glitch, ParagonColours::glitch },
         { Icons::Type::doubler, ParagonColours::doubler },
         { Icons::Type::modulation, ParagonColours::modulation }, { Icons::Type::delay, ParagonColours::delay },
         { Icons::Type::reverb, ParagonColours::reverb }, { Icons::Type::loFi, ParagonColours::loFi } };
-    const char* titles[] = { "PITCH", "DYNAMICS", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
+    const char* titles[] = { "PITCH", "DYNAMICS", "DE-ESSER", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
     static_assert (std::size (headers) == numBlocks && std::size (titles) == numBlocks);
     for (size_t i = 0; i < panels.size(); ++i)
     {
@@ -515,7 +527,7 @@ void MainView::selectBlock (int block)
     const int footswitchBlocks[] = { compBlock, driveBlock, doublerBlock, pitchBlock, modBlock, delayBlock, reverbBlock };
     static_assert (std::size (footswitchBlocks) == std::tuple_size_v<decltype (footswitches)>);
     for (size_t i = 0; i < footswitches.size(); ++i)
-        footswitches[i]->setSelected (footswitchBlocks[i] == block);
+        footswitches[i]->setSelected (footswitchBlocks[i] == block || (footswitchBlocks[i] == compBlock && block == deEssBlock));
 
     signalChain.setSelected (block);
 }

@@ -93,7 +93,7 @@ public:
 private:
     // The blocks in signal-chain order; footswitches, the chain strip and
     // the summary cards select these to show their knobs.
-    enum Block { pitchBlock, compBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
+    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
 
     enum class Page { processor, presets, settings };
 

@@ -119,13 +119,16 @@ void SignalChain::paint (juce::Graphics& g)
             g.fillRoundedRectangle (area.withTop (area.getBottom() + 3.0f).withHeight (3.0f).reduced (area.getWidth() * 0.2f, 0.0f), 1.5f);
         }
 
-        auto content = area.reduced (10.0f, 6.0f);
-        Icons::draw (g, block.icon, content.removeFromLeft (content.getHeight()).reduced (2.0f),
+        // With twelve blocks the strip is full: the icons give up a little
+        // room so the longest names (DYNAMICS, SATURATION) read in full.
+        const auto crowded = blocks.size() >= 12;
+        auto content = area.reduced (crowded ? 7.0f : 10.0f, 6.0f);
+        const auto iconSize = content.getHeight() * (crowded ? 0.72f : 1.0f);
+        Icons::draw (g, block.icon, content.removeFromLeft (iconSize).withSizeKeepingCentre (iconSize, iconSize).reduced (2.0f),
                      on ? block.colour : block.colour.withAlpha (0.35f), 1.6f, on);
-        content.removeFromLeft (6.0f);
+        content.removeFromLeft (crowded ? 4.0f : 6.0f);
         g.setColour (on ? ParagonColours::text : ParagonColours::textDim);
-        // Eleven blocks share the strip: names a touch smaller, and the
-        // longest (MODULATION) squeezed a little rather than cut off.
+        // Names a touch smaller, and the longest squeezed a little rather than cut off.
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawFittedText (block.name, content.toNearestInt(), juce::Justification::centredLeft, 2, 0.55f);
     }

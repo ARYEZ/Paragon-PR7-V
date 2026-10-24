@@ -6,6 +6,7 @@
 #include "dsp/InputTap.h"
 #include "dsp/TapTempo.h"
 #include "dsp/effects/CompGate.h"
+#include "dsp/effects/DeEsser.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
 #include "dsp/effects/Drive.h"
@@ -155,6 +156,8 @@ public:
     LevelMeterSource& getInputMeter() noexcept { return inputMeter; }
     // How hard the compressor is working (dB, 0 or less), for its meter.
     float getCompGainReductionDb() const noexcept { return compGate.getGainReductionDb(); }
+    // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
+    float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
     // How far the master LIMITER is turning the sound down (dB, 0 or less), for its light.
     float getLimiterReductionDb() const noexcept { return limiter.getReductionDb(); }
@@ -213,6 +216,7 @@ private:
     // -> reverb -> lo-fi. Up to the EQ it's mono; from the doubler on it's
     // stereo when the track is.
     effects::CompGate compGate;
+    effects::DeEsser deEsser;           // DYNAMICS' de-esser, after the compressor
     effects::FilterPitch filterPitch;   // after the compressor, before the drive
     effects::Drive drive;
     effects::Presence presence;

@@ -141,16 +141,16 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: ten EffectPanels, with the
-    // graphic EQ's own panel as block 4 (after SATURATION).
+    // The knob panels in signal-chain order: eleven EffectPanels, with the
+    // graphic EQ's own panel as block 5 (after SATURATION).
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 10);
+    REQUIRE (effectPanels.size() == 11);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
-    constexpr int eqIndex = 4;
+    constexpr int eqIndex = 5;
     panels.insert (panels.begin() + eqIndex, eqPanels[0]);
 
     const auto visiblePanel = [&]
@@ -188,7 +188,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     {
         return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX());   // reading order
     });
-    const int expectedBlocks[] = { 1, 3, 6, 0, 7, 8, 9 };
+    const int expectedBlocks[] = { 1, 4, 7, 0, 8, 9, 10 };
     for (size_t i = 0; i < footswitches.size(); ++i)
     {
         INFO ("stomp " << i + 1);

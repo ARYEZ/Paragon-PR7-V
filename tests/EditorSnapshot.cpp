@@ -150,7 +150,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PAGE", {}) == "settings")
         if (auto* tab = dynamic_cast<juce::Button*> (findById (*editor, "settingsTab")))
             tab->onClick();
-    // PARAGON_SNAPSHOT_BLOCK=n opens block n's knobs (0 = pitch, 1 = dynamics ... 6 = doubler ... 10 = lo-fi: the signal chain strip's order) in place of the graphic EQ.
+    // PARAGON_SNAPSHOT_BLOCK=n opens block n's knobs (0 = pitch, 1 = dynamics, 2 = de-esser ... 7 = doubler ... 11 = lo-fi: the signal chain strip's order) in place of the graphic EQ.
     if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_BLOCK", {}); block.isNotEmpty())
         if (auto* chain = findType<SignalChain> (*editor))
             chain->onSelect (block.getIntValue());

@@ -33,10 +33,11 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 
 - An AGPLv3 **JUCE VST3** plugin: a vocal multi-effects chain, drawn as a floor processor with an expression pedal. No amp or cabinet: PR7-G's NAM amp and IR loader (and the NAM, Eigen and AudioDSPTools dependencies) were removed in 0.3.0 at the owner's request. JUCE is the only dependency. No latency.
   - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
-- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → DOUBLER → MOD → DELAY → REVERB → LO-FI → OUTPUT (+ volume pedal) → LIMITER. Mono up to the EQ, stereo from the DOUBLER on. LOW CUT (under INPUT) and LIMITER (under OUTPUT) are global like INPUT and OUTPUT.
-- **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches the octaver (FREEZE has its own switch). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
+- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → DE-ESSER → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → DOUBLER → MOD → DELAY → REVERB → LO-FI → OUTPUT (+ volume pedal) → LIMITER. Mono up to the EQ, stereo from the DOUBLER on. LOW CUT (under INPUT) and LIMITER (under OUTPUT) are global like INPUT and OUTPUT.
+- **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches the octaver (FREEZE has its own switch). The DYNAMICS stomp switches the compressor and the de-esser (`compOn`, `deessOn`); the de-esser has its own DE-ESS block and panel in the strip (the DYNAMICS panel had no room). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
 - **Master LIMITER** (0.4.0): under OUTPUT, not a stomp; no look-ahead, so still no latency. Keep it that way.
-- **Planned (owner's decisions):** a **de-esser** in DYNAMICS; **harmony** (with the octave) in PITCH.
+- **De-esser** (0.5.0): split-band, after the compressor; FREQUENCY, AMOUNT, LISTEN (plays only what's removed).
+- **Next: harmony in PITCH, "as close as we can get to Waves Harmony"** (the owner sent its user guide). Build it in stages; call ours "inspired by", never Waves' name or branding on the plugin.
 - **Code layout:** DSP in `source/dsp/effects/`, UI in `source/ui/`, parameters in `source/Parameters.*`, rigs in `source/rigs/`, tests in `tests/`.
 - **Parameters:**
   - Saved by ID and choices by **index**: only ever *append* choices, never reorder.
@@ -84,7 +85,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 - **Vocal staples:**
   - **Pitch correction:** key and scale, speed from natural to hard "robot" correction.
   - **Harmony:** one or two voices a third, fifth or octave away, following the key.
-  - **De-esser.**
+  - **De-esser:** done in 0.5.0.
   - **Doubler:** done in 0.3.0 as stomp 3 (moved out of MODULATION, same sound).
   - **Formant shift:** "chipmunk" to "giant" without changing the pitch.
   - **Vocoder or robot** voice.

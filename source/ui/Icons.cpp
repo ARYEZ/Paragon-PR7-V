@@ -105,6 +105,19 @@ namespace Icons
                 p.addRectangle (0.8f, 0.04f, 0.14f, 0.1f);
                 break;
 
+            case Type::deEsser:
+                // An "S" with an arrow pointing down beside it: esses turned down.
+                p.startNewSubPath (0.6f, 0.2f);
+                p.cubicTo (0.5f, 0.06f, 0.1f, 0.1f, 0.16f, 0.33f);
+                p.cubicTo (0.22f, 0.52f, 0.58f, 0.46f, 0.6f, 0.68f);
+                p.cubicTo (0.62f, 0.92f, 0.2f, 0.94f, 0.1f, 0.78f);
+                p.startNewSubPath (0.86f, 0.22f);
+                p.lineTo (0.86f, 0.82f);
+                p.startNewSubPath (0.76f, 0.7f);
+                p.lineTo (0.86f, 0.82f);
+                p.lineTo (0.96f, 0.7f);
+                break;
+
             case Type::microphone:
             {
                 // A handheld vocal mic, angled like a singer holds it: the
