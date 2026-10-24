@@ -84,7 +84,10 @@ descriptions below still talk about guitar.
     vibrato, harmonic tremolo and auto-pan. SYNC locks the rate to the tapped or DAW tempo.
   - **6 Delay:** syncs to your DAW's tempo (or set SYNC to Off for milliseconds), has a tone control for darker repeats,
     and optional ping-pong; eight types: Digital (the original), Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer and
-    Ducking.
+    Ducking. Up to 3.5 seconds. Its panel has three pages: **MAIN**; **STEREO** (DUAL: the right side's own time;
+    ping-pong's START side; FLIP LEFT / RIGHT); and **COLOUR** (LOW CUT and HIGH CUT on the repeats, MOD DEPTH and RATE,
+    ANALOG 1 Warm / 2 Round / 3 Hiss / 4 Grit, LO-FI), inspired by Waves H-Delay. FEEDBACK goes to 200%: past 100% the
+    repeats build up and hold.
   - **7 Reverb:** eight types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse and Classic (the original), with
     SIZE, PRE-DELAY, TONE and MIX. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
     singing and lets them swell back in the gaps, and both let their tails ring out when switched off.

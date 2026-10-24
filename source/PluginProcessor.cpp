@@ -402,11 +402,29 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     modulation.process (stereoBlock, { isOn (ParamIDs::modOn), modType, modRate,
                                        param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
                                        param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph) });
-    delay.process (stereoBlock, { isOn (ParamIDs::delayOn), param (ParamIDs::delayTime), (int) param (ParamIDs::delaySync),
-                                  param (ParamIDs::delayFeedback), param (ParamIDs::delayTone), param (ParamIDs::delayMix) * morph,
-                                  isOn (ParamIDs::delayPingPong), (effects::Delay::Type) (int) param (ParamIDs::delayType),
-                                  param (ParamIDs::delayDuck) },
-                   getTempoBpm());
+    effects::Delay::Settings delaySettings;
+    delaySettings.on = isOn (ParamIDs::delayOn);
+    delaySettings.timeMs = param (ParamIDs::delayTime);
+    delaySettings.syncIndex = (int) param (ParamIDs::delaySync);
+    delaySettings.feedback = param (ParamIDs::delayFeedback);
+    delaySettings.tone = param (ParamIDs::delayTone);
+    delaySettings.mix = param (ParamIDs::delayMix) * morph;
+    delaySettings.pingPong = isOn (ParamIDs::delayPingPong);
+    delaySettings.type = (effects::Delay::Type) (int) param (ParamIDs::delayType);
+    delaySettings.duck = param (ParamIDs::delayDuck);
+    delaySettings.dual = isOn (ParamIDs::delayDual);
+    delaySettings.timeRightMs = param (ParamIDs::delayTimeRight);
+    delaySettings.syncRightIndex = (int) param (ParamIDs::delaySyncRight);
+    delaySettings.startRight = (int) param (ParamIDs::delayPingStart) == 1;
+    delaySettings.phaseLeft = isOn (ParamIDs::delayPhaseLeft);
+    delaySettings.phaseRight = isOn (ParamIDs::delayPhaseRight);
+    delaySettings.lowCutHz = param (ParamIDs::delayLowCut);
+    delaySettings.highCutHz = param (ParamIDs::delayHighCut);
+    delaySettings.modDepth = param (ParamIDs::delayModDepth);
+    delaySettings.modRateHz = param (ParamIDs::delayModRate);
+    delaySettings.analog = (effects::Delay::Analog) (int) param (ParamIDs::delayAnalog);
+    delaySettings.loFi = isOn (ParamIDs::delayLoFi);
+    delay.process (stereoBlock, delaySettings, getTempoBpm());
     reverb.process (stereoBlock, { isOn (ParamIDs::reverbOn), (effects::Reverb::Type) (int) param (ParamIDs::reverbType),
                                    param (ParamIDs::reverbSize), param (ParamIDs::reverbTone), param (ParamIDs::reverbMix) * morph,
                                    param (ParamIDs::reverbPreDelay), param (ParamIDs::reverbDuck) });

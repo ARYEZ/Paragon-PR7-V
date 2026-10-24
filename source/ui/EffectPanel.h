@@ -31,6 +31,7 @@ public:
     {
         juce::String title;
         std::vector<Item> items;
+        int page = 0;   // which page it's on, when the panel has pages (setPages)
     };
 
     EffectPanel (juce::AudioProcessorValueTreeState& parameters, std::vector<Group> groups);
@@ -42,6 +43,13 @@ public:
     // Optional: a gain-reduction meter in the header (the compressor's), fed
     // by this. It returns how far the signal is being turned down, in dB (0 or less).
     void setMeter (std::function<float()> gainReductionDb);
+
+    // Optional: pages, for a block with more controls than fit in a row
+    // (as on a rack reverb's edit pages): a button for each in the header,
+    // showing the groups whose `page` is that one.
+    void setPages (const juce::StringArray& names);
+    void showPage (int page);
+    int getPage() const noexcept { return currentPage; }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -55,7 +63,10 @@ private:
         juce::String title;
         std::vector<Control*> controls;
         juce::Rectangle<int> area;
+        int page = 0;
     };
+
+    void updateVisibility();
 
     std::vector<std::unique_ptr<Control>> controls;
     std::vector<GroupLayout> groups;
@@ -66,4 +77,6 @@ private:
     std::function<float()> meterSource;
     float meterDb = 0.0f;
     juce::Rectangle<int> meterArea;
+    std::vector<std::unique_ptr<juce::TextButton>> pageButtons;
+    int currentPage = 0;
 };

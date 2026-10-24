@@ -54,7 +54,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 - **Screenshots** for checking the UI, via `xvfb-run -a build/tests/ParagonX1Tests "[snapshot]"` with environment variables:
   - `PARAGON_SNAPSHOT` (output path), `PARAGON_SNAPSHOT_WIDTH` (e.g. 2560 for 2x).
   - `PARAGON_SNAPSHOT_BLOCK=n` (open block n's panel; 0 = PITCH, which opens on HARMONY), `PARAGON_SNAPSHOT_PITCHVIEW=octave` (PITCH's OCTAVE / FREEZE view), `PARAGON_SNAPSHOT_PARAMS=id=value,...` (harmony voices: `hv1Pitch`, `hv3Active`...).
-  - `PARAGON_SNAPSHOT_EXPRESSION`, `PARAGON_SNAPSHOT_PAGE=presets|settings`.
+  - `PARAGON_SNAPSHOT_EXPRESSION`, `PARAGON_SNAPSHOT_PAGE=presets|settings`, `PARAGON_SNAPSHOT_PANELPAGE=n` (a paged panel's page: DELAY 0 MAIN, 1 STEREO, 2 COLOUR).
   - `PARAGON_SNAPSHOT_FINISH=black|neon`, `PARAGON_SNAPSHOT_LOUD=1` (a note over full scale: the LIMITER light on).
   - Render, look, crop and zoom before claiming a visual change is right.
 
@@ -97,6 +97,8 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - **Revival** (0.8.0): the compressor's third TYPE, inspired by Waves Renaissance Vox (the owner sent its short user guide). GATE (soft 2:1 expander on the peaks), COMPRESSION (one fader: threshold 0 to -36 dB, ratio 1:1 to 4:1, make-up so 0 dBFS stays 0 dBFS), GAIN (no-look-ahead peak limiter ceiling). Gate → comp → limiter, in `CompGate::processRevival`; params `revivalGate`, `revivalCompression`, `revivalGain` (v31). Attack/release and the curve are our choices; the guide gives none.
   - The graphic EQ (bands may move up for voice).
   - Delay and reverb: slap, plate, hall and throws.
+  - **Delay upgrade** (0.10.0), inspired by Waves H-Delay (the owner sent its user guide): on every type, DUAL (`delayTimeRight`/`delaySyncRight`), ping START, PHASE flips, FEEDBACK to 200% (tanh in the loop only above 100%), LOW/HIGH CUT (12 dB/oct, on what enters the line, Off at the ends), MOD (triangle, ±4 ms at 100%), ANALOG Off/1-4 (our own four: drive, asymmetry, darkening, hiss on the heard echo only), LO-FI (5.5 kHz two-pole + 12 bits), 3.5 s. All v33 and neutral by default. Not built: H-Delay's filter LINK and OUTPUT. `EffectPanel` gained pages (`Group::page`, `setPages`): DELAY's MAIN / STEREO / COLOUR. Snapshot: `PARAGON_SNAPSHOT_PANELPAGE=n`.
+  - **Reverb upgrade** (0.11.0, next), inspired by the Lexicon LXP manual the owner sent: to plan from its parameters (Reverb Time vs Size, Bass RT/XOV, RT Hi Cut, Rolloff, Diffusion, Early/Reverb Level, Shape/Spread, Spin/Wander) and a Chamber algorithm.
   - Mod: chorus and flanger.
 - **The NAM amp and cab:** removed in 0.3.0 (the owner: "not needed for vocals").
 - **Pitch tools to adapt:** PITCH's octaver and FREEZE, and the expression pedal (ideal for harmony level, delay throws and pitch bends live).

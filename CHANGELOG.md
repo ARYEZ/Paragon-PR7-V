@@ -2,6 +2,24 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.10.0
+
+- **A bigger DELAY, inspired by Waves H-Delay.** Our own design, following how its user guide describes it. The eight types (Digital, Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer, Ducking) stay, and every one of them gets the new controls. The DELAY panel now has three pages:
+  - **MAIN:** as before.
+  - **STEREO:**
+    - **DUAL:** the right side gets its own time or note value, for example 1/4 on the left and 1/8 dotted on the right, for wide, rhythmic echoes.
+    - **START:** which side ping-pong's first echo comes from.
+    - **FLIP LEFT / RIGHT:** turns one side's echoes upside down (phase), for an extra-wide, hollow sound. Careful on a mono track: it can cancel.
+  - **COLOUR:**
+    - **LOW CUT and HIGH CUT:** filters on the repeats. Each repeat goes through them again, so a few passes thin and darken the echoes the way old units did. Turn LOW CUT up to keep echoes from muddying your low notes; turn HIGH CUT down to tuck them behind your voice. Off at their ends.
+    - **MOD DEPTH and RATE:** sweeps the echo time, for a chorus or flange on the echoes (flanging on short times).
+    - **ANALOG:** four characters of our own (the guide doesn't say what its four do): **1 Warm** (subtle), **2 Round** (warmer and softer), **3 Hiss** (2 with tape hiss), **4 Grit** (driven, dark and noisy).
+    - **LO-FI:** an early digital delay's narrow band and grainy 12-bit sound.
+- **FEEDBACK up to 200%:** past 100% the repeats build up instead of fading, into an endless swell, held at about full level rather than running away. Bring it back under 100% to let it die away.
+- **Up to 3.5 seconds** of delay (from 2.5).
+- **Your rigs sound the same:** every new control starts where it does nothing.
+- **Not built:** H-Delay's LINK (moving both filters together) and its OUTPUT knob (MIX does that job here).
+
 ## 0.9.0
 
 - **A stronger DOUBLER.** You found the doubles too subtle on a voice. There were four reasons, all fixed:

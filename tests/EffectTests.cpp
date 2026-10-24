@@ -1312,6 +1312,176 @@ TEST_CASE ("Delay repeats at the set time", "[effects][delay]")
     }
 }
 
+TEST_CASE ("Delay: the controls inspired by H-Delay do what they say", "[effects][delay]")
+{
+    const auto delayRig = [] (EffectRig& rig, float timeMs = 100.0f, float feedback = 0.0f)
+    {
+        rig.set (ParamIDs::delayOn, 1.0f);
+        rig.set (ParamIDs::delayMix, 1.0f);
+        rig.set (ParamIDs::delaySync, 0.0f);
+        rig.set (ParamIDs::delayTime, timeMs);
+        rig.set (ParamIDs::delayFeedback, feedback);
+        rig.set (ParamIDs::delayTone, 10.0f);
+    };
+    const auto peakNear = [] (const std::vector<float>& samples, size_t at, size_t window = 64)
+    {
+        float peak = 0.0f;
+        for (auto i = at - window; i <= at + window; ++i)
+            peak = std::max (peak, std::abs (samples[i]));
+        return peak;
+    };
+    // The echoes alone: what comes out, less your own voice (which passes straight through).
+    const auto echoesOf = [] (EffectRig& rig, const std::vector<float>& input)
+    {
+        auto output = rig.runMono (input);
+        for (size_t i = 0; i < output.size(); ++i)
+            output[i] -= input[i];
+        return output;
+    };
+    // Where the strongest sample is, after the click itself.
+    const auto loudestAt = [] (const std::vector<float>& samples, size_t from = 100)
+    {
+        size_t at = from;
+        for (auto i = from; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > std::abs (samples[at]))
+                at = i;
+        return at;
+    };
+
+    SECTION ("DUAL: the right side has its own time")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f);
+        rig.set (ParamIDs::delayDual, 1.0f);
+        rig.set (ParamIDs::delaySyncRight, 0.0f);
+        rig.set (ParamIDs::delayTimeRight, 150.0f);
+        const auto output = rig.run (impulse (0.3, 0.5f));
+        CHECK (loudestAt (output[0]) == 4800);   // 100 ms
+        CHECK (loudestAt (output[1]) == 7200);   // 150 ms
+    }
+
+    SECTION ("Ping-pong's START: the first echo on the right")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f, 0.5f);
+        rig.set (ParamIDs::delayPingPong, 1.0f);
+        rig.set (ParamIDs::delayPingStart, 1.0f);
+        const auto output = rig.run (impulse (0.3, 0.5f));
+        CHECK (peakNear (output[1], 4800) > 0.1f);
+        CHECK (peakNear (output[0], 4800) < 0.001f);
+        CHECK (peakNear (output[0], 9600) > 0.05f);
+    }
+
+    SECTION ("PHASE flips one side's echoes")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f);
+        rig.set (ParamIDs::delayPhaseLeft, 1.0f);
+        const auto output = rig.run (impulse (0.2, 0.5f));
+        CHECK_THAT (output[0][4800], WithinAbs (-0.5, 0.01));
+        CHECK_THAT (output[1][4800], WithinAbs (0.5, 0.01));
+    }
+
+    SECTION ("FEEDBACK past 100% builds the repeats up, and holds them there")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f, 1.5f);
+        const auto output = rig.runMono (impulse (3.0, 0.3f));
+        REQUIRE (allFinite (output));
+        const auto first = peakNear (output, 4800), later = peakNear (output, 4800 * 20);
+        CHECK (later > 2.0f * first);   // louder than the first echo, not quieter
+        auto peak = 0.0f;
+        for (const auto x : output)
+            peak = std::max (peak, std::abs (x));
+        CHECK (peak < 1.5f);            // but held, not running away
+    }
+
+    SECTION ("LOW CUT and HIGH CUT filter the echoes")
+    {
+        const auto echoLevel = [&] (double hz, float lowCut, float highCut)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayLowCut, lowCut);
+            rig.set (ParamIDs::delayHighCut, highCut);
+            return levelAt (echoesOf (rig, sine (hz, 0.2f, 0.6)), hz, 0.3);
+        };
+        const auto off = effects::Delay::cutOffLowHz, top = effects::Delay::cutOffHighHz;
+        // 12 dB per octave: over 3 octaves from where they're set, about 36 dB down.
+        CHECK (dB (echoLevel (100.0, 1000.0f, top) / echoLevel (100.0, off, top)) < -30.0f);
+        CHECK (dB (echoLevel (8000.0, off, 1000.0f) / echoLevel (8000.0, off, top)) < -30.0f);
+        // Between them, untouched.
+        CHECK_THAT (dB (echoLevel (1000.0, 100.0f, 10000.0f) / echoLevel (1000.0, off, top)), WithinAbs (0.0, 0.5));
+    }
+
+    SECTION ("MOD sweeps the echo's time")
+    {
+        // Clicks every 0.25 s: with MOD at full, their echoes come at different times.
+        const auto spread = [&] (float depth)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayModDepth, depth);
+            rig.set (ParamIDs::delayModRate, 0.7f);
+            auto input = silence (2.6);
+            for (int click = 0; click < 10; ++click)
+                input[(size_t) ((0.1 + 0.25 * click) * sampleRate)] = 0.5f;
+            const auto output = rig.runMono (input);
+            double low = 1.0e9, high = -1.0e9;
+            for (int click = 0; click < 10; ++click)
+            {
+                const auto at = (size_t) ((0.1 + 0.25 * click) * sampleRate);
+                size_t loudest = at + 10;
+                for (auto i = at + 10; i < at + (size_t) (0.1 * sampleRate); ++i)
+                    if (std::abs (output[i]) > std::abs (output[loudest]))
+                        loudest = i;
+                const auto ms = (double) (loudest - at) / sampleRate * 1000.0;
+                low = std::min (low, ms);
+                high = std::max (high, ms);
+            }
+            return high - low;
+        };
+        CHECK (spread (0.0f) < 0.1);
+        CHECK (spread (1.0f) > 4.0);    // up to 4 ms either way
+        CHECK (spread (1.0f) < 8.5);
+    }
+
+    SECTION ("ANALOG adds warmth (harmonics) to the echoes; Off adds none")
+    {
+        const auto harmonics = [&] (float analog)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayAnalog, analog);
+            rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);   // so only ANALOG adds harmonics
+            const auto output = rig.runMono (sine (440.0, 0.4f, 0.6));
+            return dB ((levelAt (output, 880.0, 0.3) + levelAt (output, 1320.0, 0.3)) / levelAt (output, 440.0, 0.3));
+        };
+        CHECK (harmonics (0.0f) < -80.0f);
+        CHECK (harmonics (1.0f) > -60.0f);
+        CHECK (harmonics (4.0f) > harmonics (1.0f) + 10.0f);   // 4, Grit, much more than 1, Warm
+    }
+
+    SECTION ("LO-FI narrows the echoes' band")
+    {
+        const auto highs = [&] (bool loFi)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayLoFi, loFi ? 1.0f : 0.0f);
+            return levelAt (echoesOf (rig, sine (12000.0, 0.2f, 0.6)), 12000.0, 0.3);
+        };
+        CHECK (dB (highs (true) / highs (false)) < -10.0f);   // an early digital delay's narrow band
+    }
+
+    SECTION ("Up to 3.5 seconds")
+    {
+        EffectRig rig;
+        delayRig (rig, 3400.0f);
+        CHECK (loudestAt (rig.runMono (impulse (3.6, 0.5f))) == (size_t) (3.4 * sampleRate));
+    }
+}
+
 TEST_CASE ("Switching delay off lets the echoes ring out but stops new ones", "[effects][delay]")
 {
     EffectRig rig;

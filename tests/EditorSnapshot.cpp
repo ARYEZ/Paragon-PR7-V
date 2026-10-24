@@ -1,3 +1,4 @@
+#include "ui/EffectPanel.h"
 #include <catch2/catch_test_macros.hpp>
 
 #include "Parameters.h"
@@ -171,6 +172,21 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         for (auto* button : buttons)
             if (button->getButtonText() == "OCTAVE / FREEZE")
                 button->onClick();
+    }
+    // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
+    // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2).
+    if (const auto page = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PANELPAGE", {}); page.isNotEmpty())
+    {
+        std::function<void (juce::Component&)> turn = [&] (juce::Component& parent)
+        {
+            for (auto* child : parent.getChildren())
+            {
+                if (auto* panel = dynamic_cast<EffectPanel*> (child); panel != nullptr && panel->isVisible())
+                    panel->showPage (page.getIntValue());
+                turn (*child);
+            }
+        };
+        turn (*editor);
     }
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);

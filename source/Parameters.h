@@ -187,6 +187,19 @@ namespace ParamIDs
     inline constexpr auto revivalGate        = "revivalGate";
     inline constexpr auto revivalCompression = "revivalCompression";
     inline constexpr auto revivalGain        = "revivalGain";
+    // Version 33: the delay's controls inspired by Waves H-Delay.
+    inline constexpr auto delayDual       = "delayDual";
+    inline constexpr auto delayTimeRight  = "delayTimeRight";
+    inline constexpr auto delaySyncRight  = "delaySyncRight";
+    inline constexpr auto delayPingStart  = "delayPingStart";
+    inline constexpr auto delayPhaseLeft  = "delayPhaseLeft";
+    inline constexpr auto delayPhaseRight = "delayPhaseRight";
+    inline constexpr auto delayLowCut     = "delayLowCut";
+    inline constexpr auto delayHighCut    = "delayHighCut";
+    inline constexpr auto delayModDepth   = "delayModDepth";
+    inline constexpr auto delayModRate    = "delayModRate";
+    inline constexpr auto delayAnalog     = "delayAnalog";
+    inline constexpr auto delayLoFi       = "delayLoFi";
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     // Drift (version 32) is appended: only ever add to the end.
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };

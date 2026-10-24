@@ -124,7 +124,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::delayTime, "Delay Time", skewed (1.0f, effects::Delay::maxDelaySeconds * 1000.0f, 400.0f, 1.0f),
                            375.0f, v3, asMs));
     layout.add (makeChoice (ParamIDs::delaySync, "Delay Sync", v3, effects::Delay::syncNames, 3));   // 1/4, as in the mockup
-    layout.add (makeFloat (ParamIDs::delayFeedback, "Delay Feedback", { 0.0f, 0.95f, 0.01f }, 0.35f, v3, asPercent));
+    // Up to 200% since 0.10.0 (was 95%): saved by value, so saved settings sound the same.
+    layout.add (makeFloat (ParamIDs::delayFeedback, "Delay Feedback", { 0.0f, effects::Delay::maxFeedback, 0.01f }, 0.35f, v3, asPercent));
     layout.add (makeFloat (ParamIDs::delayTone, "Delay Tone", { 0.0f, 10.0f, 0.1f }, 7.0f, v3, asKnob));
     layout.add (makeFloat (ParamIDs::delayMix, "Delay Mix", { 0.0f, 1.0f, 0.01f }, 0.25f, v3, asPercent));
     layout.add (makeSwitch (ParamIDs::delayPingPong, "Delay Ping-Pong", v3, false));
@@ -375,6 +376,31 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                            effects::CompGate::revivalGateOffDb, v31, asRevivalGate));
     layout.add (makeFloat (ParamIDs::revivalCompression, "Revival Compression", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, -12.0f, v31, asDb));
     layout.add (makeFloat (ParamIDs::revivalGain, "Revival Gain", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, 0.0f, v31, asDb));
+
+    // Added in plugin version 33: the delay's controls inspired by Waves
+    // H-Delay. Each starts where it does nothing (filters off, no MOD,
+    // ANALOG off...), so saved settings sound as they did.
+    constexpr int v33 = 33;
+    const ToText asCut = [] (float hz, int)
+    {
+        if (hz <= effects::Delay::cutOffLowHz + 0.5f || hz >= effects::Delay::cutOffHighHz - 1.0f)
+            return juce::String ("Off");
+        return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz";
+    };
+    const auto cutRange = skewed (effects::Delay::cutOffLowHz, effects::Delay::cutOffHighHz, 800.0f, 1.0f);
+    layout.add (makeSwitch (ParamIDs::delayDual, "Delay Dual", v33, false));
+    layout.add (makeFloat (ParamIDs::delayTimeRight, "Delay Time Right", skewed (1.0f, effects::Delay::maxDelaySeconds * 1000.0f, 400.0f, 1.0f),
+                           280.0f, v33, asMs));
+    layout.add (makeChoice (ParamIDs::delaySyncRight, "Delay Sync Right", v33, effects::Delay::syncNames, 7));   // 1/8 dotted: with 1/4 on the left, a classic pair
+    layout.add (makeChoice (ParamIDs::delayPingStart, "Delay Ping-Pong Start", v33, effects::Delay::pingStartNames, 0));
+    layout.add (makeSwitch (ParamIDs::delayPhaseLeft, "Delay Phase Left", v33, false));
+    layout.add (makeSwitch (ParamIDs::delayPhaseRight, "Delay Phase Right", v33, false));
+    layout.add (makeFloat (ParamIDs::delayLowCut, "Delay Low Cut", cutRange, effects::Delay::cutOffLowHz, v33, asCut));
+    layout.add (makeFloat (ParamIDs::delayHighCut, "Delay High Cut", cutRange, effects::Delay::cutOffHighHz, v33, asCut));
+    layout.add (makeFloat (ParamIDs::delayModDepth, "Delay Mod Depth", { 0.0f, 1.0f, 0.01f }, 0.0f, v33, asPercent));
+    layout.add (makeFloat (ParamIDs::delayModRate, "Delay Mod Rate", skewed (0.05f, 20.0f, 1.0f, 0.01f), 0.5f, v33, asHz));
+    layout.add (makeChoice (ParamIDs::delayAnalog, "Delay Analog", v33, effects::Delay::analogNames, 0));
+    layout.add (makeSwitch (ParamIDs::delayLoFi, "Delay Lo-Fi", v33, false));
     return layout;
 }
 

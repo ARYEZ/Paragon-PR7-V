@@ -449,11 +449,25 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                           { ParamIDs::modDepth, "DEPTH" },
                           { ParamIDs::modMix, "MIX", [this] {
                               return effects::Modulation::usesMix ((effects::Modulation::Type) juce::roundToInt (rawValue (ParamIDs::modType))); } } } } });
+    // DELAY's three pages (since 0.10.0, with the controls inspired by
+    // H-Delay): MAIN as it always was; STEREO (DUAL's right-hand time, the
+    // ping-pong's START, each side's PHASE); COLOUR (the filters, MOD,
+    // ANALOG and LO-FI).
+    const auto dual = [this] { return rawValue (ParamIDs::delayDual) > 0.5f && rawValue (ParamIDs::delayPingPong) < 0.5f; };
     panels[delayBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "DELAY", { { ParamIDs::delayOn, "ON" }, { ParamIDs::delayType, "TYPE" }, { ParamIDs::delaySync, "SYNC" },
                      { ParamIDs::delayTime, "TIME", [this] { return rawValue (ParamIDs::delaySync) < 0.5f; } },
                      { ParamIDs::delayFeedback, "FEEDBACK" }, { ParamIDs::delayTone, "TONE" }, { ParamIDs::delayMix, "MIX" }, { ParamIDs::delayDuck, "DUCK" },
-                     { ParamIDs::delayPingPong, "PING-PONG" } } } });
+                     { ParamIDs::delayPingPong, "PING-PONG" } } },
+        { "DUAL", { { ParamIDs::delayDual, "DUAL", [this] { return rawValue (ParamIDs::delayPingPong) < 0.5f; } },
+                    { ParamIDs::delaySyncRight, "RIGHT SYNC", dual },
+                    { ParamIDs::delayTimeRight, "RIGHT TIME", [this, dual] { return dual() && rawValue (ParamIDs::delaySyncRight) < 0.5f; } } }, 1 },
+        { "PING-PONG", { { ParamIDs::delayPingStart, "START", [this] { return rawValue (ParamIDs::delayPingPong) > 0.5f; } } }, 1 },
+        { "PHASE", { { ParamIDs::delayPhaseLeft, "FLIP LEFT" }, { ParamIDs::delayPhaseRight, "FLIP RIGHT" } }, 1 },
+        { "FILTERS", { { ParamIDs::delayLowCut, "LOW CUT" }, { ParamIDs::delayHighCut, "HIGH CUT" } }, 2 },
+        { "MODULATION", { { ParamIDs::delayModDepth, "DEPTH" }, { ParamIDs::delayModRate, "RATE" } }, 2 },
+        { "CHARACTER", { { ParamIDs::delayAnalog, "ANALOG" }, { ParamIDs::delayLoFi, "LO-FI" } }, 2 } });
+    panels[delayBlock]->setPages ({ "MAIN", "STEREO", "COLOUR" });
     panels[reverbBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "REVERB", { { ParamIDs::reverbOn, "ON" }, { ParamIDs::reverbType, "TYPE" }, { ParamIDs::reverbSize, "SIZE" },
                       { ParamIDs::reverbPreDelay, "PRE-DELAY" }, { ParamIDs::reverbTone, "TONE" }, { ParamIDs::reverbMix, "MIX" },
