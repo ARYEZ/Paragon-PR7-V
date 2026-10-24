@@ -18,7 +18,7 @@ void PitchDetector::prepare (double newSampleRate)
 
     // The window has to hold at least two periods of the lowest note.
     const auto reducedRate = sampleRate / decimation;
-    windowSize = juce::nextPowerOfTwo ((int) std::ceil (2.0 * reducedRate / lowestHz));
+    windowSize = juce::nextPowerOfTwo ((int) std::ceil (2.0 * reducedRate / lowHz));
 
     reduced.assign ((size_t) windowSize, 0.0f);
     difference.assign ((size_t) windowSize / 2, 0.0f);
@@ -46,8 +46,8 @@ std::optional<PitchDetector::Result> PitchDetector::detect (const float* samples
         return std::nullopt;
 
     const auto reducedRate = sampleRate / decimation;
-    const auto minLag = juce::jmax (2, (int) std::floor (reducedRate / highestHz));
-    const auto maxLag = juce::jmin ((int) difference.size() - 1, (int) std::ceil (reducedRate / lowestHz));
+    const auto minLag = juce::jmax (2, (int) std::floor (reducedRate / highHz));
+    const auto maxLag = juce::jmin ((int) difference.size() - 1, (int) std::ceil (reducedRate / lowHz));
     const auto length = windowSize / 2;
 
     // Step 1-2: difference function d(lag) = sum (x[i] - x[i+lag])^2.

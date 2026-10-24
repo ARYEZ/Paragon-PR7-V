@@ -2,15 +2,17 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <functional>
+#include <optional>
+
 // Parameter IDs are saved in DAW projects and presets, so never rename one
 // once it has shipped. Add new parameters with a new ID instead.
 namespace ParamIDs
 {
     inline constexpr auto inputGain    = "inputGain";
     inline constexpr auto outputGain   = "outputGain";
-    inline constexpr auto ampOn        = "ampOn";
-    inline constexpr auto ampNormalise = "ampNormalise";
-    inline constexpr auto cabOn        = "cabOn";
+    // (Version 2's ampOn, ampNormalise and cabOn went with the NAM amp and
+    // cabinet in 0.3.0. Never reuse those IDs.)
 
     // Phase 3
     inline constexpr auto presence       = "presence";
@@ -132,11 +134,74 @@ namespace ParamIDs
     inline constexpr auto freezeAttack   = "freezeAttack";     // ms
     inline constexpr auto freezeRelease  = "freezeRelease";    // ms
 
+    // Version 25: LOW CUT on the INPUT strip, a high-pass filter first in
+    // the chain for the microphone. Its lowest setting is OFF.
+    inline constexpr auto inputLowCut = "inputLowCut";   // Hz
+
+    // Version 26: the DOUBLER stomp (until then MODULATION's Doubler type).
+    inline constexpr auto doublerOn    = "doublerOn";
+    // Version 26's RATE, DEPTH and MIX: no longer parameters since 0.7.0's
+    // four-voice DOUBLER. Read from older rigs and projects only, which
+    // convertOldDoubler turns into voices. Never reuse these IDs.
+    inline constexpr auto doublerRate  = "doublerRate";
+    inline constexpr auto doublerDepth = "doublerDepth";
+    inline constexpr auto doublerMix   = "doublerMix";
+
+    // Version 27: the master LIMITER under OUTPUT, last in the chain. Its
+    // top setting is OFF.
+    inline constexpr auto outputLimiter = "outputLimiter";   // the ceiling, dB
+
+    // Version 28: the DE-ESSER, in DYNAMICS after the compressor.
+    inline constexpr auto deessOn     = "deessOn";
+    inline constexpr auto deessFreq   = "deessFreq";     // Hz
+    inline constexpr auto deessAmount = "deessAmount";   // dB: the most it turns the esses down
+    inline constexpr auto deessListen = "deessListen";   // hear only what's taken away
+
+    // Version 29: HARMONY, on the PITCH stomp (inspired by Waves Harmony).
+    inline constexpr auto harmonyOn             = "harmonyOn";
+    inline constexpr auto harmonyKey            = "harmonyKey";            // C to B
+    inline constexpr auto harmonyScale          = "harmonyScale";
+    inline constexpr auto harmonySource         = "harmonySource";         // dB: the singer's own voice
+    inline constexpr auto harmonyLevel          = "harmonyLevel";          // dB: all the harmony voices
+    inline constexpr auto harmonyCorrectFormant = "harmonyCorrectFormant"; // 0 to 1
+    inline constexpr auto harmonySpread         = "harmonySpread";         // 0 to 1
+    // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
+    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
+    inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
+
+    // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).
+    inline constexpr auto doublerDirectOn   = "doublerDirectOn";
+    inline constexpr auto doublerDirectGain = "doublerDirectGain";
+    inline constexpr auto doublerDirectPan  = "doublerDirectPan";
+    inline constexpr auto doublerFbHighPass = "doublerFbHighPass";
+    inline constexpr auto doublerLowOn      = "doublerLowOn";
+    inline constexpr auto doublerLowGain    = "doublerLowGain";
+    inline constexpr auto doublerLowFreq    = "doublerLowFreq";
+    inline constexpr auto doublerHighOn     = "doublerHighOn";
+    inline constexpr auto doublerHighGain   = "doublerHighGain";
+    inline constexpr auto doublerHighFreq   = "doublerHighFreq";
+    inline constexpr auto doublerOutput     = "doublerOutput";
+
+    // Version 31: Revival, the compressor's third TYPE (inspired by Waves
+    // Renaissance Vox): its GATE, COMPRESSION and GAIN.
+    inline constexpr auto revivalGate        = "revivalGate";
+    inline constexpr auto revivalCompression = "revivalCompression";
+    inline constexpr auto revivalGain        = "revivalGain";
+    // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
+    // Drift (version 32) is appended: only ever add to the end.
+    inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };
+    inline juce::String doublerVoice (int voice, const juce::String& part) { return "dv" + juce::String (voice + 1) + part; }
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the
-    // pedal is assigned to, and its range, are saved with each rig.
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression };
+    // pedal is assigned to, and its range, are saved with each rig. LOW CUT
+    // goes with INPUT: it's set for your microphone and room, not a sound.
+    // LIMITER goes with OUTPUT, for the same reason. HARMONY's KEY and SCALE
+    // belong to the song, not the sound, so a rig change keeps them (as
+    // Waves Harmony's lock does).
+    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
+                                               harmonyKey, harmonyScale };
 }
 
 namespace ExpressionTargets
@@ -153,3 +218,23 @@ namespace ParamRanges
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+// Settings saved before 0.3.0 with MODULATION's TYPE on Doubler: moves them to
+// the DOUBLER stomp (same RATE, DEPTH and MIX, switched on if MODULATION was)
+// and leaves MODULATION off on Chorus, so they sound as they did. `get`
+// returns a parameter's saved value (or nothing), and `set` stores one.
+void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,
+                             const std::function<void (const char*, float)>& set);
+
+// Settings saved before 0.7.0 with the two-take DOUBLER (RATE, DEPTH, MIX):
+// sets up voices 1 and 2 to sound close to it (its takes 19 and 27 ms late,
+// one each side, at MIX's level, with a wobble of about the same depth and
+// speed; the new voices are truly detuned, so it's close rather than exact).
+// Settings saved with 0.7.0's or 0.8.0's DOUBLER (before its DRIFT and
+// stronger starting settings in 0.9.0): no DRIFT, and any voice setting not
+// saved keeps the value it started with then, so they sound as they did.
+void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
+                         const std::function<void (const juce::String&, float)>& set);
+
+void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
+                        const std::function<void (const juce::String&, float)>& set);

@@ -394,7 +394,7 @@ void SettingsPage::paint (juce::Graphics& g)
     section (aboutArea, "ABOUT",
              juce::String ("Paragon PR7-V v") + JucePlugin_VersionString
                  + ". Free and open source under the GNU AGPLv3.\n"
-                   "Built with JUCE (AGPLv3), NeuralAmpModelerCore (MIT), Eigen (MPL 2.0) and the Inter typeface (SIL OFL).");
+                   "Built with JUCE (AGPLv3) and the Inter typeface (SIL OFL).");
 }
 
 void SettingsPage::resized()

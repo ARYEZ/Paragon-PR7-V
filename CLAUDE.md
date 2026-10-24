@@ -31,9 +31,14 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 
 ## The project
 
-- An AGPLv3 **JUCE VST3** plugin: a NAM (Neural Amp Modeler) player with a full multi-effects chain, drawn as a floor processor with an expression pedal.
+- An AGPLv3 **JUCE VST3** plugin: a vocal multi-effects chain, drawn as a floor processor with an expression pedal. No amp or cabinet: PR7-G's NAM amp and IR loader (and the NAM, Eigen and AudioDSPTools dependencies) were removed in 0.3.0 at the owner's request. JUCE is the only dependency. No latency.
   - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
-- **The chain:** PITCH → (WAH pedal) → COMP/GATE → FILTER/PITCH → GLITCH (Pre) → OD/DIST → AMP (NAM) → CAB (IR) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → MOD → DELAY → REVERB → LO-FI.
+- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → DE-ESSER → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → HARMONY → DOUBLER → MOD → DELAY → REVERB → LO-FI → OUTPUT (+ volume pedal) → LIMITER. Mono up to the EQ, stereo from the DOUBLER on. LOW CUT (under INPUT) and LIMITER (under OUTPUT) are global like INPUT and OUTPUT.
+- **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches the octaver (FREEZE has its own switch). The DYNAMICS stomp switches the compressor and the de-esser (`compOn`, `deessOn`); the de-esser has its own DE-ESS block and panel in the strip (the DYNAMICS panel had no room). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
+- **Master LIMITER** (0.4.0): under OUTPUT, not a stomp; no look-ahead, so still no latency. Keep it that way.
+- **De-esser** (0.5.0): split-band, after the compressor; FREQUENCY, AMOUNT, LISTEN (plays only what's removed).
+- **HARMONY** (0.6.0, stage 1 of the owner's goal: "as close as we can get to Waves Harmony"; they sent its user guide). On the PITCH stomp (stomp memory: brings back what was on, first press HARMONY). `effects::Harmony`: PSOLA, formant-preserving; pitch read from the clean voice (after LOW CUT, a voice-range `PitchDetector`), voices made from the processed voice at the start of the stereo section. Key/scale (`Scales.h`, global like Waves' lock), 8 voices (`hv1Pitch`...), correction rule "a third stays a third" (our design), CORRECT FORMANT, SPREAD, SOURCE/HARMONY. `HarmonyPanel`: Waves-style graph. Voices lag ~2 pulses (8-25 ms); the dry voice has no latency.
+  - **Stages still to build, in order:** CORRECT (Off/Natural/Hard pitch correction of the source), Generate Notes + Chord Maps, MIDI note input, per-voice delay/feedback/filter and FLATTEN, global glide/pitch/formant, snapshots, modulators. Call ours "inspired by"; never Waves' name or branding on the plugin.
 - **Code layout:** DSP in `source/dsp/effects/`, UI in `source/ui/`, parameters in `source/Parameters.*`, rigs in `source/rigs/`, tests in `tests/`.
 - **Parameters:**
   - Saved by ID and choices by **index**: only ever *append* choices, never reorder.
@@ -48,9 +53,9 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 - **pluginval:** `xvfb-run -a <pluginval> --strictness-level 10 --validate-in-process "build/ParagonX1_artefacts/Release/VST3/<name>.vst3"`. Check its **exit code**, not just "SUCCESS". CI runs it too.
 - **Screenshots** for checking the UI, via `xvfb-run -a build/tests/ParagonX1Tests "[snapshot]"` with environment variables:
   - `PARAGON_SNAPSHOT` (output path), `PARAGON_SNAPSHOT_WIDTH` (e.g. 2560 for 2x).
-  - `PARAGON_SNAPSHOT_BLOCK=n` (open block n's panel), `PARAGON_SNAPSHOT_PARAMS=id=value,...`.
+  - `PARAGON_SNAPSHOT_BLOCK=n` (open block n's panel; 0 = PITCH, which opens on HARMONY), `PARAGON_SNAPSHOT_PITCHVIEW=octave` (PITCH's OCTAVE / FREEZE view), `PARAGON_SNAPSHOT_PARAMS=id=value,...` (harmony voices: `hv1Pitch`, `hv3Active`...).
   - `PARAGON_SNAPSHOT_EXPRESSION`, `PARAGON_SNAPSHOT_PAGE=presets|settings`.
-  - `PARAGON_SNAPSHOT_FINISH=black|neon`.
+  - `PARAGON_SNAPSHOT_FINISH=black|neon`, `PARAGON_SNAPSHOT_LOUD=1` (a note over full scale: the LIMITER light on).
   - Render, look, crop and zoom before claiming a visual change is right.
 
 ## Releases
@@ -76,21 +81,23 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 ## Ideas for the vocal version (to plan with the owner)
 
 - **The input:** a microphone, not a guitar.
-  - Mic-level input gain and a **high-pass filter** first in the chain (rumble and plosives).
+  - Done in 0.2.0: **LOW CUT**, a high-pass filter first in the chain (rumble and plosives), under INPUT.
   - The guitar tuner becomes a pitch display, or goes.
 - **Vocal staples:**
   - **Pitch correction:** key and scale, speed from natural to hard "robot" correction.
-  - **Harmony:** one or two voices a third, fifth or octave away, following the key.
-  - **De-esser.**
-  - **Doubler:** short delays with slight pitch and timing drift for a double-tracked sound.
+  - **Harmony:** stage 1 done in 0.6.0 (see above).
+  - **De-esser:** done in 0.5.0.
+  - **Doubler:** stomp 3 since 0.3.0; in 0.7.0 rebuilt as four voices inspired by Waves Doubler (the owner sent its user guide). `effects::Doubler`: per voice gain/pan/delay/feedback/octave/detune/depth/rate (`dv1Gain`...), DIRECT, OUTPUT, shelves on the voices, FB HIGH-PASS, MOD RESET; `DoublerPanel` is a table. Detune uses `PitchShifter`, whose own ~12.6 ms delay is the shortest DELAY. Not built: Waves' ALIGN, RANGE and graphs. The 0.3.0 RATE/DEPTH/MIX convert (`convertOldDoubler`, parameter version 30), close rather than identical.
+    - 0.9.0 (the owner: "doesn't feel very strong"): **DRIFT** per voice (`dv1Drift`, v32, our addition): slow random timing (±6 ms, 0.7 s glides) and pitch (±6 cents) wander, seeded per voice. Moving timing bends pitch; cancelling that with the detune can't work (the shifter's own delay undoes the move), so the timing glides slowly instead. Stronger starting settings (-2 dB, ±9 cents, 18/31 ms, drift 50%); `keepDoublerAsSaved` keeps 0.7.0's for rigs/projects saved before version 32. Mono output sums voices at full gain.
   - **Formant shift:** "chipmunk" to "giant" without changing the pitch.
   - **Vocoder or robot** voice.
   - **Megaphone / telephone / radio** lo-fi voices (LO-FI is a start).
 - **Already useful as they are:**
   - The Daybreak compressor and the gate.
+  - **Revival** (0.8.0): the compressor's third TYPE, inspired by Waves Renaissance Vox (the owner sent its short user guide). GATE (soft 2:1 expander on the peaks), COMPRESSION (one fader: threshold 0 to -36 dB, ratio 1:1 to 4:1, make-up so 0 dBFS stays 0 dBFS), GAIN (no-look-ahead peak limiter ceiling). Gate → comp → limiter, in `CompGate::processRevival`; params `revivalGate`, `revivalCompression`, `revivalGain` (v31). Attack/release and the curve are our choices; the guide gives none.
   - The graphic EQ (bands may move up for voice).
   - Delay and reverb: slap, plate, hall and throws.
   - Mod: chorus and flanger.
-- **The NAM amp and cab:** become optional "colour", or load **mic preamp** captures instead of guitar amps.
+- **The NAM amp and cab:** removed in 0.3.0 (the owner: "not needed for vocals").
 - **Pitch tools to adapt:** PITCH's octaver and FREEZE, and the expression pedal (ideal for harmony level, delay throws and pitch bends live).
 - **Factory rigs** for vocals: clean pop, rock grit, rap/trap, worship, lo-fi radio, robot, and song-inspired voices.

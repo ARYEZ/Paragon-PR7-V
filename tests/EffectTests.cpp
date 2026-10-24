@@ -43,6 +43,9 @@ namespace
         {
             processor.setPlayConfigDetails (1, channels, sampleRate, blockSize);
             processor.setPlayHead (&playHead);
+            // LOW CUT off, so each test hears only the effect it's about.
+            // The LOW CUT tests turn it back on.
+            set (ParamIDs::inputLowCut, effects::LowCut::offHz);
             processor.prepareToPlay (sampleRate, blockSize);
         }
 
@@ -238,6 +241,92 @@ TEST_CASE ("Daybreak compressor: COMP, DETAIL, MIX and INTENSITY do what they sa
             return rig.processor.getCompGainReductionDb();
         };
         CHECK (reductionFor (40.0) > reductionFor (440.0) + 3.0f);
+    }
+}
+
+TEST_CASE ("Revival compressor: GATE, COMPRESSION and GAIN do what they say", "[effects][comp][revival]")
+{
+    const auto revival = [] (EffectRig& rig, float compressionDb, float gainDb = 0.0f, float gateDb = effects::CompGate::revivalGateOffDb)
+    {
+        rig.set (ParamIDs::compOn, 1.0f);
+        rig.set (ParamIDs::compType, (float) effects::CompGate::Type::revival);
+        rig.set (ParamIDs::revivalCompression, compressionDb);
+        rig.set (ParamIDs::revivalGain, gainDb);
+        rig.set (ParamIDs::revivalGate, gateDb);
+        rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);   // the master limiter out of the way
+    };
+    const auto levelOut = [&] (float inDb, float compressionDb, float gainDb = 0.0f, float gateDb = effects::CompGate::revivalGateOffDb)
+    {
+        EffectRig rig;
+        revival (rig, compressionDb, gainDb, gateDb);
+        return dB (rms (rig.runMono (sine (440.0, juce::Decibels::decibelsToGain (inDb), 1.0)), 0.5)
+                   / rms (sine (440.0, juce::Decibels::decibelsToGain (inDb), 1.0), 0.5));
+    };
+
+    SECTION ("Its curve: a full-scale peak stays at full scale; lower COMPRESSION brings the rest up")
+    {
+        for (const auto compression : { 0.0f, -12.0f, -24.0f, -36.0f })
+            CHECK_THAT (effects::CompGate::revivalCurveDb (0.0f, compression), WithinAbs (0.0, 0.01));
+        CHECK (effects::CompGate::revivalCurveDb (-30.0f, -24.0f) > effects::CompGate::revivalCurveDb (-30.0f, -6.0f) + 10.0f);
+        CHECK (effects::CompGate::revivalCurveDb (-30.0f, 0.0f) == 0.0f);   // 0: nothing at all
+    }
+
+    SECTION ("Pulling COMPRESSION down evens the voice out and makes it louder")
+    {
+        // 24 dB between a loud and a soft note going in...
+        const auto spreadAt = [&] (float compression) { return (levelOut (-6.0f, compression) - 6.0f) - (levelOut (-30.0f, compression) - 30.0f); };
+        CHECK_THAT (spreadAt (0.0f), WithinAbs (24.0, 0.5));
+        CHECK (spreadAt (-36.0f) < 10.0f);                      // ...much less coming out
+        CHECK (levelOut (-30.0f, -24.0f) > levelOut (-30.0f, -6.0f) + 8.0f);   // and the soft one louder
+
+        EffectRig rig;
+        revival (rig, -24.0f);
+        rig.runMono (sine (440.0, 0.5f, 0.5));
+        CHECK (rig.processor.getCompGainReductionDb() < -6.0f);   // the TOTAL meter shows it working
+    }
+
+    SECTION ("GAIN is a ceiling: nothing comes out above it, however hard it's pushed")
+    {
+        for (const auto gain : { 0.0f, -6.0f, -18.0f })
+        {
+            EffectRig rig;
+            revival (rig, -36.0f, gain);
+            const auto output = rig.runMono (sine (440.0, 0.9f, 1.0));
+            auto peak = 0.0f;
+            for (size_t i = (size_t) (0.2 * sampleRate); i < output.size(); ++i)
+                peak = std::max (peak, std::abs (output[i]));
+            CHECK (dB (peak) <= gain + 0.1f);
+            CHECK (dB (peak) > gain - 1.0f);   // and it's right up at it: the limiter holds it there
+        }
+    }
+
+    SECTION ("GATE eases quiet sounds down gently and leaves the voice alone")
+    {
+        // GATE at -30 dB: a sound 20 dB under it is taken well down; one 6 dB
+        // under, by about 6 dB (2:1, gently); the voice well above, untouched.
+        CHECK (levelOut (-50.0f, 0.0f, 0.0f, -30.0f) < levelOut (-50.0f, 0.0f) - 15.0f);
+        const auto sixUnder = levelOut (-36.0f, 0.0f, 0.0f, -30.0f) - levelOut (-36.0f, 0.0f);
+        CHECK_THAT (sixUnder, WithinAbs (-6.0, 1.5));
+        CHECK_THAT (levelOut (-10.0f, 0.0f, 0.0f, -30.0f) - levelOut (-10.0f, 0.0f), WithinAbs (0.0, 0.2));
+        {
+            // A low note above GATE: left exactly as it was, not fluttered by its slow waves.
+            EffectRig rig;
+            revival (rig, 0.0f, 0.0f, -30.0f);
+            const auto low = sine (110.0, juce::Decibels::decibelsToGain (-20.0f), 1.0);
+            CHECK (maxAbsDifference (rig.runMono (low), low, (size_t) (0.3 * sampleRate)) < 1.0e-3f);
+        }
+        // Off: quiet sounds pass as they are.
+        CHECK_THAT (levelOut (-60.0f, 0.0f), WithinAbs (0.0, 0.05));
+    }
+
+    SECTION ("Classic's noise gate and LEVEL don't act on Revival")
+    {
+        EffectRig rig;
+        revival (rig, 0.0f);
+        rig.set (ParamIDs::gateThreshold, -20.0f);
+        rig.set (ParamIDs::compLevel, 12.0f);
+        const auto input = sine (440.0, juce::Decibels::decibelsToGain (-40.0f), 1.0);
+        CHECK_THAT (dB (rms (rig.runMono (input), 0.5) / rms (input, 0.5)), WithinAbs (0.0, 0.05));
     }
 }
 
@@ -941,12 +1030,10 @@ TEST_CASE ("The auto-wah opens up as you play harder", "[effects][wah]")
     CHECK (brightness (0.3f) - brightness (0.003f) > 12.0f);
 }
 
-TEST_CASE ("The doubler adds a take on each side", "[effects][mod]")
+TEST_CASE ("DOUBLER, as it starts: a take on each side", "[effects][doubler]")
 {
     EffectRig rig;
-    rig.set (ParamIDs::modOn, 1.0f);
-    rig.set (ParamIDs::modType, typeIndex (ModType::doubler));
-    rig.set (ParamIDs::modMix, 0.7f);
+    rig.set (ParamIDs::doublerOn, 1.0f);
     const auto input = sine (440.0, 0.3f, 1.0);
     const auto output = rig.run (input);
     REQUIRE (allFinite (output[0]));
@@ -957,6 +1044,16 @@ TEST_CASE ("The doubler adds a take on each side", "[effects][mod]")
         difference[i] = output[0][i] - output[1][i];
     CHECK (rms (difference, 0.2) > 0.1f * rms (output[0], 0.2));   // the two sides differ
     CHECK (rms (output[0], 0.2) < 2.0f * rms (input, 0.2));
+
+    // Since 0.9.0 the takes start strong: each nearly as loud as you (-2 dB),
+    // one on each side, so a live voice sounds doubled rather than just wider.
+    EffectRig takesOnly;
+    takesOnly.set (ParamIDs::doublerOn, 1.0f);
+    takesOnly.set (ParamIDs::doublerDirectOn, 0.0f);
+    const auto note = sine (220.0, 0.2f, 1.5);
+    const auto takes = takesOnly.run (note);
+    CHECK_THAT (dB (rms (takes[0], 0.5) / rms (note, 0.5)), WithinAbs (-2.0, 1.5));
+    CHECK_THAT (dB (rms (takes[1], 0.5) / rms (note, 0.5)), WithinAbs (-2.0, 1.5));
 }
 
 TEST_CASE ("Projects saved before the drive MODEL keep the original overdrive", "[effects][drive]")
@@ -985,6 +1082,62 @@ TEST_CASE ("Projects saved before the drive MODEL keep the original overdrive", 
     };
     CHECK (modelAfterLoading (older) == (int) effects::Drive::Model::classic);
     CHECK (modelAfterLoading (saved) == (int) effects::Drive::Model::screamer);
+}
+
+TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with the DOUBLER stomp on", "[effects][doubler]")
+{
+    // A project as 0.1.0 or 0.2.0 saved it: MODULATION on, TYPE 10 (Doubler),
+    // its own RATE, DEPTH and MIX, and no parameterVersion.
+    EffectRig original;
+    juce::MemoryBlock saved;
+    original.processor.getStateInformation (saved);
+    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
+    REQUIRE (xml != nullptr);
+    xml->removeAttribute ("parameterVersion");
+    const std::pair<const char*, double> oldSettings[] = { { ParamIDs::modOn, 1.0 }, { ParamIDs::modType, 10.0 }, { ParamIDs::modRate, 1.5 },
+                                                           { ParamIDs::modDepth, 0.3 }, { ParamIDs::modMix, 0.6 } };
+    for (const auto& [id, value] : oldSettings)
+    {
+        auto* child = xml->getChildByAttribute ("id", id);
+        REQUIRE (child != nullptr);
+        child->setAttribute ("value", value);
+    }
+    juce::MemoryBlock older;
+    juce::AudioProcessor::copyXmlToBinary (*xml, older);
+
+    EffectRig rig;
+    rig.processor.setStateInformation (older.getData(), (int) older.getSize());
+    const auto value = [&rig] (const char* id) { return rig.processor.getParameters().getRawParameterValue (id)->load(); };
+    CHECK (value (ParamIDs::doublerOn) > 0.5f);
+    // Then on to 0.7.0's voices: the old takes, 19 and 27 ms late, one each
+    // side, at MIX's level (60%: -4.4 dB), wobbling at a quarter of RATE.
+    const auto voice = [&value] (int v, const char* part) { return value (ParamIDs::doublerVoice (v, part).toRawUTF8()); };
+    CHECK (voice (0, "On") > 0.5f);
+    CHECK (voice (1, "On") > 0.5f);
+    CHECK (voice (2, "On") < 0.5f);
+    CHECK_THAT (voice (0, "Delay"), WithinAbs (19.0, 0.05));
+    CHECK_THAT (voice (1, "Delay"), WithinAbs (27.0, 0.05));
+    CHECK (voice (0, "Pan") < -0.9f);
+    CHECK (voice (1, "Pan") > 0.9f);
+    CHECK_THAT (voice (0, "Gain"), WithinAbs (-4.4, 0.1));
+    CHECK_THAT (voice (0, "Rate"), WithinAbs (0.375, 0.01));
+    CHECK (std::abs (voice (0, "Depth")) > 0.5f);
+    CHECK (value (ParamIDs::modOn) < 0.5f);   // MODULATION itself was only ever the doubler
+
+    // And it sounds doubled: the two sides differ, as DOUBLER's takes do.
+    const auto output = rig.run (sine (440.0, 0.3f, 1.0));
+    std::vector<float> difference (output[0].size());
+    for (size_t i = 0; i < difference.size(); ++i)
+        difference[i] = output[0][i] - output[1][i];
+    CHECK (rms (difference, 0.2) > 0.1f * rms (output[0], 0.2));
+
+    // A project saved now isn't touched: a later MODULATION type numbered 10
+    // mustn't be mistaken for the old Doubler.
+    juce::MemoryBlock current;
+    rig.processor.getStateInformation (current);
+    auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
+    REQUIRE (currentXml != nullptr);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 32);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")
@@ -1417,15 +1570,23 @@ TEST_CASE ("Every effect copes with a mono track and with oversized blocks", "[e
 TEST_CASE ("Full chain runs comfortably faster than real time", "[effects][performance]")
 {
     EffectRig rig;
-    rig.processor.loadAmpModel (juce::File (PARAGON_NAM_EXAMPLE_MODELS).getChildFile ("wavenet.nam"));
-    REQUIRE (rig.processor.waitForLoads (20000));
-    for (const auto* id : { ParamIDs::compOn, ParamIDs::fpOn, ParamIDs::driveOn, ParamIDs::eqOn, ParamIDs::modOn, ParamIDs::delayOn,
-                            ParamIDs::reverbOn })
+    rig.set (ParamIDs::inputLowCut, 80.0f);
+    for (const auto* id : { ParamIDs::compOn, ParamIDs::fpOn, ParamIDs::driveOn, ParamIDs::eqOn, ParamIDs::doublerOn, ParamIDs::modOn,
+                            ParamIDs::delayOn, ParamIDs::reverbOn })
         rig.set (id, 1.0f);
     // The costliest settings: the pitch shifter two octaves up (it jumps most often) and the rotary.
     rig.set (ParamIDs::fpType, (float) effects::FilterPitch::Type::pitchShifter);
     rig.set (ParamIDs::fpInterval, 24.0f);
     rig.set (ParamIDs::modType, (float) effects::Modulation::Type::rotary);
+    // HARMONY with all eight voices, the highest two octaves up (each laid
+    // down from the most overlapping slices).
+    rig.set (ParamIDs::harmonyOn, 1.0f);
+    const float intervals[] = { 4, 7, 12, -12, 16, 19, 24, -5 };
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        rig.set (ParamIDs::harmonyVoice (voice, "Active").toRawUTF8(), 1.0f);
+        rig.set (ParamIDs::harmonyVoice (voice, "Pitch").toRawUTF8(), intervals[voice]);
+    }
 
     const auto input = sine (220.0, 0.3f, 5.0);
     const auto startMs = juce::Time::getMillisecondCounterHiRes();
@@ -1676,3 +1837,805 @@ TEST_CASE ("Projects and rigs saved before reverb types keep the original reverb
            == (int) effects::Delay::Type::digital);
 }
 
+
+TEST_CASE ("LOW CUT: takes out rumble below its frequency and leaves the voice alone", "[effects][lowcut]")
+{
+    // A 12 dB-per-octave (Butterworth) high-pass: 3 dB down at the knob's
+    // frequency, about 12 dB an octave below, about 24 dB two octaves below.
+    const auto levelThrough = [] (float lowCutHz, double hz)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::inputLowCut, lowCutHz);
+        const auto input = sine (hz, 0.3f, 1.0);
+        return dB (levelAt (rig.runMono (input), hz, 0.3) / levelAt (input, hz, 0.3));
+    };
+
+    SECTION ("At 100 Hz")
+    {
+        CHECK_THAT (levelThrough (100.0f, 25.0), WithinAbs (-24.1, 1.0));   // mic-stand rumble
+        CHECK_THAT (levelThrough (100.0f, 50.0), WithinAbs (-12.3, 0.5));   // mains hum, plosive thump
+        CHECK_THAT (levelThrough (100.0f, 100.0), WithinAbs (-3.0, 0.3));
+        CHECK_THAT (levelThrough (100.0f, 220.0), WithinAbs (-0.2, 0.2));   // a low sung note: barely touched
+        CHECK_THAT (levelThrough (100.0f, 1000.0), WithinAbs (0.0, 0.05));  // the body of the voice: untouched
+    }
+
+    SECTION ("The knob moves the corner")
+    {
+        CHECK_THAT (levelThrough (200.0f, 200.0), WithinAbs (-3.0, 0.3));
+        CHECK (levelThrough (200.0f, 100.0) < levelThrough (80.0f, 100.0) - 9.0f);
+    }
+}
+
+TEST_CASE ("LOW CUT: OFF is exactly the input; the default is 80 Hz", "[effects][lowcut]")
+{
+    EffectRig rig;   // the rig starts with LOW CUT at OFF
+    const auto rumble = sine (40.0, 0.3f, 0.5);
+    CHECK (maxAbsDifference (rumble, rig.runMono (rumble)) < 1.0e-6f);
+
+    auto* lowCut = rig.processor.getParameters().getParameter (ParamIDs::inputLowCut);
+    CHECK (lowCut->getText (lowCut->convertTo0to1 (effects::LowCut::offHz), 16) == "Off");
+    CHECK (lowCut->getText (lowCut->getDefaultValue(), 16) == "80 Hz");
+
+    // A fresh plugin starts with it on, filtering from the very first note.
+    ParagonX1AudioProcessor fresh;
+    fresh.setPlayConfigDetails (1, 2, sampleRate, blockSize);
+    fresh.prepareToPlay (sampleRate, blockSize);
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    buffer.clear();
+    for (int i = 0; i < blockSize; ++i)
+        buffer.setSample (0, i, 0.3f);   // a step: what a plosive does to the mic
+    juce::MidiBuffer midi;
+    fresh.processBlock (buffer, midi);
+    CHECK (std::abs (buffer.getSample (0, blockSize - 1)) < 0.3f * 0.95f);   // already draining away
+}
+
+TEST_CASE ("LOW CUT: turning the knob, or switching it off and on, doesn't click", "[effects][lowcut]")
+{
+    // A steady 1 kHz note while LOW CUT sweeps from OFF to the top and back.
+    // A click would show as a sample far from the clean sine.
+    EffectRig rig;
+    const auto input = sine (1000.0, 0.3f, 1.2);
+    std::vector<float> output;
+    const float settings[] = { effects::LowCut::offHz, effects::LowCut::maxHz, 80.0f, effects::LowCut::offHz, 300.0f, 150.0f };
+    const auto chunk = input.size() / std::size (settings);
+    for (size_t step = 0; step < std::size (settings); ++step)
+    {
+        rig.set (ParamIDs::inputLowCut, settings[step]);
+        const auto part = rig.runMono ({ input.begin() + (long) (step * chunk), input.begin() + (long) ((step + 1) * chunk) });
+        output.insert (output.end(), part.begin(), part.end());
+    }
+
+    // A click is a sudden jump between neighbouring samples. A 0.3 sine at
+    // 1 kHz never moves more than 0.3 x 2 pi x 1000 / 48000 = 0.039 per
+    // sample, so the output must stay under that (plus a hair).
+    CHECK (allFinite (output));
+    auto biggestStep = 0.0f;
+    for (size_t i = 1; i < output.size(); ++i)
+        biggestStep = std::max (biggestStep, std::abs (output[i] - output[i - 1]));
+    CHECK (biggestStep < 0.0415f);
+
+    // And the note keeps its level throughout: even at 400 Hz, LOW CUT takes
+    // under 0.3 dB off 1 kHz. (It shifts its timing slightly, which is why
+    // this compares levels rather than samples.)
+    for (size_t step = 0; step < std::size (settings); ++step)
+    {
+        const auto from = (double) (step * chunk) / sampleRate, to = (double) ((step + 1) * chunk) / sampleRate;
+        CHECK_THAT (dB (rms (output, from, to) / rms (input, from, to)), WithinAbs (0.0, 0.35));
+    }
+}
+
+TEST_CASE ("LIMITER: nothing leaves above the ceiling; normal levels are untouched", "[effects][limiter]")
+{
+    const auto peak = [] (const std::vector<float>& samples, double fromSeconds = 0.0)
+    {
+        auto result = 0.0f;
+        for (auto i = (size_t) (fromSeconds * sampleRate); i < samples.size(); ++i)
+            result = std::max (result, std::abs (samples[i]));
+        return result;
+    };
+
+    SECTION ("A note 6 dB over full scale comes out at -1 dB, the default ceiling, on both sides")
+    {
+        EffectRig rig;
+        const auto output = rig.run (sine (440.0, 2.0f, 0.5));
+        const auto ceiling = juce::Decibels::decibelsToGain (-1.0f);
+        for (const auto& channel : output)
+        {
+            CHECK (peak (channel) <= ceiling + 1.0e-6f);   // never over, not even the first sample
+            CHECK (peak (channel, 0.1) > ceiling * 0.97f);  // and held up at the ceiling, not crushed
+        }
+        CHECK (rig.processor.getLimiterReductionDb() < -5.0f);   // the light is on
+    }
+
+    SECTION ("Under the ceiling it does nothing at all, and the light is off")
+    {
+        EffectRig rig;
+        const auto input = sine (440.0, 0.3f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+        CHECK (rig.processor.getLimiterReductionDb() == 0.0f);
+    }
+
+    SECTION ("The knob sets the ceiling (gliding there over 50 ms when turned, so it doesn't zip)")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::outputLimiter, -6.0f);
+        CHECK (peak (rig.runMono (sine (440.0, 0.9f, 0.5)), 0.06) <= juce::Decibels::decibelsToGain (-6.0f) + 1.0e-6f);
+    }
+
+    SECTION ("OFF lets everything through")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);
+        auto* limiter = rig.processor.getParameters().getParameter (ParamIDs::outputLimiter);
+        CHECK (limiter->getCurrentValueAsText() == "Off");
+        const auto input = sine (440.0, 2.0f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input), (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+    }
+
+    SECTION ("After a loud peak it lets go, so the next quiet phrase is back at full level")
+    {
+        EffectRig rig;
+        auto input = sine (440.0, 2.0f, 0.3);                    // a shout...
+        const auto quiet = sine (440.0, 0.3f, 0.7);              // ...then singing softly
+        input.insert (input.end(), quiet.begin(), quiet.end());
+        const auto output = rig.runMono (input);
+        // 0.4 s after the shout, more than three times the 100 ms release:
+        // the soft singing is untouched again.
+        CHECK_THAT (dB (rms (output, 0.7, 1.0) / rms (input, 0.7, 1.0)), WithinAbs (0.0, 0.05));
+        CHECK (rig.processor.getLimiterReductionDb() == 0.0f);
+    }
+
+    SECTION ("Switching it off and on during a loud note doesn't click")
+    {
+        // A note over full scale, with LIMITER switched OFF, back to -1 dB,
+        // then to -9 dB. A click is a jump between neighbouring samples:
+        // this note never moves more than 1.2 x 2 pi x 440 / 48000 = 0.069 per
+        // sample, so the output must stay under that (plus a hair).
+        EffectRig rig;
+        const auto input = sine (440.0, 1.2f, 0.8);
+        const float settings[] = { -1.0f, effects::Limiter::offDb, -1.0f, -9.0f };
+        const auto chunk = input.size() / std::size (settings);
+        std::vector<float> output;
+        for (size_t step = 0; step < std::size (settings); ++step)
+        {
+            rig.set (ParamIDs::outputLimiter, settings[step]);
+            const auto part = rig.runMono ({ input.begin() + (long) (step * chunk), input.begin() + (long) ((step + 1) * chunk) });
+            output.insert (output.end(), part.begin(), part.end());
+        }
+        auto biggestStep = 0.0f;
+        for (size_t i = 1; i < output.size(); ++i)
+            biggestStep = std::max (biggestStep, std::abs (output[i] - output[i - 1]));
+        CHECK (biggestStep < 0.072f);
+    }
+
+    SECTION ("Its default is -1 dB, and it doesn't change with rigs")
+    {
+        EffectRig rig;
+        auto* limiter = rig.processor.getParameters().getParameter (ParamIDs::outputLimiter);
+        CHECK (limiter->getText (limiter->getDefaultValue(), 16) == "-1.0 dB");
+        CHECK (ParamIDs::notInRigs.contains (ParamIDs::outputLimiter));
+        CHECK (rig.processor.getLatencySamples() == 0);   // no look-ahead: nothing delays the voice
+    }
+}
+
+namespace
+{
+    // A sung "ah" at 220 Hz: the note and its overtones up to about 3 kHz,
+    // each quieter than the last, as a voice's are. It fades in over 10 ms,
+    // as a sung note does: starting instantly would be a click, which is
+    // bright and sibilant enough for a de-esser to catch.
+    std::vector<float> vowel (double seconds, float level = 0.3f)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (int harmonic = 1; harmonic * 220.0 < 3000.0; ++harmonic)
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += level / (float) harmonic
+                            * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * harmonic * (double) i / sampleRate);
+        const auto fade = (size_t) (0.01 * sampleRate);
+        for (size_t i = 0; i < std::min (fade, samples.size()); ++i)
+            samples[i] *= 0.5f - 0.5f * (float) std::cos (juce::MathConstants<double>::pi * (double) i / (double) fade);
+        return samples;
+    }
+
+    // An "s": energy spread over the top, between about 6 and 10 kHz
+    // (shifted down to `lowestHz` and up from there for other voices).
+    std::vector<float> ess (double seconds, float level = 0.1f, double lowestHz = 6100.0)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (const auto hz : { lowestHz, lowestHz * 1.2, lowestHz * 1.34, lowestHz * 1.57 })
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += level * (float) std::sin (juce::MathConstants<double>::twoPi * hz * (double) i / sampleRate + hz);
+        return samples;
+    }
+}
+
+TEST_CASE ("DE-ESSER: turns the esses down and leaves the vowels alone", "[effects][deesser]")
+{
+    const auto deEssed = [] (const std::vector<float>& input, float amountDb = 6.0f, float frequencyHz = 6000.0f, bool listen = false)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::deessOn, 1.0f);
+        rig.set (ParamIDs::deessAmount, amountDb);
+        rig.set (ParamIDs::deessFreq, frequencyHz);
+        rig.set (ParamIDs::deessListen, listen ? 1.0f : 0.0f);
+        return rig.runMono (input);
+    };
+
+    SECTION ("A vowel comes through exactly as it went in")
+    {
+        const auto input = vowel (0.5);
+        CHECK (maxAbsDifference (input, deEssed (input, 18.0f)) < 1.0e-6f);
+    }
+
+    SECTION ("An ess is turned down by AMOUNT")
+    {
+        const auto input = ess (0.5);
+        for (const auto amount : { 6.0f, 12.0f })
+        {
+            INFO ("AMOUNT " << amount);
+            CHECK_THAT (dB (rms (deEssed (input, amount), 0.1) / rms (input, 0.1)), WithinAbs (-amount, 1.5));
+        }
+        CHECK_THAT (dB (rms (deEssed (input, 0.0f), 0.1) / rms (input, 0.1)), WithinAbs (0.0, 0.01));   // AMOUNT 0: nothing
+    }
+
+    SECTION ("It follows the singing: the ess in a phrase is turned down, the vowels either side aren't")
+    {
+        auto input = vowel (0.4);
+        const auto s = ess (0.2);
+        const auto after = vowel (0.4);
+        input.insert (input.end(), s.begin(), s.end());
+        input.insert (input.end(), after.begin(), after.end());
+        const auto output = deEssed (input, 10.0f);
+        CHECK_THAT (dB (rms (output, 0.45, 0.6) / rms (input, 0.45, 0.6)), WithinAbs (-10.0, 2.0));   // the ess
+        CHECK (maxAbsDifference (input, output) > 0.0f);
+        CHECK_THAT (dB (rms (output, 0.1, 0.38) / rms (input, 0.1, 0.38)), WithinAbs (0.0, 0.01));    // the vowel before
+        CHECK_THAT (dB (rms (output, 0.8, 1.0) / rms (input, 0.8, 1.0)), WithinAbs (0.0, 0.05));      // and after (once released)
+    }
+
+    SECTION ("It reacts the same to a quiet ess and a loud one")
+    {
+        CHECK_THAT (dB (rms (deEssed (ess (0.5, 0.01f)), 0.1) / rms (ess (0.5, 0.01f), 0.1)),
+                    WithinAbs (dB (rms (deEssed (ess (0.5, 0.2f)), 0.1) / rms (ess (0.5, 0.2f), 0.1)), 0.5));
+    }
+
+    SECTION ("FREQUENCY: set above a low ess it misses it; set below, it catches it")
+    {
+        const auto lowEss = ess (0.5, 0.1f, 3200.0);   // a lower, darker "sh"
+        CHECK (dB (rms (deEssed (lowEss, 12.0f, 11000.0f), 0.1) / rms (lowEss, 0.1)) > -3.0f);
+        CHECK (dB (rms (deEssed (lowEss, 12.0f, 2500.0f), 0.1) / rms (lowEss, 0.1)) < -8.0f);
+    }
+
+    SECTION ("LISTEN plays only what's taken away: the esses, and silence for the vowels")
+    {
+        const auto vowelHeard = deEssed (vowel (0.5), 6.0f, 6000.0f, true);
+        CHECK (rms (vowelHeard, 0.1) < 1.0e-5f);
+
+        // At 6 dB, half the ess's level is taken away, so that's what LISTEN plays.
+        const auto input = ess (0.5);
+        const auto essHeard = deEssed (input, 6.0f, 6000.0f, true);
+        CHECK_THAT (dB (rms (essHeard, 0.1) / rms (input, 0.1)), WithinAbs (-6.0, 2.0));
+    }
+
+    SECTION ("Off, it's exactly the input")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::deessAmount, 18.0f);   // set up, but switched off
+        const auto input = ess (0.3);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+    }
+}
+
+namespace
+{
+    // A sung vowel: a note at `hz` with its overtones up to 4 kHz, shaped
+    // by one vocal resonance (formant) at `formantHz`, as a voice's are.
+    std::vector<float> sungVowel (double hz, double seconds, double formantHz = 800.0)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate), 0.0f);
+        for (int harmonic = 1; harmonic * hz < 4000.0; ++harmonic)
+        {
+            const auto f = harmonic * hz;
+            const auto amplitude = (float) (0.05 * (0.06 + 1.0 / (1.0 + std::pow ((f - formantHz) / 180.0, 2.0))));
+            for (size_t i = 0; i < samples.size(); ++i)
+                samples[i] += amplitude * (float) std::sin (juce::MathConstants<double>::twoPi * f * (double) i / sampleRate + harmonic);
+        }
+        return samples;
+    }
+
+    // The pitch of the last part of a signal, in Hz (0 if there's no clear note).
+    double pitchOf (const std::vector<float>& samples)
+    {
+        PitchDetector detector { 60.0, 1100.0 };
+        detector.prepare (sampleRate);
+        const auto length = detector.windowSizeAtHostRate();
+        const auto result = detector.detect (samples.data() + (samples.size() - (size_t) length), length);
+        return result.has_value() ? result->frequency : 0.0;
+    }
+
+    double centsBetween (double hz, double reference) { return 1200.0 * std::log2 (hz / reference); }
+
+    // A rig with HARMONY on, only voice 1 sounding (in the middle, at 0 dB),
+    // and the singer's own voice turned off, so the output is voice 1 alone.
+    struct HarmonyRig : EffectRig
+    {
+        HarmonyRig (float semitones, int key = 0, Scales::Scale scale = Scales::Scale::major)
+        {
+            set (ParamIDs::harmonyOn, 1.0f);
+            set (ParamIDs::harmonySource, effects::Harmony::silentDb);
+            set (ParamIDs::harmonyKey, (float) key);
+            set (ParamIDs::harmonyScale, (float) scale);
+            setVoice ("Pitch", semitones);
+            setVoice ("Pan", 0.0f);
+            setVoice ("Level", 0.0f);
+            set (ParamIDs::harmonyVoice (1, "Active").toRawUTF8(), 0.0f);
+        }
+        void setVoice (const char* part, float value, int voice = 0) { set (ParamIDs::harmonyVoice (voice, part).toRawUTF8(), value); }
+    };
+}
+
+TEST_CASE ("HARMONY: voices sing the interval, corrected into the key", "[effects][harmony]")
+{
+    const auto harmonyOf = [] (HarmonyRig& rig, double sungHz) { return pitchOf (rig.run (sungVowel (sungHz, 1.0))[0]); };
+    const auto A3 = 220.0, D3 = 146.832, E4 = 329.628, F3 = 174.614, Fsharp3 = 184.997;
+
+    SECTION ("A fifth up (+7) on an A, in C major, is the E above")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), E4)) < 5.0);
+    }
+
+    SECTION ("+4 on a D in C major: F#, the major third, isn't in the key, so it sings F, the minor third")
+    {
+        HarmonyRig rig (4.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), F3)) < 5.0);
+    }
+
+    SECTION ("The same +4 on a D in A major (F# is in the key) sings F#")
+    {
+        HarmonyRig rig (4.0f, 9 /* A */);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), Fsharp3)) < 5.0);
+    }
+
+    SECTION ("CORRECT off: exactly +4, whatever the key")
+    {
+        HarmonyRig rig (4.0f);
+        rig.setVoice ("Correct", 0.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, D3), Fsharp3)) < 5.0);
+    }
+
+    SECTION ("A singer 20 cents flat gets a harmony in tune; uncorrected, it's as flat as they are")
+    {
+        const auto flatA = A3 * std::pow (2.0, -20.0 / 1200.0);
+        HarmonyRig corrected (7.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (corrected, flatA), E4)) < 5.0);
+
+        HarmonyRig free (7.0f);
+        free.setVoice ("Correct", 0.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (free, flatA), E4) + 20.0) < 5.0);
+    }
+
+    SECTION ("FINE adds cents on top")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Fine", 30.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), E4) - 30.0) < 5.0);
+    }
+
+    SECTION ("Down an octave (-12)")
+    {
+        HarmonyRig rig (-12.0f);
+        CHECK (std::abs (centsBetween (harmonyOf (rig, A3), A3 / 2.0)) < 5.0);
+    }
+}
+
+TEST_CASE ("HARMONY: a raised voice keeps its vowel (formants), unless CORRECT FORMANT is turned down", "[effects][harmony]")
+{
+    // Where a voice's resonance (its formant: what makes an "ah" an "ah")
+    // sits: the frequency of its loudest overtone. The test vowel's is
+    // built at 800 Hz.
+    const auto resonanceOf = [] (const std::vector<float>& samples, double hz)
+    {
+        auto loudest = 0.0f;
+        auto where = 0.0;
+        for (int harmonic = 1; harmonic * hz < 4000.0; ++harmonic)
+            if (const auto level = levelAt (samples, harmonic * hz, 0.4); level > loudest)
+            {
+                loudest = level;
+                where = harmonic * hz;
+            }
+        return where;
+    };
+
+    const auto sung = 150.0, raised = 150.0 * std::pow (2.0, 7.0 / 12.0);   // a fifth up: 224.7 Hz
+    const auto input = sungVowel (sung, 1.0, 800.0);
+    INFO ("The sung vowel's resonance: " << resonanceOf (input, sung) << " Hz");
+
+    // CORRECT FORMANT at 100% (the default): the resonance stays near 800 Hz
+    // (its nearest overtones a fifth up are 674 and 899 Hz): a person singing
+    // a fifth higher.
+    HarmonyRig natural (7.0f);
+    natural.setVoice ("Correct", 0.0f);   // exactly +7, so the overtones are where we measure
+    const auto kept = resonanceOf (natural.run (input)[0], raised);
+    CHECK (kept > 650.0);
+    CHECK (kept < 950.0);
+
+    // At 0%: the resonance moves up with the pitch, to about 1200 Hz: a sped-up tape.
+    HarmonyRig chipmunk (7.0f);
+    chipmunk.setVoice ("Correct", 0.0f);
+    chipmunk.set (ParamIDs::harmonyCorrectFormant, 0.0f);
+    CHECK (resonanceOf (chipmunk.run (input)[0], raised) > 1050.0);
+
+    // FORMANT down a fifth: the resonance moves down to about 530 Hz: a bigger singer, same note.
+    HarmonyRig deeper (7.0f);
+    deeper.setVoice ("Correct", 0.0f);
+    deeper.setVoice ("Formant", -7.0f);
+    CHECK (resonanceOf (deeper.run (input)[0], raised) < 600.0);
+}
+
+TEST_CASE ("HARMONY: levels, pan, source and switching off", "[effects][harmony]")
+{
+    const auto input = sungVowel (220.0, 1.0);
+
+    SECTION ("Off, the voice comes through exactly as it went in")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::harmonyLevel, 6.0f);   // set up, but switched off
+        const auto output = rig.run (input);
+        CHECK (maxAbsDifference (input, output[0]) < 1.0e-6f);
+        CHECK (maxAbsDifference (input, output[1]) < 1.0e-6f);
+    }
+
+    SECTION ("On with every voice silent, SOURCE at 0 dB is exactly the voice")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::harmonyOn, 1.0f);
+        rig.set (ParamIDs::harmonyLevel, effects::Harmony::silentDb);
+        CHECK (maxAbsDifference (input, rig.run (input)[0], (size_t) (0.05 * sampleRate)) < 1.0e-5f);
+    }
+
+    SECTION ("A voice panned hard left is only on the left")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Pan", -1.0f);
+        const auto output = rig.run (input);
+        CHECK (rms (output[0], 0.3) > 0.01f);
+        CHECK (rms (output[1], 0.3) < 1.0e-4f);
+    }
+
+    SECTION ("A voice's LEVEL, and HARMONY's overall level, set its loudness")
+    {
+        const auto loudness = [&input] (float voiceDb, float harmonyDb)
+        {
+            HarmonyRig rig (7.0f);
+            rig.setVoice ("Level", voiceDb);
+            rig.set (ParamIDs::harmonyLevel, harmonyDb);
+            return rms (rig.run (input)[0], 0.3);
+        };
+        const auto full = loudness (0.0f, 0.0f);
+        CHECK_THAT (dB (loudness (-6.0f, 0.0f) / full), WithinAbs (-6.0, 0.5));
+        CHECK_THAT (dB (loudness (0.0f, -10.0f) / full), WithinAbs (-10.0, 0.5));
+    }
+
+    SECTION ("A raised voice is about as loud as the singer")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK_THAT (dB (rms (rig.run (input)[0], 0.3) / rms (input, 0.3)), WithinAbs (0.0, 3.0));
+    }
+
+    SECTION ("Breath and consonants (no note) come through safely at the singer's pitch")
+    {
+        HarmonyRig rig (7.0f);
+        juce::Random random (42);
+        std::vector<float> breath ((size_t) sampleRate / 2);
+        for (auto& sample : breath)
+            sample = 0.1f * (random.nextFloat() * 2.0f - 1.0f);
+        const auto output = rig.run (breath)[0];
+        CHECK (allFinite (output));
+        CHECK (rms (output, 0.2) < 2.0f * rms (breath, 0.2));
+    }
+
+    SECTION ("The singer's own voice still has no delay: the plugin reports none")
+    {
+        HarmonyRig rig (7.0f);
+        CHECK (rig.processor.getLatencySamples() == 0);
+    }
+}
+
+namespace
+{
+    // A rig with DOUBLER on and only voice 1 sounding (in the middle, at
+    // 0 dB, no detune), the direct voice off: the output is voice 1 alone.
+    struct DoublerRig : EffectRig
+    {
+        explicit DoublerRig (int outputChannels = 2) : EffectRig (outputChannels)
+        {
+            set (ParamIDs::doublerOn, 1.0f);
+            set (ParamIDs::doublerDirectOn, 0.0f);
+            for (int voice = 1; voice < effects::Doubler::numVoices; ++voice)
+                setVoice ("On", 0.0f, voice);
+            setVoice ("Gain", 0.0f);
+            setVoice ("Pan", 0.0f);
+            setVoice ("Detune", 0.0f);
+            setVoice ("Drift", 0.0f);   // steady, so each test hears only its own setting
+        }
+        void setVoice (const char* part, float value, int voice = 0) { set (ParamIDs::doublerVoice (voice, part).toRawUTF8(), value); }
+    };
+
+    // A click 100 ms in: after DOUBLER's 20 ms fade in as it's switched on,
+    // which a click right at the start would partly slip through.
+    constexpr double clickAtMs = 100.0;
+    std::vector<float> lateClick (double seconds)
+    {
+        auto samples = silence (seconds);
+        samples[(size_t) (clickAtMs * sampleRate / 1000.0)] = 1.0f;
+        return samples;
+    }
+
+    // When the click first comes out, in ms after it went in.
+    double arrivalMs (const std::vector<float>& samples, float threshold = 0.05f)
+    {
+        for (size_t i = 0; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > threshold)
+                return (double) i / sampleRate * 1000.0 - clickAtMs;
+        return -1.0;
+    }
+}
+
+TEST_CASE ("DOUBLER: each voice detuned, delayed and placed as set", "[effects][doubler]")
+{
+    const auto note = sungVowel (220.0, 1.0);
+
+    SECTION ("DETUNE moves the voice's pitch by its cents, keeping its timing")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Detune", 50.0f);
+        CHECK (std::abs (centsBetween (pitchOf (rig.run (note)[0]), 220.0) - 50.0) < 4.0);
+    }
+
+    SECTION ("OCTAVE puts it an octave down")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Octave", 1.0f);
+        CHECK (std::abs (centsBetween (pitchOf (rig.run (note)[0]), 110.0)) < 4.0);
+    }
+
+    SECTION ("DELAY puts it that late; below the detuning's own ~13 ms it comes at about that")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        CHECK_THAT (arrivalMs (rig.run (lateClick (0.3))[0]), WithinAbs (40.0, 0.5));
+
+        DoublerRig shortest;
+        shortest.setVoice ("Delay", 2.0f);
+        // The detuning's own delay: 4 samples plus half of its 25 ms jump, 12.6 ms at 48 kHz.
+        CHECK_THAT (arrivalMs (shortest.run (lateClick (0.3))[0]), WithinAbs (12.6, 1.0));
+    }
+
+    SECTION ("FEEDBACK repeats it, each repeat quieter by the feedback")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        rig.setVoice ("Feedback", 0.5f);
+        const auto output = rig.run (lateClick (0.4))[0];
+        const auto peakNear = [&output] (double ms)
+        {
+            ms += clickAtMs;
+            auto peak = 0.0f;
+            for (auto i = (size_t) ((ms - 3.0) * sampleRate / 1000.0); i < (size_t) ((ms + 3.0) * sampleRate / 1000.0); ++i)
+                peak = std::max (peak, std::abs (output[i]));
+            return peak;
+        };
+        CHECK (peakNear (40.0) > 0.5f);
+        CHECK_THAT (peakNear (80.0) / peakNear (40.0), WithinAbs (0.5, 0.1));
+        CHECK_THAT (peakNear (120.0) / peakNear (80.0), WithinAbs (0.5, 0.1));
+    }
+
+    SECTION ("PAN: hard left is only on the left")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Pan", -1.0f);
+        const auto output = rig.run (note);
+        CHECK (rms (output[0], 0.2) > 0.01f);
+        CHECK (rms (output[1], 0.2) < 1.0e-5f);
+    }
+
+    SECTION ("GAIN and OUTPUT set the level")
+    {
+        const auto loudness = [&note] (float gainDb, float outputDb)
+        {
+            DoublerRig rig;
+            rig.setVoice ("Gain", gainDb);
+            rig.set (ParamIDs::doublerOutput, outputDb);
+            return rms (rig.run (note)[0], 0.2);
+        };
+        const auto full = loudness (0.0f, 0.0f);
+        CHECK_THAT (dB (full / rms (note, 0.2)), WithinAbs (0.0, 1.0));   // a voice at 0 dB is as loud as you
+        CHECK_THAT (dB (loudness (-12.0f, 0.0f) / full), WithinAbs (-12.0, 0.3));
+        CHECK_THAT (dB (loudness (0.0f, -6.0f) / full), WithinAbs (-6.0, 0.3));
+    }
+
+    SECTION ("DEPTH wobbles its pitch around DETUNE, at RATE")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Depth", 60.0f);
+        rig.setVoice ("Rate", 1.0f);
+        const auto output = rig.run (sungVowel (220.0, 1.6))[0];
+        // Its pitch, a quarter of a cycle apart: up 60 cents, back, down 60.
+        std::vector<double> pitches;
+        for (const auto seconds : { 0.55, 0.8, 1.05, 1.3, 1.55 })
+            pitches.push_back (centsBetween (pitchOf ({ output.begin(), output.begin() + (long) (seconds * sampleRate) }), 220.0));
+        const auto [low, high] = std::minmax_element (pitches.begin(), pitches.end());
+        CHECK (*high - *low > 60.0);   // it moves, by roughly the 120 cents from top to bottom
+        CHECK (*high < 75.0);
+        CHECK (*low > -75.0);
+    }
+}
+
+TEST_CASE ("DOUBLER: DRIFT wanders each take's timing and tuning, like a second take", "[effects][doubler]")
+{
+    // Clicks every 0.3 s for 6 s: when each one comes out of the voice.
+    const auto arrivals = [] (float drift)
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        rig.setVoice ("Drift", drift);
+        auto input = silence (6.2);
+        std::vector<size_t> clicks;
+        for (auto seconds = 0.3; seconds < 6.0; seconds += 0.3)
+            clicks.push_back ((size_t) (seconds * sampleRate));
+        for (const auto click : clicks)
+            input[click] = 1.0f;
+        const auto output = rig.run (input)[0];
+        std::vector<double> times;
+        for (const auto click : clicks)
+            for (auto i = click; i < click + (size_t) (0.08 * sampleRate); ++i)
+                if (std::abs (output[i]) > 0.05f)
+                {
+                    times.push_back ((double) (i - click) / sampleRate * 1000.0);
+                    break;
+                }
+        return times;
+    };
+    const auto spreadOf = [] (const std::vector<double>& times)
+    {
+        const auto [low, high] = std::minmax_element (times.begin(), times.end());
+        return *high - *low;
+    };
+
+    SECTION ("Its timing moves by several milliseconds, within DRIFT's 6 ms either way")
+    {
+        const auto steady = arrivals (0.0f), loose = arrivals (1.0f);
+        REQUIRE (steady.size() == 20);
+        REQUIRE (loose.size() == 20);
+        CHECK (spreadOf (steady) < 0.5);
+        CHECK (spreadOf (loose) > 4.0);
+        for (const auto ms : loose)
+            CHECK_THAT (ms, WithinAbs (40.0, 7.0));
+    }
+
+    SECTION ("Its tuning wanders a few cents, never a warble")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Drift", 1.0f);
+        rig.setVoice ("Delay", 40.0f);
+        const auto output = rig.run (sungVowel (220.0, 6.0))[0];
+        std::vector<double> pitches;
+        for (auto seconds = 0.5; seconds <= 6.0; seconds += 0.25)
+            pitches.push_back (centsBetween (pitchOf ({ output.begin(), output.begin() + (long) (seconds * sampleRate) }), 220.0));
+        const auto [low, high] = std::minmax_element (pitches.begin(), pitches.end());
+        CHECK (*high - *low > 3.0);    // it wanders...
+        CHECK (*high < 15.0);          // ...by a few cents: DRIFT's 6, and a little more while
+        CHECK (*low > -15.0);          // the timing glides (a singer's take drifts this much)
+    }
+
+    SECTION ("Each voice wanders its own way")
+    {
+        DoublerRig rig;
+        for (int voice = 0; voice < 2; ++voice)
+        {
+            rig.setVoice ("On", 1.0f, voice);
+            rig.setVoice ("Gain", 0.0f, voice);
+            rig.setVoice ("Detune", 0.0f, voice);
+            rig.setVoice ("Delay", 40.0f, voice);
+            rig.setVoice ("Drift", 1.0f, voice);
+            rig.setVoice ("Pan", voice == 0 ? -1.0f : 1.0f, voice);
+        }
+        const auto output = rig.run (sungVowel (220.0, 3.0));
+        std::vector<float> difference (output[0].size());
+        for (size_t i = 0; i < difference.size(); ++i)
+            difference[i] = output[0][i] - output[1][i];
+        CHECK (rms (difference, 1.0) > 0.3f * rms (output[0], 1.0));   // same settings, different takes
+    }
+}
+
+TEST_CASE ("Projects saved with 0.7.0's DOUBLER load without DRIFT, as they sounded", "[effects][doubler]")
+{
+    // As 0.7.0 or 0.8.0 saved it: parameterVersion 30, no Drift parameters.
+    EffectRig original;
+    original.set (ParamIDs::doublerVoice (0, "Gain").toRawUTF8(), -6.0f);
+    juce::MemoryBlock saved;
+    original.processor.getStateInformation (saved);
+    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
+    REQUIRE (xml != nullptr);
+    xml->setAttribute ("parameterVersion", 30);
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+        xml->removeChildElement (xml->getChildByAttribute ("id", ParamIDs::doublerVoice (voice, "Drift")), true);
+    juce::MemoryBlock older;
+    juce::AudioProcessor::copyXmlToBinary (*xml, older);
+
+    EffectRig rig;
+    rig.processor.setStateInformation (older.getData(), (int) older.getSize());
+    const auto voice = [&rig] (int v, const char* part)
+    {
+        return rig.processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (v, part))->load();
+    };
+    for (int v = 0; v < effects::Doubler::numVoices; ++v)
+        CHECK (voice (v, "Drift") == 0.0f);
+    CHECK_THAT (voice (0, "Gain"), WithinAbs (-6.0, 0.01));   // as saved
+}
+
+TEST_CASE ("DOUBLER on a mono track: the takes at their full level", "[effects][doubler]")
+{
+    // Panned hard left, on a mono output: as loud as its GAIN says, not half.
+    const auto note = sungVowel (220.0, 1.0);
+    DoublerRig rig (1);
+    rig.setVoice ("Pan", -1.0f);
+    const auto output = rig.run (note);
+    REQUIRE (output.size() == 1);
+    CHECK_THAT (dB (rms (output[0], 0.3) / rms (note, 0.3)), WithinAbs (0.0, 1.0));
+
+    // And your own voice too, panned or not.
+    DoublerRig direct (1);
+    direct.setVoice ("On", 0.0f);
+    direct.set (ParamIDs::doublerDirectOn, 1.0f);
+    direct.set (ParamIDs::doublerDirectPan, 1.0f);
+    CHECK (maxAbsDifference (note, direct.run (note)[0], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+}
+
+TEST_CASE ("DOUBLER: the direct voice, and the shelves on the doubles", "[effects][doubler]")
+{
+    const auto note = sungVowel (220.0, 1.0);
+
+    SECTION ("With every voice off, the direct voice comes through exactly")
+    {
+        DoublerRig rig;
+        rig.set (ParamIDs::doublerDirectOn, 1.0f);
+        rig.setVoice ("On", 0.0f);
+        const auto output = rig.run (note);
+        CHECK (maxAbsDifference (note, output[0], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+        CHECK (maxAbsDifference (note, output[1], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+    }
+
+    SECTION ("DIRECT's PAN and GAIN")
+    {
+        DoublerRig rig;
+        rig.set (ParamIDs::doublerDirectOn, 1.0f);
+        rig.set (ParamIDs::doublerDirectPan, 1.0f);
+        rig.set (ParamIDs::doublerDirectGain, -6.0f);
+        rig.setVoice ("On", 0.0f);
+        const auto output = rig.run (note);
+        CHECK (rms (output[0], 0.2) < 1.0e-5f);
+        CHECK_THAT (dB (rms (output[1], 0.2) / rms (note, 0.2)), WithinAbs (-6.0, 0.2));
+    }
+
+    SECTION ("The HIGH shelf cuts the doubles' highs, not your own voice")
+    {
+        const auto highsOf = [] (bool voices, float highShelfDb)
+        {
+            DoublerRig rig;
+            rig.set (ParamIDs::doublerDirectOn, voices ? 0.0f : 1.0f);
+            rig.setVoice ("On", voices ? 1.0f : 0.0f);
+            rig.set (ParamIDs::doublerHighGain, highShelfDb);
+            return levelAt (rig.run (sine (5000.0, 0.2f, 0.6))[0], 5000.0, 0.2);
+        };
+        CHECK_THAT (dB (highsOf (true, -12.0f) / highsOf (true, 0.0f)), WithinAbs (-12.0, 1.0));
+        CHECK_THAT (dB (highsOf (false, -12.0f) / highsOf (false, 0.0f)), WithinAbs (0.0, 0.01));
+    }
+
+    SECTION ("Off, it's exactly the input")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::doublerOutput, -12.0f);   // set up, but off
+        CHECK (maxAbsDifference (note, rig.run (note)[0]) < 1.0e-6f);
+    }
+}

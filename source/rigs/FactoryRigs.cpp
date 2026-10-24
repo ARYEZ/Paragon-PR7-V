@@ -12,7 +12,6 @@ namespace
         rig.bank = bank;
         rig.number = number;
         rig.tags = juce::StringArray::fromTokens (tags, ",", {});
-        rig.keepAmpAndCab = true;
         // Only the changes from the defaults: loading a rig resets every
         // parameter it doesn't mention to its default (every effect off).
         for (const auto& [id, value] : changes)
@@ -24,7 +23,7 @@ namespace
     constexpr float syncOff = 0, quarter = 3, eighth = 6, dottedEighth = 7;
     // Modulation types (index into effects::Modulation::typeNames).
     constexpr float chorus = 0, flanger = 1, tremolo = 3, dimension = 4, uniVibe = 5, rotary = 6, vibrato = 7,
-                    harmonicTremolo = 8, autoPan = 9, doubler = 10;
+                    harmonicTremolo = 8, autoPan = 9;
     // FILTER / PITCH types.
     constexpr float autoWah = 0, pitchShifter = 1, whammyWah = 2, talkBoxType = 3;
     constexpr float pedalTalkBox = 8;   // the expression pedal's TALK BOX setting
@@ -146,7 +145,7 @@ std::vector<Rig> makeFactoryRigs()
 
         make ("Wide Doubler", D, 6, "Rhythm,Modulation", {
             { driveOn, 1 }, { driveGain, 3 }, { driveTone, 5 },
-            { modOn, 1 }, { modType, doubler }, { modRate, 0.8f }, { modDepth, 0.4f }, { modMix, 0.7f },
+            { doublerOn, 1 },   // its voices as they start: the Doubler user guide's recipe
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
 
         // LO-FI: for intros and breakdowns. Assign the expression pedal to

@@ -3,12 +3,13 @@
 [![Build](https://github.com/ARYEZ/Paragon-PR7-V/actions/workflows/build.yml/badge.svg)](https://github.com/ARYEZ/Paragon-PR7-V/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/ARYEZ/Paragon-PR7-V)](https://github.com/ARYEZ/Paragon-PR7-V/releases/latest)
 
-A vocal multi-effects VST3 plugin built around [Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore)
-(`.nam`) amp captures, with a cabinet IR loader and built-in effects. Built with [JUCE](https://juce.com).
+A vocal multi-effects VST3 plugin: a floor processor for your voice, with seven stomps, an expression pedal
+and rigs. Built with [JUCE](https://juce.com).
 
 Paragon PR7-V is the vocal version of [Paragon PR7-G](https://github.com/ARYEZ/Paragon-X1), the guitar processor, and
-starts from its 0.32.1 release. It installs alongside PR7-G and keeps its own rigs. Voicing it for vocals is in progress,
-so the guide below still describes the guitar version's effects.
+started from its 0.32.1 release. It installs alongside PR7-G and keeps its own rigs. It has no amp or cabinet (PR7-G's
+NAM amp and IR loader aren't needed for a voice). Voicing the effects for vocals is in progress, so some of the
+descriptions below still talk about guitar.
 
 ![The Paragon design mockup (from when the guitar version was called Paragon X1)](Paragon%20x1.png)
 
@@ -25,81 +26,105 @@ so the guide below still describes the guitar version's effects.
 | 5 | Full pedalboard UI from the mockup | ✅ Done |
 | 6 | Expression pedal/morph, tap tempo, undo/redo, tuner | ✅ Done |
 | 7 | Detail and polish pass against the mockup | ✅ Done |
+| V1 | PR7-V: its own plugin; LOW CUT for the mic; seven stomps, no amp or cabinet | ✅ Done |
+| V2 | Master limiter by OUTPUT | ✅ Done |
+| V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
+| V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
+| V5 | Harmony: CORRECT (pitch correction), Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
-- **Amp:** click the amp display (or drag a `.nam` file onto it) to load a model. The ◀ ▶ arrows step
-  through the other models in the same folder. The LED turns the amp on and off.
-- **NORMALISE** levels every model to the same loudness, like the official NAM plugin's "Normalized"
-  output. It needs loudness data in the model; older models without it play at their raw level.
-- **Cabinet:** load a `.wav`, `.aiff` or `.flac` impulse response the same way. Like the official
-  plugin, IRs are turned down by a fixed 18 dB and not trimmed or normalised.
-- Models and IRs load in the background and crossfade in, so switching while playing doesn't click.
-- **Sample rate:** NAM models are captured at a fixed rate (almost always 48 kHz). At other rates the
-  plugin resamples with the same resampler as the official plugin and reports the small added
-  latency to your DAW.
-- **PRESENCE** (under the cabinet) cuts or boosts the top end after the cab, like an amp's presence knob.
-- **Footswitches 1-4** turn the effect blocks on and off. Click a footswitch's name to show its knobs
-  below. Signal chain: comp/gate → filter / pitch → overdrive → amp → cabinet → presence → graphic EQ → modulation
-  → delay → reverb → lo-fi.
-  - **1 Comp / Gate:** a compressor and a noise gate (threshold; all the way down is off). The compressor has two TYPEs:
-    **Classic** (threshold, ratio, level) and **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much pick attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL. The panel shows a
-    gain-reduction meter.
-  - **Lo-Fi** (last in the chain; no footswitch): telephone, AM radio, megaphone, cassette (wow, flutter, hiss)
-    or bitcrusher, for intros and breakdowns. AMOUNT, NOISE, MIX and LEVEL.
-  - **Pitch** (first in the signal chain; no footswitch): **TUNING** retunes the whole guitar (-12 to +12 semitones: D
-    standard, B, a capo...), the **OCTAVER** blends two octaves down, one down, the dry guitar and one up (POG-style,
-    chords track too), and **FREEZE** holds what you just played as an endless pad you can play over (with LEVEL,
-    ATTACK and RELEASE).
-  - **Glitch** (in the signal chain; no footswitch): granular glitch effects in five MODEs (the fifth, **Killswitch**,
-    cuts the end of each step to silence, like flicking a guitar's toggle switch in time): **Pitch Delay** (echoes that each
-    step in PITCH), **Sequence** (tempo-locked stutters that repeat the slice just played), **Interfere** (dropouts, backwards
-    slivers and buzzing loops) and **Texturizer** (a cloud of grains). LENGTH (in note values with SYNC), DENSITY, PITCH, CHAOS
-    (randomises everything together: low is rhythmic, high is unpredictable) and MIX. With SYNC on and the DAW playing,
-    Sequence and Interfere start their steps on the song's grid (every 1/16, every bar...), locked to the drums. POSITION puts it after the amp (POST,
-    the default: exact chops) or before it (PRE: the chops hit the drive). The expression pedal's GLITCH setting fades it in.
-  - **Filter / Pitch** (in the signal chain; no footswitch): an auto-wah (envelope filter), a pitch shifter
-    (two octaves down to two up, blended with the dry guitar for harmonies and octaves), or a **Whammy-Wah**: the
-    DigiTech XP-100's factory programs 01–28, numbered as on the pedal and played with the expression pedal (WHAMMY-WAH):
-    a volume pedal, five wahs, six auto-wahs (the pedal sets sensitivity or attack), eight whammy bends (heel: no shift,
-    toe: the interval, as far as six octaves down) and eight harmonies (your note plus a voice the pedal moves between two intervals);
-    or a **Talk Box**: the amp's sound, after the cab, shaped into vowels (oo to ee) by the expression pedal (TALK BOX),
-    with RESONANCE and MIX.
-  - **2 OD / Distortion:** four models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
+- **INPUT** sets the level from your mic (the meter shows what comes in; aim for peaks around -12 to -6).
+  **LOW CUT** under it is a high-pass filter, first in the chain (see below).
+- **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
+  **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
+  chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
+  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
+    **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
+    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
+    **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
+    **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
+    it). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
+    after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
+    are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
+    what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
+  - **2 Saturation:** four models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
     **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
-    mid-scooping tone stack (long, violin-like sustain); and **Face Fuzz**, following the silicon Fuzz Face's uneven
-    clipping (raspy and round, cleaning up with the guitar's volume). Drive, tone, level; 8x oversampled to avoid harsh aliasing.
-  - **3 Modulation:** eleven types: chorus, flanger, phaser, tremolo, Dimension chorus, Uni-Vibe, rotary
-    (Leslie), vibrato, harmonic tremolo, auto-pan and doubler. SYNC locks the rate to the tapped or DAW tempo.
-  - **4 Reverb / Delay:** switches both; each also has its own ON switch. The delay syncs to your
-    DAW's tempo (or set SYNC to Off for milliseconds), has a tone control for darker repeats, and
-    optional ping-pong; it comes in eight types: Digital (the original), Analog, Tape, Mod, Reverse,
-    Multi-Tap, Shimmer and Ducking. The reverb comes in eight types: Room, Hall, Cathedral, Plate, Spring,
-    Digital, Reverse and Classic (the original), with SIZE, PRE-DELAY, TONE and MIX. Both have a DUCK knob that tucks
-    the repeats or reverb under your playing and lets them swell back in the gaps. Both let their
-    tails ring out when switched off.
-- **Graphic EQ:** 9 bands (63 Hz to 16 kHz, ±12 dB) and a level, after the cabinet. Open it from the
+    mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,
+    level; 8x oversampled to avoid harsh aliasing.
+  - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
+    truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
+    take sung alongside rather than a chorus. Its panel is a table, a row per voice: **GAIN**, **PAN**, **DELAY**
+    (0-100 ms; the detuning itself takes about 13 ms, so shorter settings come out at about that), **FDBK** (repeats),
+    **OCT** (an octave down), **DETUNE** (cents), a pitch wobble, **DEPTH** at **RATE**, and **DRIFT** (how loose the take
+    is: its timing and tuning wander slowly at random, as a real second take's do). Beside it: your own voice
+    (**DIRECT** on, gain, pan), **OUTPUT**, LOW and HIGH shelves on the doubles only, **FB HIGH-PASS** (keeps repeats
+    clear) and **MOD RESET** (starts every wobble together). Drag a box up or down; double-click to reset. It starts
+    with two strong voices, one each side, drifting. On a mono track the voices stay at full level. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects move to this
+    stomp by themselves.)
+  - **4 Pitch:** **HARMONY** (inspired by Waves Harmony) and the octaver. The stomp brings back whichever were on; its
+    first press switches on HARMONY. Its panel has two views:
+    - **HARMONY:** up to eight harmony voices made from your own voice, kept in the song's **KEY** and **SCALE** (set these
+      first; they stay put when you change rigs). **SINGING** shows the note it hears. On the **graph** each voice is a dot
+      with its interval (+4 a third up, +7 a fifth, U unison): left to right is its pan, bottom to top its level. Click an
+      empty spot to add a voice, drag to move it, scroll over it to change its interval, right-click to remove it; the
+      tabs **1-8** pick a voice (or add one in the middle). For the picked voice: **ON**, **CORRECT** (keep it in the key:
+      when the exact interval isn't in the key, it takes the in-key one of the same kind, a third stays a third),
+      **PITCH** (-24 to +24 semitones), **FINE** (cents) and **FORMANT** (the voice's character: lower for a bigger
+      singer, higher for a smaller one, without changing the note). The mix: **SOURCE** (your own voice), **HARMONY** (all
+      the voices), **SPREAD** (stereo width) and **CORR. FORMANT** (100%: raised voices keep your vowels, like another
+      singer; 0%: they move with the pitch, like a sped-up tape). It starts with a third above on the left and a fifth
+      above on the right. The harmonies come out a few milliseconds after you (two vocal pulses: about 8 ms on a high
+      note to 25 ms on a low one); your own voice isn't delayed.
+    - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
+      one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
+      sing over (with LEVEL, ATTACK and RELEASE).
+  - **5 Modulation:** ten types: chorus, flanger, phaser, tremolo, Dimension chorus, Uni-Vibe, rotary (Leslie),
+    vibrato, harmonic tremolo and auto-pan. SYNC locks the rate to the tapped or DAW tempo.
+  - **6 Delay:** syncs to your DAW's tempo (or set SYNC to Off for milliseconds), has a tone control for darker repeats,
+    and optional ping-pong; eight types: Digital (the original), Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer and
+    Ducking.
+  - **7 Reverb:** eight types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse and Classic (the original), with
+    SIZE, PRE-DELAY, TONE and MIX. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
+    singing and lets them swell back in the gaps, and both let their tails ring out when switched off.
+- **More blocks in the signal chain** (no stomp: click them in the strip at the bottom):
+  - **Filter / Pitch:** an auto-wah (envelope filter), a pitch shifter (two octaves down to two up, blended with the
+    dry voice), a **Whammy-Wah** (the DigiTech XP-100's factory programs 01–28, played with the expression pedal), or a
+    **Talk Box**: the sound shaped into vowels (oo to ee) by the expression pedal, with RESONANCE and MIX.
+  - **Glitch:** granular glitch effects in five MODEs: **Pitch Delay**, **Sequence** (tempo-locked stutters),
+    **Interfere**, **Texturizer** and **Killswitch**. LENGTH (in note values with SYNC), DENSITY, PITCH, CHAOS and MIX.
+    POSITION puts it after the EQ (POST, the default) or before the saturation (PRE).
+  - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss) or bitcrusher, for
+    intros and breakdowns. AMOUNT, NOISE, MIX and LEVEL.
+- **OUTPUT** is the overall volume. **LIMITER** under it is the master limiter, last in the chain: nothing leaves the
+  plugin above its ceiling (-1 dB to start; -12 to 0 dB; all the way up is OFF), so a loud note can't clip in your DAW.
+  Its light glows while it's turning peaks down. It adds no delay, and like OUTPUT it stays put when you switch rigs.
+- **PRESENCE** (on the unit) cuts or boosts the top end, above about 3.5 kHz: more air on the voice, or less harshness.
+- **Graphic EQ:** 9 bands (63 Hz to 16 kHz, ±12 dB) and a level, after the saturation. Open it from the
   **EQ** block in the signal chain; the curve shows the EQ's actual response. FLAT resets it. **PRESETS** has twelve
   common starting curves (Metal Scoop, Tight Low End, Mud Cut, Fizz Tamer, Lead Mid Boost, Cut Through the Mix,
   Fat Rhythm, British Crunch, Bright Clean, Funk Scoop, Warm Jazz, Radio), each loudness-matched with LEVEL.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-D), tags and favourites rigs. Factory rigs set the effects and keep your amp and cab.
-  INPUT and OUTPUT stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
+  (banks A-D), tags and favourites rigs. (The factory rigs are still PR7-G's guitar rigs for now; vocal ones are coming.)
+  INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
+- **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
+  rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
+  80 Hz to start; up to 120-150 Hz for a thin or close-miked voice; turn it all the way down for OFF.
 - **TAP** (header or pedal) sets the delay's tempo from your taps; the BPM turns orange. Click the
   BPM to follow your DAW's tempo again. The TAP light flashes in time.
 - **Tuner:** hold TAP, or press TUNER on the pedal. The screen shows the note, how many cents off it
   is (the centre bar turns green when in tune) and the frequency. MUTE silences the output while tuning.
 - **Undo / redo:** the arrows in the header, UNDO / REDO on the pedal, or Ctrl+Z / Ctrl+Shift+Z
-  (Cmd on a Mac). Each knob move, switch, file or rig load is one step. INPUT, OUTPUT and the
+  (Cmd on a Mac). Each knob move, switch or rig load is one step. INPUT, LOW CUT, OUTPUT, LIMITER and the
   pedal's position aren't undone.
 - **Expression pedal** (right of the unit): drag it, use the mouse wheel, or send MIDI CC 11 (or the CC chosen in SETTINGS) from a
   real expression pedal (route your MIDI track to the plugin). Assign it on the small EXPRESSION screen beside it (click a line, or scroll; it also shows the
   pedal's position) or with EXPRESSION ASSIGN in the dock, to
-  **VOLUME**, **WAH / FILTER** (a wah before the drive), **MORPH / FX** (fades modulation, delay and
-  reverb in from the heel), **PITCH / WHAMMY** (bends the pitch shifter from no shift at the heel to its
+  **VOLUME**, **WAH / FILTER** (a wah before the saturation), **MORPH / FX** (fades the doubler, modulation, delay
+  and reverb in from the heel), **PITCH / WHAMMY** (bends the pitch shifter from no shift at the heel to its
   INTERVAL at the toe), **LO-FI** (fades the lo-fi effect in: full band at the heel, lo-fi at the toe) or
   **WHAMMY-WAH** (plays the FILTER / PITCH block's Whammy-Wah). MIN and MAX set where the heel and toe land. The assignment and range
   are saved with each rig.
@@ -138,7 +163,7 @@ platforms, tags the commit `vx.y.z` and publishes the release with notes from th
 ## Building from source
 
 Requirements: CMake 3.24+, a C++20 compiler (Visual Studio 2022, Xcode 15+, or GCC 11+/Clang 14+), and Git.
-JUCE, NeuralAmpModelerCore, Eigen and Catch2 are downloaded automatically at pinned versions.
+JUCE and Catch2 are downloaded automatically at pinned versions.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -164,11 +189,7 @@ The Inter typeface (in `resources/fonts`) is by Rasmus Andersson, under the SIL 
 Paragon PR7-V is free software under the [GNU Affero General Public License v3](LICENSE.md),
 which is required by JUCE's open-source licence.
 
-It uses:
-- [JUCE](https://github.com/juce-framework/JUCE): AGPLv3
-- [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore): MIT
-- [Eigen](https://eigen.tuxfamily.org): MPL 2.0
-- [AudioDSPTools](https://github.com/sdatkinson/AudioDSPTools) (resampler): MIT, with parts from iPlug2 under the zlib-style iPlug2 licence
+It uses [JUCE](https://github.com/juce-framework/JUCE) (AGPLv3).
 
-"Neural Amp Modeler" is Steven Atkinson's project. Paragon PR7-V is an independent player for `.nam`
-files and isn't affiliated with or endorsed by it.
+(Paragon PR7-G, which PR7-V started from, also uses NeuralAmpModelerCore, Eigen and AudioDSPTools for its NAM amp.
+PR7-V has no amp, so it doesn't include them.)

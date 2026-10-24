@@ -105,6 +105,38 @@ namespace Icons
                 p.addRectangle (0.8f, 0.04f, 0.14f, 0.1f);
                 break;
 
+            case Type::deEsser:
+                // An "S" with an arrow pointing down beside it: esses turned down.
+                p.startNewSubPath (0.6f, 0.2f);
+                p.cubicTo (0.5f, 0.06f, 0.1f, 0.1f, 0.16f, 0.33f);
+                p.cubicTo (0.22f, 0.52f, 0.58f, 0.46f, 0.6f, 0.68f);
+                p.cubicTo (0.62f, 0.92f, 0.2f, 0.94f, 0.1f, 0.78f);
+                p.startNewSubPath (0.86f, 0.22f);
+                p.lineTo (0.86f, 0.82f);
+                p.startNewSubPath (0.76f, 0.7f);
+                p.lineTo (0.86f, 0.82f);
+                p.lineTo (0.96f, 0.7f);
+                break;
+
+            case Type::microphone:
+            {
+                // A handheld vocal mic, angled like a singer holds it: the
+                // round grille with its mesh, a band, then the tapering handle.
+                p.addEllipse (0.52f, 0.06f, 0.4f, 0.4f);
+                p.startNewSubPath (0.6f, 0.18f);
+                p.lineTo (0.8f, 0.38f);
+                p.startNewSubPath (0.56f, 0.3f);
+                p.lineTo (0.68f, 0.42f);
+                juce::Path handle;
+                handle.startNewSubPath (0.55f, 0.37f);
+                handle.lineTo (0.61f, 0.43f);
+                handle.lineTo (0.14f, 0.94f);
+                handle.lineTo (0.06f, 0.86f);
+                handle.closeSubPath();
+                p.addPath (handle);
+                break;
+            }
+
             case Type::speaker:
                 p.startNewSubPath (0.08f, 0.38f);
                 p.lineTo (0.24f, 0.38f);
@@ -305,6 +337,20 @@ namespace Icons
                 p.lineTo (0.78f, 0.06f);
                 break;
             }
+
+            case Type::doubler:
+                // Two takes of the same phrase, the second a little late and
+                // lower: the same wave twice, offset.
+                for (const auto& [dx, dy] : { std::pair { 0.0f, 0.0f }, std::pair { 0.14f, 0.2f } })
+                {
+                    p.startNewSubPath (dx, 0.4f + dy);
+                    for (int i = 1; i <= 30; ++i)
+                    {
+                        const auto t = (float) i / 30.0f;
+                        p.lineTo (dx + 0.86f * t, 0.4f + dy - 0.26f * std::sin (t * juce::MathConstants<float>::twoPi * 1.5f));
+                    }
+                }
+                break;
 
             case Type::pitch:
             {

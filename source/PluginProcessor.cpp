@@ -7,9 +7,9 @@ namespace
 {
     constexpr double gainRampSeconds = 0.02;
 
-    // Where file paths are kept in the saved state (DAW project or preset).
-    const juce::Identifier ampModelPathKey { "ampModelPath" };
-    const juce::Identifier cabIrPathKey { "cabIrPath" };
+    // Extra settings kept in the saved state (DAW project or preset). Projects
+    // from before 0.3.0 may also hold "ampModelPath" and "cabIrPath", from
+    // the NAM amp and cabinet PR7-V no longer has: they're ignored.
     const juce::Identifier rigNameKey { "rigName" };
     const juce::Identifier rigFileKey { "rigFile" };
     const juce::Identifier rigFactoryKey { "rigFactory" };
@@ -17,19 +17,10 @@ namespace
     const juce::Identifier tappedBpmKey { "tappedBpm" };
     const juce::Identifier expressionCcKey { "expressionCc" };
     const juce::Identifier tunerReferenceKey { "tunerReferenceHz" };
-
-    juce::String describeModel (const AmpStage::ModelInfo& info)
-    {
-        // "48 kHz", "44.1 kHz"
-        const auto kHz = info.modelSampleRate / 1000.0;
-        const auto isWhole = std::abs (kHz - std::round (kHz)) < 0.05;
-        auto detail = (isWhole ? juce::String (juce::roundToInt (kHz)) : juce::String (kHz, 1)) + " kHz model";
-        if (info.resampling)
-            detail << ", resampled";
-        if (! info.hasLoudness)
-            detail << ", no loudness data";
-        return detail;
-    }
+    // Which plugin version's parameters a project was saved with, as for
+    // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
+    const juce::Identifier parameterVersionKey { "parameterVersion" };
+    constexpr int parameterVersion = 32;
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -40,11 +31,14 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
 {
     inputGainDb = parameters.getRawParameterValue (ParamIDs::inputGain);
     outputGainDb = parameters.getRawParameterValue (ParamIDs::outputGain);
-    ampOn = parameters.getRawParameterValue (ParamIDs::ampOn);
-    ampNormalise = parameters.getRawParameterValue (ParamIDs::ampNormalise);
-    cabOn = parameters.getRawParameterValue (ParamIDs::cabOn);
     for (int band = 0; band < effects::GraphicEq::numBands; ++band)
         eqGainDb[(size_t) band] = parameters.getRawParameterValue (ParamIDs::eqBands[band]);
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (int part = 0; part < ParamIDs::harmonyVoiceParts.size(); ++part)
+            harmonyVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::harmonyVoice (voice, ParamIDs::harmonyVoiceParts[part]));
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+        for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
+            doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
 
     rigLibrary = std::make_unique<RigLibrary>();
 
@@ -58,8 +52,7 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
                 parameter->addListener (this);
             }
 
-    // Housekeeping off the audio thread: free swapped-out models, keep the
-    // host's latency figure up to date, show MIDI pedal moves and record
+    // Housekeeping off the audio thread: show MIDI pedal moves and record
     // undo steps. 30 Hz so a MIDI expression pedal moves smoothly on screen.
     startTimerHz (30);
 
@@ -78,7 +71,6 @@ ParagonX1AudioProcessor::~ParagonX1AudioProcessor()
         }
 
     stopTimer();
-    loader.removeAllJobs (true, 10000);
 }
 
 void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -93,13 +85,19 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     bypassDry.setSize (1, preparedBlockSize);
     bypassAmount.reset (sampleRate, gainRampSeconds);
     bypassAmount.setCurrentAndTargetValue (isOn (ParamIDs::bypass) ? 1.0f : 0.0f);
-    amp.prepare (sampleRate, preparedBlockSize);
-    cab.prepare (sampleRate, preparedBlockSize);
     compGate.prepare (sampleRate, preparedBlockSize);
     filterPitch.prepare (sampleRate, preparedBlockSize);
+    deEsser.prepare (sampleRate, preparedBlockSize);
     drive.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
+    lowCut.prepare (sampleRate, preparedBlockSize);
+    lowCut.reset (param (ParamIDs::inputLowCut));
+    limiter.prepare (sampleRate);
+    limiter.reset (param (ParamIDs::outputLimiter));
     graphicEq.prepare (sampleRate, preparedBlockSize);
+    doubler.prepare (sampleRate, preparedBlockSize);
+    harmony.prepare (sampleRate, preparedBlockSize);
+    cleanVoice.setSize (1, preparedBlockSize);
     modulation.prepare (sampleRate, preparedBlockSize);
     delay.prepare (sampleRate, preparedBlockSize);
     reverb.prepare (sampleRate, preparedBlockSize);
@@ -114,7 +112,7 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     expressionVolume.setCurrentAndTargetValue (1.0f);
     tunerOpen.reset (sampleRate, gainRampSeconds);
     tunerOpen.setCurrentAndTargetValue (isOn (ParamIDs::tunerOn) && isOn (ParamIDs::tunerMute) ? 0.0f : 1.0f);
-    setLatencySamples (amp.getLatencySamples());
+    setLatencySamples (0);   // nothing in the chain looks ahead
 }
 
 juce::AudioProcessorParameter* ParagonX1AudioProcessor::getBypassParameter() const
@@ -229,9 +227,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
 {
     const auto numOutputChannels = juce::jmin (getTotalNumOutputChannels(), buffer.getNumChannels());
 
-    // A guitar is a mono source, and NAM models are mono, so the chain up to
-    // the cabinet runs on the first input channel. On a stereo track that is
-    // the left channel, which is how most amp sims treat stereo input.
+    // A microphone is a mono source, so the chain up to the graphic EQ runs
+    // on the first input channel. On a stereo track that is the left channel.
     auto* mono = buffer.getWritePointer (0, start);
     juce::dsp::AudioBlock<float> monoBlock (&mono, 1, (size_t) numSamples);
 
@@ -244,14 +241,20 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         dry[i] = bypassDelay.popSample (0, latency);
     }
 
-    // The tuner listens to the guitar itself, before anything changes it.
+    // The tuner listens to the voice itself, before anything changes it.
     inputTap.write (mono, numSamples);
 
     inputGain.setTargetValue (juce::Decibels::decibelsToGain (inputGainDb->load()));
     inputGain.applyGain (mono, numSamples);
     inputMeter.pushSamples (mono, numSamples);
 
-    // PITCH: TUNING, OCTAVER and FREEZE, before anything else shapes the guitar.
+    // LOW CUT: rumble and plosive thumps out first, so nothing after it
+    // (above all the compressor) reacts to them. The INPUT meter, just
+    // before, shows what the mic sends, for setting the gain.
+    lowCut.process (monoBlock, param (ParamIDs::inputLowCut));
+    cleanVoice.copyFrom (0, 0, mono, numSamples);   // for HARMONY to read the sung note from
+
+    // PITCH: TUNING, OCTAVER and FREEZE, before the effects shape the voice.
     pitchBlock.process (monoBlock, { param (ParamIDs::pitchTune), isOn (ParamIDs::octOn), param (ParamIDs::octSubTwo),
                                      param (ParamIDs::octSubOne), param (ParamIDs::octDry), param (ParamIDs::octUp),
                                      isOn (ParamIDs::freezeOn), param (ParamIDs::freezeLevel),
@@ -264,7 +267,11 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     compGate.process (monoBlock, { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
                                    param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
                                    (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
-                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity) });
+                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
+                                   param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) });
+    // The de-esser after the compressor, whose make-up gain brings esses up.
+    deEsser.process (monoBlock, { isOn (ParamIDs::deessOn), param (ParamIDs::deessFreq), param (ParamIDs::deessAmount),
+                                  isOn (ParamIDs::deessListen) });
     // PITCH / WHAMMY: the pedal bends the pitch shifter from no shift at
     // the heel to its INTERVAL at the toe, like a DigiTech Whammy.
     // WHAMMY-WAH: the pedal plays the Whammy-Wah type. Unassigned, it rests at the heel.
@@ -296,11 +303,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     drive.process (monoBlock, { isOn (ParamIDs::driveOn), (effects::Drive::Model) (int) param (ParamIDs::driveModel),
                                 param (ParamIDs::driveGain), param (ParamIDs::driveTone), param (ParamIDs::driveLevel) });
 
-    amp.process (mono, numSamples, ampOn->load() > 0.5f, ampNormalise->load() > 0.5f);
-    cab.process (mono, numSamples, cabOn->load() > 0.5f);
     presence.process (monoBlock, param (ParamIDs::presence));
 
-    // TALK BOX: the amp's sound shaped into vowels by the pedal (its TALK BOX
+    // TALK BOX: the sound shaped into vowels by the pedal (its TALK BOX
     // setting; unassigned, it rests at the heel: "oo").
     talkBox.process (monoBlock, talkBoxOn, expressionTarget == ExpressionTargets::talkBox ? pedal : 0.0f,
                      param (ParamIDs::fpResonance), param (ParamIDs::fpMix));
@@ -314,8 +319,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (! glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
-    // From here on, stereo: modulation, delay and reverb spread the sound
-    // across both speakers.
+    // From here on, stereo: the doubler, modulation, delay and reverb spread
+    // the sound across both speakers.
     for (int channel = 1; channel < numOutputChannels; ++channel)
         buffer.copyFrom (channel, start, buffer, 0, start, numSamples);
 
@@ -327,6 +332,63 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     // to each effect's own MIX setting at the toe. (The effects smooth their
     // mix, so sweeping the pedal doesn't click.)
     const auto morph = expressionTarget == ExpressionTargets::morph ? pedal : 1.0f;
+
+    // HARMONY: voices made from the processed voice (so they share its
+    // tone), in the key read from the clean one.
+    effects::Harmony::Settings harmonySettings;
+    harmonySettings.on = isOn (ParamIDs::harmonyOn);
+    harmonySettings.key = (int) param (ParamIDs::harmonyKey);
+    harmonySettings.scale = (Scales::Scale) (int) param (ParamIDs::harmonyScale);
+    harmonySettings.sourceDb = param (ParamIDs::harmonySource);
+    harmonySettings.harmonyDb = param (ParamIDs::harmonyLevel);
+    harmonySettings.correctFormant = param (ParamIDs::harmonyCorrectFormant);
+    harmonySettings.spread = param (ParamIDs::harmonySpread);
+    for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
+    {
+        const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
+        auto& voice = harmonySettings.voices[v];
+        voice.active = parts[0]->load() > 0.5f;
+        voice.on = parts[1]->load() > 0.5f;
+        voice.semitones = parts[2]->load();
+        voice.cents = parts[3]->load();
+        voice.formant = parts[4]->load();
+        voice.correct = parts[5]->load() > 0.5f;
+        voice.pan = parts[6]->load();
+        voice.levelDb = parts[7]->load();
+    }
+    harmony.process (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings);
+
+    // DOUBLER: MORPH fades its voices in from the heel.
+    effects::Doubler::Settings doublerSettings;
+    doublerSettings.on = isOn (ParamIDs::doublerOn);
+    for (size_t v = 0; v < doublerSettings.voices.size(); ++v)
+    {
+        const auto& parts = doublerVoiceParameters[v].parts;   // in doublerVoiceParts' order
+        auto& voice = doublerSettings.voices[v];
+        voice.on = parts[0]->load() > 0.5f;
+        voice.gainDb = parts[1]->load();
+        voice.pan = parts[2]->load();
+        voice.delayMs = parts[3]->load();
+        voice.feedback = parts[4]->load();
+        voice.octaveDown = parts[5]->load() > 0.5f;
+        voice.detuneCents = parts[6]->load();
+        voice.depthCents = parts[7]->load();
+        voice.rateHz = parts[8]->load();
+        voice.drift = parts[9]->load();
+    }
+    doublerSettings.directOn = isOn (ParamIDs::doublerDirectOn);
+    doublerSettings.directGainDb = param (ParamIDs::doublerDirectGain);
+    doublerSettings.directPan = param (ParamIDs::doublerDirectPan);
+    doublerSettings.feedbackHighPassHz = param (ParamIDs::doublerFbHighPass);
+    doublerSettings.lowShelfOn = isOn (ParamIDs::doublerLowOn);
+    doublerSettings.lowShelfDb = param (ParamIDs::doublerLowGain);
+    doublerSettings.lowShelfHz = param (ParamIDs::doublerLowFreq);
+    doublerSettings.highShelfOn = isOn (ParamIDs::doublerHighOn);
+    doublerSettings.highShelfDb = param (ParamIDs::doublerHighGain);
+    doublerSettings.highShelfHz = param (ParamIDs::doublerHighFreq);
+    doublerSettings.outputDb = param (ParamIDs::doublerOutput);
+    doublerSettings.wet = morph;
+    doubler.process (stereoBlock, doublerSettings);
 
     // Types with no dry/wet mix (tremolo, vibrato, auto-pan...) morph their depth instead.
     const auto modType = (effects::Modulation::Type) (int) param (ParamIDs::modType);
@@ -369,6 +431,10 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
             stereoBlock.getChannelPointer (channel)[i] *= gain;
     }
 
+    // LIMITER: nothing leaves above its ceiling. (BYPASS, below, still gives
+    // the untouched input.)
+    limiter.process (stereoBlock, param (ParamIDs::outputLimiter));
+
     // BYPASS crossfades to the clean input. The chain keeps running underneath
     // so delay and reverb tails, and the amp's state, are ready when it's
     // switched back on.
@@ -404,148 +470,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
 }
 
 //==============================================================================
-void ParagonX1AudioProcessor::setStatus (SlotStatus& slot, SlotStatus newStatus)
-{
-    {
-        const juce::ScopedLock lock (statusLock);
-        slot = std::move (newStatus);
-    }
-    statusBroadcaster.sendChangeMessage();
-}
-
-SlotStatus ParagonX1AudioProcessor::getAmpStatus() const
-{
-    const juce::ScopedLock lock (statusLock);
-    return ampStatus;
-}
-
-SlotStatus ParagonX1AudioProcessor::getCabStatus() const
-{
-    const juce::ScopedLock lock (statusLock);
-    return cabStatus;
-}
-
-void ParagonX1AudioProcessor::loadAmpModel (const juce::File& file)
-{
-    markModified();
-    requestCheckpoint();
-    auto loading = getAmpStatus();
-    loading.loading = true;
-    setStatus (ampStatus, loading);
-
-    loader.addJob ([this, file]
-    {
-        auto status = getAmpStatus();
-        status.loading = false;
-
-        if (! file.existsAsFile())
-        {
-            // Usually a project opened on a computer without this model.
-            // Keep the path so saving the project doesn't lose it.
-            status.file = file;
-            status.detail = {};
-            status.error = "Can't find " + file.getFullPathName();
-            setStatus (ampStatus, status);
-            return;
-        }
-
-        try
-        {
-            // Parsing and preparing happen here, off the audio thread.
-            const auto info = amp.stage (std::make_unique<AmpModel> (file));
-            status.file = file;
-            status.detail = describeModel (info);
-            status.error = {};
-        }
-        catch (const std::exception& e)
-        {
-            // Keep the previous model playing; just report the problem.
-            status.error = file.getFileName() + ": " + e.what();
-        }
-
-        setStatus (ampStatus, status);
-    });
-}
-
-void ParagonX1AudioProcessor::clearAmpModel()
-{
-    markModified();
-    requestCheckpoint();
-    loader.addJob ([this]
-    {
-        amp.stage (nullptr);
-        setStatus (ampStatus, {});
-    });
-}
-
-void ParagonX1AudioProcessor::loadCabinetIR (const juce::File& file)
-{
-    markModified();
-    requestCheckpoint();
-    auto loading = getCabStatus();
-    loading.loading = true;
-    setStatus (cabStatus, loading);
-
-    loader.addJob ([this, file]
-    {
-        auto status = getCabStatus();
-        status.loading = false;
-
-        if (! file.existsAsFile())
-        {
-            status.file = file;   // keep the path, as for the amp
-            status.detail = {};
-            status.error = "Can't find " + file.getFullPathName();
-            setStatus (cabStatus, status);
-            return;
-        }
-
-        if (const auto result = cab.load (file); result.error.isNotEmpty())
-        {
-            // Keep the previous IR; just report the problem.
-            status.error = file.getFileName() + ": " + result.error;
-        }
-        else
-        {
-            status.file = file;
-            status.error = {};
-            status.detail = juce::String (juce::roundToInt (result.lengthSeconds * 1000.0)) + " ms IR";
-        }
-
-        setStatus (cabStatus, status);
-    });
-}
-
-void ParagonX1AudioProcessor::clearCabinetIR()
-{
-    markModified();
-    requestCheckpoint();
-    loader.addJob ([this]
-    {
-        cab.clear();
-        setStatus (cabStatus, {});
-    });
-}
-
-bool ParagonX1AudioProcessor::waitForLoads (int timeoutMs)
-{
-    const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
-    while (loader.getNumJobs() > 0)
-    {
-        if (juce::Time::getMillisecondCounter() > deadline)
-            return false;
-        juce::Thread::sleep (5);
-    }
-    return true;
-}
-
 void ParagonX1AudioProcessor::timerCallback()
 {
-    amp.collectGarbage();
-
-    if (const auto latency = amp.getLatencySamples(); latency != getLatencySamples())
-        setLatencySamples (latency);
-
     syncMidiExpressionToParameter();
     recordCheckpointIfReady();
 }
@@ -573,10 +499,8 @@ ParagonX1AudioProcessor::Snapshot ParagonX1AudioProcessor::takeSnapshot() const
 
 void ParagonX1AudioProcessor::recordCheckpointIfReady()
 {
-    // Wait until the edit is really finished: no knob still held, and no
-    // amp or IR still loading (a rig change records once, after its files
-    // have loaded, rather than as two half-steps).
-    if (! checkpointWanted.load() || activeGestures.load() > 0 || loader.getNumJobs() > 0)
+    // Wait until the edit is really finished: no knob still held.
+    if (! checkpointWanted.load() || activeGestures.load() > 0)
         return;
 
     checkpointWanted = false;
@@ -593,8 +517,8 @@ void ParagonX1AudioProcessor::restoreSnapshot (const Snapshot& snapshot)
 
 void ParagonX1AudioProcessor::undo()
 {
-    // Record anything not yet recorded (a file still loading, say) first, so
-    // undo takes back the latest edit rather than the one before it.
+    // Record anything not yet recorded first, so undo takes back the latest
+    // edit rather than the one before it.
     recordCheckpointIfReady();
     if (const auto snapshot = history.undo())
         restoreSnapshot (*snapshot);
@@ -647,9 +571,6 @@ Rig ParagonX1AudioProcessor::captureRig() const
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
             if (! ParamIDs::notInRigs.contains (ranged->paramID))
                 rig.parameters[ranged->paramID] = ranged->convertFrom0to1 (ranged->getValue());
-
-    rig.ampModelPath = getAmpStatus().file.getFullPathName();
-    rig.cabIrPath = getCabStatus().file.getFullPathName();
     return rig;
 }
 
@@ -669,26 +590,6 @@ void ParagonX1AudioProcessor::applyRig (const Rig& rig)
                                   ? ranged->convertTo0to1 (ranged->getNormalisableRange().snapToLegalValue (found->second))
                                   : ranged->getDefaultValue();
         ranged->setValueNotifyingHost (normalised);
-    }
-
-    if (! rig.keepAmpAndCab)
-    {
-        // Only reload files that actually change, so switching between rigs
-        // that share an amp doesn't reload (and crossfade) it for nothing.
-        const auto apply = [] (const juce::String& path, const juce::File& current, auto load, auto clear)
-        {
-            if (path.isEmpty())
-            {
-                if (current != juce::File())
-                    clear();
-            }
-            else if (juce::File (path) != current)
-            {
-                load (juce::File (path));
-            }
-        };
-        apply (rig.ampModelPath, getAmpStatus().file, [this] (auto f) { loadAmpModel (f); }, [this] { clearAmpModel(); });
-        apply (rig.cabIrPath, getCabStatus().file, [this] (auto f) { loadCabinetIR (f); }, [this] { clearCabinetIR(); });
     }
 
     applyingRig = false;
@@ -824,8 +725,7 @@ juce::AudioProcessorEditor* ParagonX1AudioProcessor::createEditor()
 void ParagonX1AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
-    state.setProperty (ampModelPathKey, getAmpStatus().file.getFullPathName(), nullptr);
-    state.setProperty (cabIrPathKey, getCabStatus().file.getFullPathName(), nullptr);
+    state.setProperty (parameterVersionKey, parameterVersion, nullptr);
     state.setProperty (rigNameKey, currentRig.name, nullptr);
     state.setProperty (rigFileKey, currentRig.file.getFullPathName(), nullptr);
     state.setProperty (rigFactoryKey, currentRig.factoryName, nullptr);
@@ -859,21 +759,37 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     };
     addIfMissing (ParamIDs::driveModel, (int) effects::Drive::Model::classic);    // before the drive had a MODEL
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
+
+    const auto get = [&state] (const juce::String& id) -> std::optional<float>
+    {
+        const auto saved = state.getChildWithProperty ("id", id);
+        return saved.isValid() ? std::optional<float> ((float) saved["value"]) : std::nullopt;
+    };
+    const auto set = [&state] (const juce::String& id, float value)
+    {
+        auto saved = state.getChildWithProperty ("id", id);
+        if (! saved.isValid())
+        {
+            saved = juce::ValueTree ("PARAM");
+            saved.setProperty ("id", id, nullptr);
+            state.appendChild (saved, nullptr);
+        }
+        saved.setProperty ("value", value, nullptr);
+    };
+    const auto savedWith = (int) state.getProperty (parameterVersionKey, 0);
+    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp...
+    if (savedWith < 26)
+        moveOldDoublerSettings ([&get] (const char* id) { return get (id); }, [&set] (const char* id, float value) { set (id, value); });
+    // ...and the two-take DOUBLER (RATE, DEPTH, MIX): now its four voices.
+    if (savedWith < 30)
+        convertOldDoubler (get, set);
+    // ...and 0.7.0's DOUBLER, before DRIFT and its stronger start.
+    else if (savedWith < 32)
+        keepDoublerAsSaved (get, set);
     parameters.replaceState (state);
 
-    const auto restore = [] (const juce::var& path, auto load, auto clear)
-    {
-        if (const auto pathString = path.toString(); pathString.isNotEmpty())
-            load (juce::File (pathString));
-        else
-            clear();
-    };
-
-    restore (state[ampModelPathKey], [this] (auto f) { loadAmpModel (f); }, [this] { clearAmpModel(); });
-    restore (state[cabIrPathKey], [this] (auto f) { loadCabinetIR (f); }, [this] { clearCabinetIR(); });
-
-    // Restoring the project changed parameters and files, which marked the
-    // rig as modified; put back what was saved instead.
+    // Restoring the project changed parameters, which marked the rig as
+    // modified; put back what was saved instead.
     const auto rigFile = state[rigFileKey].toString();
     currentRig = { state.getProperty (rigNameKey, "Untitled").toString(),
                    rigFile.isNotEmpty() ? juce::File (rigFile) : juce::File(),

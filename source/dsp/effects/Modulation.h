@@ -4,7 +4,7 @@
 
 namespace effects
 {
-    // Footswitch 3: the modulation block, after the graphic EQ. Ten types:
+    // Stomp 5: the modulation block, after the DOUBLER. Ten types:
     //
     //   chorus, flanger, phaser, tremolo         the originals (unchanged)
     //   dimension      Roland Dimension D / Boss CE-1 style dual chorus
@@ -13,7 +13,9 @@ namespace effects
     //   vibrato        pure pitch vibrato
     //   harmonicTremolo  Fender brownface: lows and highs pulse in turn
     //   autoPan        sweeps between the speakers at constant loudness
-    //   doubler        two extra "takes" of the part, one each side (ADT)
+    //
+    // (Until 0.3.0 there was an eleventh, Doubler, now the DOUBLER stomp: see
+    // Doubler.h. Settings saved with it are moved there when they load.)
     //
     // Chorus and flanger are built here rather than using juce::dsp::Chorus,
     // because JUCE's version moves both channels together. Running the right
@@ -23,15 +25,17 @@ namespace effects
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Type { chorus, flanger, phaser, tremolo, dimension, uniVibe, rotary, vibrato, harmonicTremolo, autoPan, doubler };
+        // Number 10 was Doubler until 0.3.0 (see above).
+        enum class Type { chorus, flanger, phaser, tremolo, dimension, uniVibe, rotary, vibrato, harmonicTremolo, autoPan };
         static inline const juce::StringArray typeNames { "Chorus", "Flanger", "Phaser", "Tremolo", "Dimension Chorus", "Uni-Vibe",
-                                                          "Rotary", "Vibrato", "Harmonic Tremolo", "Auto-Pan", "Doubler" };
+                                                          "Rotary", "Vibrato", "Harmonic Tremolo", "Auto-Pan" };
+        static constexpr int oldDoublerType = 10;
 
         // Types for which MIX means something (the others are fully "wet" by nature).
         static bool usesMix (Type type) noexcept
         {
             return type == Type::chorus || type == Type::flanger || type == Type::phaser || type == Type::dimension
-                || type == Type::uniVibe || type == Type::rotary || type == Type::doubler;
+                || type == Type::uniVibe || type == Type::rotary;
         }
 
         struct Settings
@@ -56,7 +60,6 @@ namespace effects
         void processVibrato (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processHarmonicTremolo (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processAutoPan (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
-        void processDoubler (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         float advanceLfo (float rateHz) noexcept;
 
         double sampleRate = 48000.0;

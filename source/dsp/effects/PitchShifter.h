@@ -22,6 +22,10 @@ namespace effects
         void reset() noexcept;
         float processSample (float input, float ratio) noexcept;
 
+        // How far behind the input the head starts (it drifts from there as it
+        // shifts): the shifter's own delay, in samples.
+        float getRestingDelay() const noexcept { return minDelay + (float) jumpSamples * 0.5f; }
+
     private:
         float readAt (float delay) const noexcept;
         float findSplice (float fromDelay, float direction, float ratioNow) const noexcept;

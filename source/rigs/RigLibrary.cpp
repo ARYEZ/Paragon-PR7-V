@@ -123,7 +123,6 @@ juce::File RigLibrary::saveAsNew (Rig rig)
         return {};
 
     rig.name = uniqueName (rig.name);
-    rig.keepAmpAndCab = false;
     const auto file = uniqueFileFor (rig.name);
     if (! writeRig (file, rig))
         return {};

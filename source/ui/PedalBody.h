@@ -19,7 +19,7 @@ public:
         juce::Rectangle<float> face;                       // the main face plate
         juce::Rectangle<float> pedalBay;                   // the expression pedal's housing
         std::vector<juce::Rectangle<float>> sections;      // raised panels (slot row, footswitch row)
-        std::vector<juce::Rectangle<float>> insets;        // recessed panels (behind each slot window)
+        std::vector<juce::Rectangle<float>> insets;        // recessed panels (none on PR7-V since the slot windows went)
         juce::Rectangle<float> badge;                      // PARAGON over the PR7-V mark
         juce::Path printedRed, printedInk;                 // lines printed on the face (the tuner bracket, SAVE—SAVE AS)
     };

@@ -2,11 +2,15 @@
 
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
+#include "dsp/effects/Doubler.h"
 #include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
+#include "dsp/effects/Harmony.h"
+#include "dsp/effects/Limiter.h"
+#include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Reverb.h"
 
@@ -31,17 +35,20 @@ namespace
         return (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
     };
     const ToText asRatio = [] (float value, int) { return juce::String (value, 1) + ":1"; };
-    // TUNING: the key a standard-tuned guitar ends up in, or a capo.
+    // TUNING: how far the whole voice is shifted, in semitones. (PR7-G
+    // showed guitar tunings here: "E standard", "Capo 2"...)
     const ToText asTuning = [] (float value, int)
     {
         const auto semitones = juce::roundToInt (value);
-        if (semitones == 0)
-            return juce::String ("E standard");
-        if (semitones > 0)
-            return "Capo " + juce::String (semitones);
-        const char* keys[] = { "Eb", "D", "C#", "C", "B", "Bb", "A", "Ab", "G", "F#", "F", "E (-1 oct)" };
-        const auto key = juce::String (keys[juce::jlimit (0, 11, -semitones - 1)]);
-        return semitones == -12 ? key : key + " (" + juce::String (semitones) + ")";
+        return (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
+    };
+    const ToText asLowCut = [] (float hz, int)
+    {
+        return effects::LowCut::isOff (hz) ? juce::String ("Off") : juce::String (juce::roundToInt (hz)) + " Hz";
+    };
+    const ToText asCeiling = [] (float db, int)
+    {
+        return effects::Limiter::isOff (db) ? juce::String ("Off") : juce::String (db, 1) + " dB";
     };
     const ToText asGate = [] (float value, int)
     {
@@ -89,11 +96,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add (makeGainParameter (ParamIDs::inputGain, "Input"));
     layout.add (makeGainParameter (ParamIDs::outputGain, "Output"));
-
-    // Added in plugin version 2 (Phase 2).
-    layout.add (makeSwitch (ParamIDs::ampOn, "Amp On", 2));
-    layout.add (makeSwitch (ParamIDs::ampNormalise, "Amp Normalise", 2));
-    layout.add (makeSwitch (ParamIDs::cabOn, "Cab On", 2));
 
     // Added in plugin version 3 (Phase 3). Effects default to off, so
     // projects saved with earlier versions sound exactly the same.
@@ -238,5 +240,213 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::freezeLevel, "Freeze Level", { 0.0f, 1.0f, 0.01f }, 0.7f, v24, asPercent));
     layout.add (makeFloat (ParamIDs::freezeAttack, "Freeze Attack", skewed (10.0f, 5000.0f, 300.0f, 1.0f), 300.0f, v24, asTime));
     layout.add (makeFloat (ParamIDs::freezeRelease, "Freeze Release", skewed (50.0f, 8000.0f, 1500.0f, 1.0f), 1500.0f, v24, asTime));
+
+    // Added in plugin version 25: LOW CUT for the microphone. On at 80 Hz by
+    // default, the usual starting point for a voice: below the lowest sung
+    // notes, but above the rumble a mic stand picks up.
+    layout.add (makeFloat (ParamIDs::inputLowCut, "Low Cut",
+                           skewed (effects::LowCut::offHz, effects::LowCut::maxHz, 100.0f, 1.0f), 80.0f, 25, asLowCut));
+
+    // Added in plugin version 26: the DOUBLER stomp. Off by default. (Its
+    // version 26 RATE, DEPTH and MIX went with 0.7.0's four voices.)
+    layout.add (makeSwitch (ParamIDs::doublerOn, "Doubler On", 26, false));
+
+    // Added in plugin version 27: the master LIMITER. On at -1 dB by
+    // default, the usual safety margin under digital full scale.
+    layout.add (makeFloat (ParamIDs::outputLimiter, "Limiter", { effects::Limiter::minCeilingDb, effects::Limiter::offDb, 0.1f },
+                           -1.0f, 27, asCeiling));
+
+    // Added in plugin version 28: the DE-ESSER. Off by default. 6 kHz is
+    // where most esses sit; 6 dB is a firm but natural first setting.
+    constexpr int v28 = 28;
+    const ToText asKHz = [] (float hz, int) { return juce::String (hz / 1000.0f, 1) + " kHz"; };
+    layout.add (makeSwitch (ParamIDs::deessOn, "De-Esser On", v28, false));
+    layout.add (makeFloat (ParamIDs::deessFreq, "De-Esser Frequency", skewed (2000.0f, 12000.0f, 6000.0f, 10.0f), 6000.0f, v28, asKHz));
+    layout.add (makeFloat (ParamIDs::deessAmount, "De-Esser Amount", { 0.0f, 18.0f, 0.1f }, 6.0f, v28, asDb));
+    layout.add (makeSwitch (ParamIDs::deessListen, "De-Esser Listen", v28, false));
+
+    // Added in plugin version 29: HARMONY. Off by default. Two voices are
+    // set up to start with, a third above on the left and a fifth above on
+    // the right: the classic three-part harmony.
+    constexpr int v29 = 29;
+    const ToText asLevel = [] (float db, int) { return db <= effects::Harmony::silentDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+    const ToText asInterval = [] (float semitones, int)
+    {
+        const auto value = juce::roundToInt (semitones);
+        return value == 0 ? juce::String ("U") : (value > 0 ? "+" : "") + juce::String (value);   // U: unison, as Waves Harmony shows it
+    };
+    const ToText asCents = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)) + " ct"; };
+    const ToText asPan = [] (float pan, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+        return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+    };
+    const ToText asSemitoneShift = [] (float semitones, int) { return (semitones > 0.0f ? "+" : "") + juce::String (semitones, 1) + " st"; };
+    layout.add (makeSwitch (ParamIDs::harmonyOn, "Harmony On", v29, false));
+    layout.add (makeChoice (ParamIDs::harmonyKey, "Harmony Key", v29, Scales::keyNames, 0));
+    layout.add (makeChoice (ParamIDs::harmonyScale, "Harmony Scale", v29, Scales::scaleNames, (int) Scales::Scale::major));
+    layout.add (makeFloat (ParamIDs::harmonySource, "Harmony Source", { effects::Harmony::silentDb, 6.0f, 0.1f }, 0.0f, v29, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyLevel, "Harmony Level", { effects::Harmony::silentDb, 6.0f, 0.1f }, 0.0f, v29, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyCorrectFormant, "Harmony Correct Formant", { 0.0f, 1.0f, 0.01f }, 1.0f, v29, asPercent));
+    layout.add (makeFloat (ParamIDs::harmonySpread, "Harmony Spread", { 0.0f, 1.0f, 0.01f }, 1.0f, v29, asPercent));
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::harmonyVoice (voice, part); };
+        const auto name = "Harmony " + juce::String (voice + 1) + " ";
+        const auto starts = voice < 2;
+        layout.add (makeSwitch (id ("Active").toRawUTF8(), name + "Active", v29, starts));
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v29, true));
+        layout.add (makeFloat (id ("Pitch").toRawUTF8(), name + "Pitch", { -24.0f, 24.0f, 1.0f },
+                               voice == 0 ? 4.0f : voice == 1 ? 7.0f : 0.0f, v29, asInterval));
+        layout.add (makeFloat (id ("Fine").toRawUTF8(), name + "Fine", { -50.0f, 50.0f, 1.0f }, 0.0f, v29, asCents));
+        layout.add (makeFloat (id ("Formant").toRawUTF8(), name + "Formant", { -12.0f, 12.0f, 0.1f }, 0.0f, v29, asSemitoneShift));
+        layout.add (makeSwitch (id ("Correct").toRawUTF8(), name + "Correct", v29, true));
+        layout.add (makeFloat (id ("Pan").toRawUTF8(), name + "Pan", { -1.0f, 1.0f, 0.01f },
+                               voice == 0 ? -0.5f : voice == 1 ? 0.5f : 0.0f, v29, asPan));
+        layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Harmony::silentDb, 6.0f, 0.1f },
+                               starts ? -3.0f : 0.0f, v29, asLevel));
+    }
+
+    // Added in plugin version 30: the four-voice DOUBLER, inspired by Waves
+    // Doubler. Voices 1 and 2 start as its user guide sets them (9.4 and
+    // 23.7 ms, -6 dB, one each side) and detuned as its guide suggests (a
+    // few cents down on one side, up on the other); 3 and 4 start off.
+    constexpr int v30 = 30;
+    const ToText asDoublerLevel = [] (float db, int)
+    {
+        return db <= effects::Doubler::minGainDb ? juce::String ("Off") : juce::String (db, 1) + " dB";
+    };
+    const ToText asCentsShift = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)); };
+    const ToText asDelayMs = [] (float ms, int) { return juce::String (ms, 1); };
+    const ToText asFrequency = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) : juce::String (hz / 1000.0f, 2) + "k"; };
+    const ToText asRate = [] (float hz, int) { return juce::String (hz, hz < 10.0f ? 1 : 0); };
+    const ToText asDoublerPan = [] (float pan, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+        return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+    };
+    layout.add (makeSwitch (ParamIDs::doublerDirectOn, "Doubler Direct On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerDirectGain, "Doubler Direct Gain", { effects::Doubler::minGainDb, 0.0f, 0.1f }, 0.0f, v30, asDoublerLevel));
+    layout.add (makeFloat (ParamIDs::doublerDirectPan, "Doubler Direct Pan", { -1.0f, 1.0f, 0.01f }, 0.0f, v30, asDoublerPan));
+    layout.add (makeFloat (ParamIDs::doublerFbHighPass, "Doubler Feedback High-Pass", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 16.0f, v30, asFrequency));
+    layout.add (makeSwitch (ParamIDs::doublerLowOn, "Doubler Low Shelf On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerLowGain, "Doubler Low Shelf", { -24.0f, 12.0f, 0.1f }, 0.0f, v30, asDb));
+    layout.add (makeFloat (ParamIDs::doublerLowFreq, "Doubler Low Shelf Frequency", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 101.0f, v30, asFrequency));
+    layout.add (makeSwitch (ParamIDs::doublerHighOn, "Doubler High Shelf On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerHighGain, "Doubler High Shelf", { -24.0f, 12.0f, 0.1f }, 0.0f, v30, asDb));
+    layout.add (makeFloat (ParamIDs::doublerHighFreq, "Doubler High Shelf Frequency", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 1306.0f, v30, asFrequency));
+    layout.add (makeFloat (ParamIDs::doublerOutput, "Doubler Output", { -24.0f, 0.0f, 0.1f }, 0.0f, v30, asDb));
+    // Since 0.9.0, voices start stronger than the guide's recipe, which is
+    // made for tucking a double behind a lead in a mix: louder (-2 dB), more
+    // out of tune (9 cents), further apart in time (18 and 31 ms, both past
+    // the detuning's own 13 ms), and drifting, so a live voice sounds
+    // doubled rather than just wider. 0.7.0's starting settings are kept in
+    // keepDoublerAsSaved, for what was saved with them.
+    struct VoiceDefaults { bool on; float gain, pan, delay, detune; };
+    const VoiceDefaults defaults[] = { { true, -2.0f, -1.0f, 18.0f, -9.0f }, { true, -2.0f, 1.0f, 31.0f, 9.0f },
+                                       { false, -6.0f, -0.6f, 24.0f, -14.0f }, { false, -6.0f, 0.6f, 40.0f, 14.0f } };
+    constexpr int v32 = 32;   // DRIFT
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        const auto name = "Doubler " + juce::String (voice + 1) + " ";
+        const auto& start = defaults[voice];
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v30, start.on));
+        layout.add (makeFloat (id ("Gain").toRawUTF8(), name + "Gain", { effects::Doubler::minGainDb, 0.0f, 0.1f }, start.gain, v30, asDoublerLevel));
+        layout.add (makeFloat (id ("Pan").toRawUTF8(), name + "Pan", { -1.0f, 1.0f, 0.01f }, start.pan, v30, asDoublerPan));
+        layout.add (makeFloat (id ("Delay").toRawUTF8(), name + "Delay", { 0.0f, effects::Doubler::maxDelayMs, 0.1f }, start.delay, v30, asDelayMs));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v30, asPercent));
+        layout.add (makeSwitch (id ("Octave").toRawUTF8(), name + "Octave Down", v30, false));
+        layout.add (makeFloat (id ("Detune").toRawUTF8(), name + "Detune", { -100.0f, 100.0f, 1.0f }, start.detune, v30, asCentsShift));
+        layout.add (makeFloat (id ("Depth").toRawUTF8(), name + "Mod Depth", { -200.0f, 200.0f, 1.0f }, 0.0f, v30, asCentsShift));
+        layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Mod Rate", skewed (0.1f, 400.0f, 2.0f, 0.01f), 1.0f, v30, asRate));
+        layout.add (makeFloat (id ("Drift").toRawUTF8(), name + "Drift", { 0.0f, 1.0f, 0.01f }, 0.5f, v32, asPercent));
+    }
+
+    // Added in plugin version 31: Revival, the compressor's third TYPE,
+    // inspired by Waves Renaissance Vox. GATE starts off; COMPRESSION at
+    // -12 dB, a moderate squeeze; GAIN (the ceiling) at 0 dB, full scale.
+    constexpr int v31 = 31;
+    const ToText asRevivalGate = [] (float value, int)
+    {
+        return value <= effects::CompGate::revivalGateOffDb ? juce::String ("Off") : juce::String (value, 1) + " dB";
+    };
+    layout.add (makeFloat (ParamIDs::revivalGate, "Revival Gate", { effects::CompGate::revivalGateOffDb, 0.0f, 0.5f },
+                           effects::CompGate::revivalGateOffDb, v31, asRevivalGate));
+    layout.add (makeFloat (ParamIDs::revivalCompression, "Revival Compression", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, -12.0f, v31, asDb));
+    layout.add (makeFloat (ParamIDs::revivalGain, "Revival Gain", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, 0.0f, v31, asDb));
     return layout;
+}
+
+void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
+                         const std::function<void (const juce::String&, float)>& set)
+{
+    // 0.7.0's starting settings: the Waves Doubler guide's recipe.
+    struct Was { float gain, pan, delay, detune; };
+    const Was was[] = { { -6.0f, -1.0f, 9.4f, -4.0f }, { -6.0f, 1.0f, 23.7f, 4.0f },
+                        { -12.0f, 1.0f, 16.0f, -7.0f }, { -12.0f, -1.0f, 21.0f, 7.0f } };
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        const auto keep = [&] (const char* part, float value)
+        {
+            if (! get (id (part)).has_value())
+                set (id (part), value);
+        };
+        keep ("Gain", was[voice].gain);
+        keep ("Pan", was[voice].pan);
+        keep ("Delay", was[voice].delay);
+        keep ("Detune", was[voice].detune);
+        set (id ("Drift"), 0.0f);
+    }
+}
+
+void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
+                        const std::function<void (const juce::String&, float)>& set)
+{
+    const auto rate = get (ParamIDs::doublerRate), depth = get (ParamIDs::doublerDepth), mix = get (ParamIDs::doublerMix);
+    if (! rate.has_value() && ! depth.has_value() && ! mix.has_value())
+        return;   // never set up: the new defaults it is
+
+    // The old takes: 19 and 27 ms late, one each side, at MIX's level, their
+    // delay wandering by (0.15 + 1.2 x DEPTH) ms (a sine at a quarter of RATE,
+    // and a smaller one 2.71 times faster). A wandering delay bends the pitch
+    // by its speed of change: that's the wobble's depth in cents.
+    const auto driftHz = 0.25f * rate.value_or (0.8f);
+    const auto wanderSeconds = (0.15f + 1.2f * depth.value_or (0.4f)) * 0.001f;
+    const auto bend = juce::MathConstants<float>::twoPi * driftHz * wanderSeconds * (0.6f + 0.4f * 2.71f);
+    const auto wobbleCents = 1200.0f * std::log2 (1.0f + bend);
+    const auto gainDb = juce::jmax (effects::Doubler::minGainDb, juce::Decibels::gainToDecibels (mix.value_or (0.7f), effects::Doubler::minGainDb));
+
+    const std::pair<float, float> takes[] = { { -1.0f, 19.0f }, { 1.0f, 27.0f } };   // pan, delay
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        set (id ("On"), voice < 2 ? 1.0f : 0.0f);
+        set (id ("Drift"), 0.0f);   // its wander is in DEPTH and RATE
+        if (voice >= 2)
+            continue;
+        set (id ("Gain"), gainDb);
+        set (id ("Pan"), takes[voice].first);
+        set (id ("Delay"), takes[voice].second);
+        set (id ("Detune"), 0.0f);
+        set (id ("Depth"), voice == 0 ? wobbleCents : -wobbleCents);   // the two takes wandered independently
+        set (id ("Rate"), driftHz);
+    }
+}
+
+void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,
+                             const std::function<void (const char*, float)>& set)
+{
+    const auto type = get (ParamIDs::modType);
+    if (! type.has_value() || juce::roundToInt (*type) != effects::Modulation::oldDoublerType)
+        return;
+
+    // MODULATION's knobs had these defaults when the Doubler was one of its types.
+    set (ParamIDs::doublerOn, get (ParamIDs::modOn).value_or (0.0f));
+    set (ParamIDs::doublerRate, get (ParamIDs::modRate).value_or (0.8f));
+    set (ParamIDs::doublerDepth, get (ParamIDs::modDepth).value_or (0.45f));
+    set (ParamIDs::doublerMix, get (ParamIDs::modMix).value_or (0.5f));
+    set (ParamIDs::modOn, 0.0f);
+    set (ParamIDs::modType, (float) effects::Modulation::Type::chorus);
 }

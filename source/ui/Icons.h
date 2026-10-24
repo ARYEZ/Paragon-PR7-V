@@ -20,7 +20,11 @@ namespace Icons
                       // Version 0.24
                       glitch,
                       // Version 0.27
-                      pitch };
+                      pitch,
+                      // PR7-V 0.3.0
+                      doubler, microphone,
+                      // PR7-V 0.5.0
+                      deEsser };
 
     juce::Path get (Type type);
 

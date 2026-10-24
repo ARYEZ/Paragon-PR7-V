@@ -26,14 +26,16 @@ namespace
     // One line describing what a rig switches on, e.g. "Drive, Delay, Reverb".
     juce::String describeBlocks (const Rig& rig)
     {
+        // The seven stomps, in footswitch order (PITCH counts if its octaver or freeze is on).
         const std::pair<const char*, const char*> blocks[] = {
-            { ParamIDs::compOn, "Comp" }, { ParamIDs::driveOn, "Drive" }, { ParamIDs::modOn, "Mod" },
+            { ParamIDs::compOn, "Dynamics" }, { ParamIDs::driveOn, "Saturation" }, { ParamIDs::doublerOn, "Doubler" },
+            { ParamIDs::octOn, "Pitch" }, { ParamIDs::freezeOn, "Pitch" }, { ParamIDs::modOn, "Mod" },
             { ParamIDs::delayOn, "Delay" }, { ParamIDs::reverbOn, "Reverb" } };
 
         juce::StringArray on;
         for (const auto& [id, name] : blocks)
             if (const auto found = rig.parameters.find (id); found != rig.parameters.end() && found->second > 0.5f)
-                on.add (name);
+                on.addIfNotAlreadyThere (name);
         return on.isEmpty() ? juce::String ("No effects") : on.joinIntoString (", ");
     }
 }
@@ -284,12 +286,9 @@ void RigBrowser::showDetails()
     if (hasEntry)
     {
         const auto& rig = entry->rig;
-        text << describeBlocks (rig) << "\n";
-        if (rig.keepAmpAndCab)
-            text << "Keeps your current amp and cabinet\n\nFactory rigs can't be changed: load it, then save a copy.";
-        else
-            text << "Amp: " << (rig.ampModelPath.isEmpty() ? juce::String ("none") : juce::File (rig.ampModelPath).getFileNameWithoutExtension())
-                 << "\nCab: " << (rig.cabIrPath.isEmpty() ? juce::String ("none") : juce::File (rig.cabIrPath).getFileNameWithoutExtension());
+        text << describeBlocks (rig);
+        if (entry->isFactory)
+            text << "\n\nFactory rigs can't be changed: load it, then save a copy.";
     }
     else
     {

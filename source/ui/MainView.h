@@ -7,32 +7,50 @@
 #include "ui/EffectPanel.h"
 #include "ui/Finish.h"
 #include "ui/GraphicEqPanel.h"
+#include "ui/DoublerPanel.h"
+#include "ui/HarmonyPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/LedDisplay.h"
 #include "ui/LevelMeter.h"
-#include "ui/ModelSlot.h"
 #include "ui/ParagonLookAndFeel.h"
 #include "ui/PedalBody.h"
 #include "ui/PerformanceControls.h"
 #include "ui/RigBrowser.h"
-#include "ui/RigSlot.h"
 #include "ui/SignalChain.h"
 
 // A side strip from the mockup: a title, a gain knob with its value
-// underneath, and a level meter.
-class GainColumn final : public juce::Component
+// underneath, and a level meter. Given an `Extra`, a smaller knob sits
+// between the gain knob and the meter: LOW CUT on INPUT, LIMITER on OUTPUT.
+class GainColumn final : public juce::Component,
+                         private juce::Timer
 {
 public:
+    struct Extra
+    {
+        juce::String parameterId, title;
+        // If set, a light beside the title shows while this is below 0 (dB
+        // of gain reduction): the limiter at work.
+        std::function<float()> reductionDb;
+    };
+
     GainColumn (const juce::String& title, juce::AudioProcessorValueTreeState& parameters,
-                const juce::String& parameterId, LevelMeterSource& meterSource);
+                const juce::String& parameterId, LevelMeterSource& meterSource, Extra extra = {});
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
+    void timerCallback() override;
+    juce::Rectangle<float> lightArea() const;
+
     juce::Label titleLabel;
     juce::Slider knob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
+    juce::Label extraLabel;
+    juce::Slider extraKnob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> extraAttachment;
+    std::function<float()> reductionDb;
+    bool lightOn = false;
     LevelMeter meter;
 };
 
@@ -56,7 +74,7 @@ private:
 // the whole view to the window size, staying sharp (everything is vectors).
 //
 //   header:  logo | PROCESSOR PRESETS SETTINGS | < rig > | BPM TAP | undo redo save settings
-//   middle:  INPUT | the pedal unit with its expression pedal | OUTPUT
+//   middle:  INPUT | the pedal unit (7 stomps: 3 over 4) with its expression pedal | OUTPUT
 //   dock:    RIG BROWSER | SELECTED RIG | TAGS + RIG SUMMARY (or a block's knobs) | EXPRESSION ASSIGN
 //   bottom:  SIGNAL CHAIN
 class MainView final : public juce::Component,
@@ -77,7 +95,7 @@ public:
 private:
     // The blocks in signal-chain order; footswitches, the chain strip and
     // the summary cards select these to show their knobs.
-    enum Block { pitchBlock, compBlock, filterPitchBlock, driveBlock, ampBlock, cabBlock, eqBlock, glitchBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
+    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
 
     enum class Page { processor, presets, settings };
 
@@ -128,9 +146,8 @@ private:
                  presenceKnob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox };
     juce::AudioProcessorValueTreeState::SliderAttachment rigLevelAttachment, presenceAttachment;
     juce::Label rigLevelLabel { {}, "RIG LEVEL" }, presenceLabel { {}, "PRESENCE" };
-    ModelSlot ampSlot, cabSlot;
-    RigSlot rigSlot;
-    std::array<std::unique_ptr<Footswitch>, 4> footswitches;
+    // The seven stomps: 1-3 on the top row, 4-7 on the bottom.
+    std::array<std::unique_ptr<Footswitch>, 7> footswitches;
 
     // Expression pedal and tuner
     ExpressionPedal expressionPedal;
@@ -145,6 +162,12 @@ private:
     ExpressionPanel expressionPanel;
     std::array<std::unique_ptr<EffectPanel>, numBlocks> panels;   // empty at eqBlock: the EQ has its own panel
     GraphicEqPanel eqPanel;
+    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE (the
+    // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
+    HarmonyPanel harmonyPanel;
+    DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
+    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
+    bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default
     SignalChain signalChain;
     int selectedBlock = eqBlock;

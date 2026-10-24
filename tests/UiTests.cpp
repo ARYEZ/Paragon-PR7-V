@@ -4,7 +4,10 @@
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "ui/DoublerPanel.h"
+#include "ui/Footswitch.h"
 #include "ui/GraphicEqPanel.h"
+#include "ui/HarmonyPanel.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
 #include "ui/PerformanceControls.h"
@@ -141,16 +144,28 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: eleven EffectPanels, with the
-    // graphic EQ's own panel as block 6 (after the cabinet).
+    // The knob panels in signal-chain order: ten EffectPanels, with the
+    // graphic EQ's own panel as block 5 (after SATURATION) and DOUBLER's as 7.
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 11);
+    REQUIRE (effectPanels.size() == 10);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
-    panels.insert (panels.begin() + 6, eqPanels[0]);
+    constexpr int eqIndex = 5;
+    panels.insert (panels.begin() + eqIndex, eqPanels[0]);
+    std::vector<DoublerPanel*> doublerPanels;
+    findAll (*editor, doublerPanels);
+    REQUIRE (doublerPanels.size() == 1);
+    panels.insert (panels.begin() + 7, doublerPanels[0]);
+    // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE view is
+    // the first EffectPanel, checked below.
+    std::vector<HarmonyPanel*> harmonyPanels;
+    findAll (*editor, harmonyPanels);
+    REQUIRE (harmonyPanels.size() == 1);
+    auto* octaveFreeze = panels[0];
+    panels[0] = harmonyPanels[0];
 
     const auto visiblePanel = [&]
     {
@@ -166,38 +181,67 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     };
 
     // To start with the dock shows the graphic EQ.
-    CHECK (visiblePanel() == 6);
+    CHECK (visiblePanel() == eqIndex);
 
     std::vector<SignalChain*> chains;
     findAll (*editor, chains);
     REQUIRE (chains.size() == 1);
-    for (int block = 0; block < 12; ++block)
+    for (int block = 0; block < (int) panels.size(); ++block)
     {
         chains[0]->onSelect (block);
         CHECK (visiblePanel() == block);
     }
 
-    // Footswitch 3's name shows modulation (block 8); footswitch 4's shows delay (block 9).
+    // The seven stomps, 1 to 7: DYNAMICS, SATURATION, DOUBLER on the top
+    // row; PITCH, MODULATION, DELAY, REVERB on the bottom. Each one's name
+    // shows its own block (by signal-chain position).
     std::vector<Footswitch*> footswitches;
     findAll (*editor, footswitches);
-    REQUIRE (footswitches.size() == 4);
-    footswitches[2]->onSelect();
-    CHECK (visiblePanel() == 8);
-    footswitches[3]->onSelect();
-    CHECK (visiblePanel() == 9);
+    REQUIRE (footswitches.size() == 7);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+    {
+        return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX());   // reading order
+    });
+    const int expectedBlocks[] = { 1, 4, 7, 0, 8, 9, 10 };
+    for (size_t i = 0; i < footswitches.size(); ++i)
+    {
+        INFO ("stomp " << i + 1);
+        footswitches[i]->onSelect();
+        CHECK (visiblePanel() == expectedBlocks[i]);
+    }
+    for (size_t i = 1; i < 3; ++i)
+        CHECK (footswitches[i]->getY() == footswitches[0]->getY());   // one top row of three...
+    for (size_t i = 4; i < 7; ++i)
+        CHECK (footswitches[i]->getY() == footswitches[3]->getY());   // ...one bottom row of four...
+    CHECK (footswitches[0]->getBottom() <= footswitches[3]->getY());   // ...above it
 
-    // The GRAPHIC EQ button on any other block's panel goes back to the EQ.
+    // PITCH's view tabs swap HARMONY for OCTAVE / FREEZE and back.
     std::vector<juce::TextButton*> buttons;
     findAll (*editor, buttons);
+    const auto button = [&buttons] (const juce::String& text)
+    {
+        const auto found = std::find_if (buttons.begin(), buttons.end(), [&text] (auto* b) { return b->getButtonText() == text; });
+        REQUIRE (found != buttons.end());
+        return *found;
+    };
+    chains[0]->onSelect (0);
+    button ("OCTAVE / FREEZE")->onClick();
+    CHECK (octaveFreeze->isVisible());
+    CHECK_FALSE (harmonyPanels[0]->isVisible());
+    button ("HARMONY")->onClick();
+    CHECK (harmonyPanels[0]->isVisible());
+    CHECK_FALSE (octaveFreeze->isVisible());
+
+    // The GRAPHIC EQ button on any other block's panel goes back to the EQ.
     const auto back = std::find_if (buttons.begin(), buttons.end(), [] (auto* b) { return b->getButtonText() == "GRAPHIC EQ"; });
     REQUIRE (back != buttons.end());
     CHECK ((*back)->isVisible());
     (*back)->onClick();
-    CHECK (visiblePanel() == 6);
+    CHECK (visiblePanel() == eqIndex);
     CHECK_FALSE ((*back)->isVisible());
 }
 
-TEST_CASE ("BYPASS passes the clean guitar, on both channels", "[ui][bypass]")
+TEST_CASE ("BYPASS passes the clean voice, on both channels", "[ui][bypass]")
 {
     ParagonX1AudioProcessor processor;
     processor.setPlayConfigDetails (1, 2, 48000.0, 512);
@@ -222,19 +266,16 @@ TEST_CASE ("BYPASS passes the clean guitar, on both channels", "[ui][bypass]")
     CHECK (processor.getBypassParameter() == processor.getParameters().getParameter (ParamIDs::bypass));
 }
 
-TEST_CASE ("BYPASS stays in time when the amp adds latency", "[ui][bypass]")
+TEST_CASE ("No latency, so singing through it live has no delay, and BYPASS stays in time", "[ui][bypass]")
 {
-    // At 44.1 kHz a 48 kHz model is resampled, which adds latency. The
-    // bypassed signal must be delayed by the same amount, or toggling bypass
-    // would shift the guitar against the rest of the mix.
+    // Nothing in PR7-V's chain looks ahead (the NAM amp, which did, went in
+    // 0.3.0), so the voice comes straight through. The bypassed signal must
+    // line up with the processed one, or toggling bypass would shift it.
     ParagonX1AudioProcessor processor;
     processor.setPlayConfigDetails (1, 2, 44100.0, 512);
     processor.prepareToPlay (44100.0, 512);
-    processor.loadAmpModel (juce::File (PARAGON_NAM_EXAMPLE_MODELS).getChildFile ("wavenet.nam"));
-    REQUIRE (processor.waitForLoads (20000));
-    processor.prepareToPlay (44100.0, 512);
     const auto latency = processor.getLatencySamples();
-    REQUIRE (latency > 0);
+    CHECK (latency == 0);
 
     set (processor, ParamIDs::bypass, 1.0f);
     for (int block = 0; block < 4; ++block)
@@ -243,8 +284,7 @@ TEST_CASE ("BYPASS stays in time when the amp adds latency", "[ui][bypass]")
     std::vector<float> click (512, 0.0f);
     click[10] = 0.5f;
     const auto output = playThrough (processor, click);
-    CHECK_THAT (output[(size_t) (10 + latency)], WithinAbs (0.5, 1.0e-6));
-    CHECK_THAT (output[10], WithinAbs (0.0, 1.0e-6));
+    CHECK_THAT (output[(size_t) (10 + latency)], WithinAbs (0.5, 1.0e-6));   // the click, exactly where it went in
 }
 
 TEST_CASE ("BYPASS is global: rigs don't change it and it doesn't mark them modified", "[ui][bypass]")
@@ -398,4 +438,102 @@ TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; mov
     auto* band = state.getParameter (ParamIDs::eqBands[4]);
     band->setValueNotifyingHost (band->convertTo0to1 (0.0f));
     CHECK (menu->getSelectedItemIndex() == -1);
+}
+
+namespace
+{
+    juce::MouseEvent mouseAt (juce::Component& component, juce::Point<float> where, juce::ModifierKeys mods = {})
+    {
+        return { juce::Desktop::getInstance().getMainMouseSource(), where, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 &component, &component, juce::Time::getCurrentTime(), where, juce::Time::getCurrentTime(), 1, false };
+    }
+}
+
+TEST_CASE ("HARMONY's graph: click to add a voice, drag it, scroll its interval, right-click to remove it", "[ui][harmony]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& state = processor.getParameters();
+    HarmonyPanel panel (state, [] { return -1.0f; });
+    panel.setSize (643, 243);
+    const auto value = [&state] (int voice, const char* part)
+    {
+        return state.getRawParameterValue (ParamIDs::harmonyVoice (voice, part))->load();
+    };
+
+    // Voices 1 and 2 start in use (a third and a fifth above); 3 to 8 are free.
+    REQUIRE (value (0, "Active") > 0.5f);
+    REQUIRE (value (2, "Active") < 0.5f);
+
+    SECTION ("A click on an empty spot adds the first free voice there, at unison")
+    {
+        const auto spot = panel.pointFor (0.6f, -6.0f);
+        panel.mouseDown (mouseAt (panel, spot));
+        panel.mouseUp (mouseAt (panel, spot));
+        CHECK (value (2, "Active") > 0.5f);
+        CHECK (panel.getSelectedVoice() == 2);
+        CHECK_THAT (value (2, "Pan"), WithinAbs (0.6, 0.02));
+        CHECK_THAT (value (2, "Level"), WithinAbs (-6.0, 0.3));
+        CHECK_THAT (value (2, "Pitch"), WithinAbs (0.0, 0.01));
+    }
+
+    SECTION ("Dragging a voice moves its pan and level")
+    {
+        const auto from = panel.pointFor (value (0, "Pan"), value (0, "Level"));
+        const auto to = panel.pointFor (0.2f, -12.0f);
+        panel.mouseDown (mouseAt (panel, from));
+        panel.mouseDrag (mouseAt (panel, to));
+        panel.mouseUp (mouseAt (panel, to));
+        CHECK_THAT (value (0, "Pan"), WithinAbs (0.2, 0.02));
+        CHECK_THAT (value (0, "Level"), WithinAbs (-12.0, 0.3));
+    }
+
+    SECTION ("Scrolling over a voice changes its interval a semitone at a time")
+    {
+        juce::MouseWheelDetails up {};
+        up.deltaY = 0.2f;
+        panel.mouseWheelMove (mouseAt (panel, panel.pointFor (value (0, "Pan"), value (0, "Level"))), up);
+        CHECK_THAT (value (0, "Pitch"), WithinAbs (5.0, 0.01));   // +4 -> +5
+    }
+
+    SECTION ("Right-clicking a voice removes it")
+    {
+        const auto at = panel.pointFor (value (1, "Pan"), value (1, "Level"));
+        panel.mouseDown (mouseAt (panel, at, juce::ModifierKeys::rightButtonModifier));
+        CHECK (value (1, "Active") < 0.5f);
+    }
+
+    SECTION ("The graph's level scale: 0 dB sits above -12 dB, Off at the bottom")
+    {
+        CHECK (panel.pointFor (0.0f, 0.0f).y < panel.pointFor (0.0f, -12.0f).y);
+        CHECK (panel.pointFor (0.0f, -12.0f).y < panel.pointFor (0.0f, effects::Harmony::silentDb).y);
+        const auto [pan, level] = panel.panAndLevelAt (panel.pointFor (-0.4f, -3.0f));
+        CHECK_THAT (pan, WithinAbs (-0.4, 0.02));
+        CHECK_THAT (level, WithinAbs (-3.0, 0.3));
+    }
+}
+
+TEST_CASE ("The PITCH stomp: first press HARMONY; then it brings back whatever was on", "[ui][harmony]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& state = processor.getParameters();
+    Footswitch pitch (4, "PITCH", state, { ParamIDs::harmonyOn, ParamIDs::octOn }, { ParamIDs::harmonyOn });
+    const auto on = [&state] (const char* id) { return state.getRawParameterValue (id)->load() > 0.5f; };
+
+    pitch.toggle();   // first press: HARMONY only, not the octaver too
+    CHECK (on (ParamIDs::harmonyOn));
+    CHECK_FALSE (on (ParamIDs::octOn));
+
+    set (processor, ParamIDs::octOn, 1.0f);   // the octaver switched on in the panel as well
+    pitch.toggle();
+    CHECK_FALSE (on (ParamIDs::harmonyOn));
+    CHECK_FALSE (on (ParamIDs::octOn));
+    pitch.toggle();   // both back, as they were
+    CHECK (on (ParamIDs::harmonyOn));
+    CHECK (on (ParamIDs::octOn));
+
+    set (processor, ParamIDs::harmonyOn, 0.0f);   // just the octaver now
+    pitch.toggle();
+    pitch.toggle();
+    CHECK_FALSE (on (ParamIDs::harmonyOn));
+    CHECK (on (ParamIDs::octOn));
 }

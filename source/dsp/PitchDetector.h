@@ -28,6 +28,11 @@ public:
     static constexpr double lowestHz = 25.0;     // below a 5-string bass's low B
     static constexpr double highestHz = 1500.0;
 
+    // The range of notes to look for. The tuner uses the full range above;
+    // HARMONY a voice's (a narrower range is cheaper: a shorter window).
+    explicit PitchDetector (double lowestToFind = lowestHz, double highestToFind = highestHz)
+        : lowHz (lowestToFind), highHz (highestToFind) {}
+
     // Message thread, before use. Allocates.
     void prepare (double sampleRate);
 
@@ -50,6 +55,7 @@ public:
 private:
     double refineAtHostRate (const float* start, double roughPeriod) const;
 
+    double lowHz, highHz;
     double sampleRate = 48000.0;
     int decimation = 4;
     int windowSize = 2048;   // at the reduced rate
