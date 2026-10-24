@@ -144,12 +144,17 @@ namespace ParamIDs
     inline constexpr auto doublerDepth = "doublerDepth";
     inline constexpr auto doublerMix   = "doublerMix";
 
+    // Version 27: the master LIMITER under OUTPUT, last in the chain. Its
+    // top setting is OFF.
+    inline constexpr auto outputLimiter = "outputLimiter";   // the ceiling, dB
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the
     // pedal is assigned to, and its range, are saved with each rig. LOW CUT
     // goes with INPUT: it's set for your microphone and room, not a sound.
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut };
+    // LIMITER goes with OUTPUT, for the same reason.
+    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter };
 }
 
 namespace ExpressionTargets

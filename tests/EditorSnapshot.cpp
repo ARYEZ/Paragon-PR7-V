@@ -22,7 +22,8 @@ namespace
 // UI without a DAW. Run with:
 //   PARAGON_SNAPSHOT=editor.png ./ParagonX1Tests "[snapshot]"
 // Optionally set PARAGON_SNAPSHOT_EFFECTS=1 to switch on the saturation,
-// delay and reverb. PARAGON_SNAPSHOT_PAGE=presets shows
+// delay and reverb, and PARAGON_SNAPSHOT_LOUD=1 to play a note loud enough
+// for the LIMITER to work. PARAGON_SNAPSHOT_PAGE=presets shows
 // the rig browser, with a couple of example user rigs, and =settings the SETTINGS page. PARAGON_SNAPSHOT_WIDTH
 // sets the window width (default 1280).
 template <typename Type>
@@ -114,7 +115,29 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         if (auto* p = processor.getParameters().getParameter (setting.upToFirstOccurrenceOf ("=", false, false)))
             p->setValueNotifyingHost (p->convertTo0to1 (setting.fromFirstOccurrenceOf ("=", false, false).getFloatValue()));
 
+    // PARAGON_SNAPSHOT_LOUD=1 plays a note 6 dB over full scale, so the
+    // LIMITER's light shows it working (and the meters show the level).
+    const auto loud = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_LOUD", {}) == "1";
+    if (loud)
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        for (int b = 0, n = 0; b < 40; ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < 256; ++i, ++n)
+                buffer.setSample (0, i, 2.0f * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * n / 48000.0));
+            processor.processBlock (buffer, midi);
+        }
+    }
+
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    if (loud)
+        for (int i = 0; i < 3; ++i)   // let the light's and meters' timers read it
+        {
+            juce::Timer::callPendingTimersSynchronously();
+            juce::Thread::sleep (40);
+        }
     if (showTuner)
         for (int i = 0; i < 12; ++i)   // let the editor's timers run: the tuner reads a few times
         {

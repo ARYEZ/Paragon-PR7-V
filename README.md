@@ -27,8 +27,8 @@ descriptions below still talk about guitar.
 | 6 | Expression pedal/morph, tap tempo, undo/redo, tuner | ✅ Done |
 | 7 | Detail and polish pass against the mockup | ✅ Done |
 | V1 | PR7-V: its own plugin; LOW CUT for the mic; seven stomps, no amp or cabinet | ✅ Done |
-| V2 | Master limiter by OUTPUT | Next |
-| V3 | De-esser in DYNAMICS, harmony in PITCH | Planned |
+| V2 | Master limiter by OUTPUT | ✅ Done |
+| V3 | De-esser in DYNAMICS, harmony in PITCH | Next |
 
 ## Using it
 
@@ -37,7 +37,7 @@ descriptions below still talk about guitar.
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
-  delay → reverb → lo-fi. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  delay → reverb → lo-fi → output → limiter. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has two TYPEs:
     **Classic** (threshold, ratio, level) and **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
     DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL. The panel shows a
@@ -70,6 +70,9 @@ descriptions below still talk about guitar.
     POSITION puts it after the EQ (POST, the default) or before the saturation (PRE).
   - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss) or bitcrusher, for
     intros and breakdowns. AMOUNT, NOISE, MIX and LEVEL.
+- **OUTPUT** is the overall volume. **LIMITER** under it is the master limiter, last in the chain: nothing leaves the
+  plugin above its ceiling (-1 dB to start; -12 to 0 dB; all the way up is OFF), so a loud note can't clip in your DAW.
+  Its light glows while it's turning peaks down. It adds no delay, and like OUTPUT it stays put when you switch rigs.
 - **PRESENCE** (on the unit) cuts or boosts the top end, above about 3.5 kHz: more air on the voice, or less harshness.
 - **Graphic EQ:** 9 bands (63 Hz to 16 kHz, ±12 dB) and a level, after the saturation. Open it from the
   **EQ** block in the signal chain; the curve shows the EQ's actual response. FLAT resets it. **PRESETS** has twelve
@@ -79,7 +82,7 @@ descriptions below still talk about guitar.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
   (banks A-D), tags and favourites rigs. (The factory rigs are still PR7-G's guitar rigs for now; vocal ones are coming.)
-  INPUT, LOW CUT and OUTPUT stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
+  INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
   80 Hz to start; up to 120-150 Hz for a thin or close-miked voice; turn it all the way down for OFF.
@@ -88,7 +91,7 @@ descriptions below still talk about guitar.
 - **Tuner:** hold TAP, or press TUNER on the pedal. The screen shows the note, how many cents off it
   is (the centre bar turns green when in tune) and the frequency. MUTE silences the output while tuning.
 - **Undo / redo:** the arrows in the header, UNDO / REDO on the pedal, or Ctrl+Z / Ctrl+Shift+Z
-  (Cmd on a Mac). Each knob move, switch or rig load is one step. INPUT, LOW CUT, OUTPUT and the
+  (Cmd on a Mac). Each knob move, switch or rig load is one step. INPUT, LOW CUT, OUTPUT, LIMITER and the
   pedal's position aren't undone.
 - **Expression pedal** (right of the unit): drag it, use the mouse wheel, or send MIDI CC 11 (or the CC chosen in SETTINGS) from a
   real expression pedal (route your MIDI track to the plugin). Assign it on the small EXPRESSION screen beside it (click a line, or scroll; it also shows the

@@ -33,9 +33,10 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 
 - An AGPLv3 **JUCE VST3** plugin: a vocal multi-effects chain, drawn as a floor processor with an expression pedal. No amp or cabinet: PR7-G's NAM amp and IR loader (and the NAM, Eigen and AudioDSPTools dependencies) were removed in 0.3.0 at the owner's request. JUCE is the only dependency. No latency.
   - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
-- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → DOUBLER → MOD → DELAY → REVERB → LO-FI. Mono up to the EQ, stereo from the DOUBLER on.
+- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → DOUBLER → MOD → DELAY → REVERB → LO-FI → OUTPUT (+ volume pedal) → LIMITER. Mono up to the EQ, stereo from the DOUBLER on. LOW CUT (under INPUT) and LIMITER (under OUTPUT) are global like INPUT and OUTPUT.
 - **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches the octaver (FREEZE has its own switch). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
-- **Planned (owner's decisions):** a master **limiter** set apart by OUTPUT (not a stomp); a **de-esser** in DYNAMICS; **harmony** (with the octave) in PITCH.
+- **Master LIMITER** (0.4.0): under OUTPUT, not a stomp; no look-ahead, so still no latency. Keep it that way.
+- **Planned (owner's decisions):** a **de-esser** in DYNAMICS; **harmony** (with the octave) in PITCH.
 - **Code layout:** DSP in `source/dsp/effects/`, UI in `source/ui/`, parameters in `source/Parameters.*`, rigs in `source/rigs/`, tests in `tests/`.
 - **Parameters:**
   - Saved by ID and choices by **index**: only ever *append* choices, never reorder.
@@ -52,7 +53,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - `PARAGON_SNAPSHOT` (output path), `PARAGON_SNAPSHOT_WIDTH` (e.g. 2560 for 2x).
   - `PARAGON_SNAPSHOT_BLOCK=n` (open block n's panel), `PARAGON_SNAPSHOT_PARAMS=id=value,...`.
   - `PARAGON_SNAPSHOT_EXPRESSION`, `PARAGON_SNAPSHOT_PAGE=presets|settings`.
-  - `PARAGON_SNAPSHOT_FINISH=black|neon`.
+  - `PARAGON_SNAPSHOT_FINISH=black|neon`, `PARAGON_SNAPSHOT_LOUD=1` (a note over full scale: the LIMITER light on).
   - Render, look, crop and zoom before claiming a visual change is right.
 
 ## Releases

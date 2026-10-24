@@ -12,6 +12,7 @@
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/PitchBlock.h"
@@ -155,6 +156,8 @@ public:
     // How hard the compressor is working (dB, 0 or less), for its meter.
     float getCompGainReductionDb() const noexcept { return compGate.getGainReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
+    // How far the master LIMITER is turning the sound down (dB, 0 or less), for its light.
+    float getLimiterReductionDb() const noexcept { return limiter.getReductionDb(); }
 
 private:
     void processChunk (juce::AudioBuffer<float>& buffer, int start, int numSamples);
@@ -202,6 +205,8 @@ private:
 
     // LOW CUT, straight after the INPUT gain: before anything else.
     effects::LowCut lowCut;
+    // LIMITER, after OUTPUT and the volume pedal: last, so it catches everything.
+    effects::Limiter limiter;
 
     // Signal chain, in order: pitch -> wah -> compGate -> filterPitch -> drive
     // -> presence -> talk box -> graphic EQ -> doubler -> modulation -> delay

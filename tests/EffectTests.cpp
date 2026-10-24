@@ -1809,3 +1809,97 @@ TEST_CASE ("LOW CUT: turning the knob, or switching it off and on, doesn't click
         CHECK_THAT (dB (rms (output, from, to) / rms (input, from, to)), WithinAbs (0.0, 0.35));
     }
 }
+
+TEST_CASE ("LIMITER: nothing leaves above the ceiling; normal levels are untouched", "[effects][limiter]")
+{
+    const auto peak = [] (const std::vector<float>& samples, double fromSeconds = 0.0)
+    {
+        auto result = 0.0f;
+        for (auto i = (size_t) (fromSeconds * sampleRate); i < samples.size(); ++i)
+            result = std::max (result, std::abs (samples[i]));
+        return result;
+    };
+
+    SECTION ("A note 6 dB over full scale comes out at -1 dB, the default ceiling, on both sides")
+    {
+        EffectRig rig;
+        const auto output = rig.run (sine (440.0, 2.0f, 0.5));
+        const auto ceiling = juce::Decibels::decibelsToGain (-1.0f);
+        for (const auto& channel : output)
+        {
+            CHECK (peak (channel) <= ceiling + 1.0e-6f);   // never over, not even the first sample
+            CHECK (peak (channel, 0.1) > ceiling * 0.97f);  // and held up at the ceiling, not crushed
+        }
+        CHECK (rig.processor.getLimiterReductionDb() < -5.0f);   // the light is on
+    }
+
+    SECTION ("Under the ceiling it does nothing at all, and the light is off")
+    {
+        EffectRig rig;
+        const auto input = sine (440.0, 0.3f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+        CHECK (rig.processor.getLimiterReductionDb() == 0.0f);
+    }
+
+    SECTION ("The knob sets the ceiling (gliding there over 50 ms when turned, so it doesn't zip)")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::outputLimiter, -6.0f);
+        CHECK (peak (rig.runMono (sine (440.0, 0.9f, 0.5)), 0.06) <= juce::Decibels::decibelsToGain (-6.0f) + 1.0e-6f);
+    }
+
+    SECTION ("OFF lets everything through")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);
+        auto* limiter = rig.processor.getParameters().getParameter (ParamIDs::outputLimiter);
+        CHECK (limiter->getCurrentValueAsText() == "Off");
+        const auto input = sine (440.0, 2.0f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input), (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+    }
+
+    SECTION ("After a loud peak it lets go, so the next quiet phrase is back at full level")
+    {
+        EffectRig rig;
+        auto input = sine (440.0, 2.0f, 0.3);                    // a shout...
+        const auto quiet = sine (440.0, 0.3f, 0.7);              // ...then singing softly
+        input.insert (input.end(), quiet.begin(), quiet.end());
+        const auto output = rig.runMono (input);
+        // 0.4 s after the shout, more than three times the 100 ms release:
+        // the soft singing is untouched again.
+        CHECK_THAT (dB (rms (output, 0.7, 1.0) / rms (input, 0.7, 1.0)), WithinAbs (0.0, 0.05));
+        CHECK (rig.processor.getLimiterReductionDb() == 0.0f);
+    }
+
+    SECTION ("Switching it off and on during a loud note doesn't click")
+    {
+        // A note over full scale, with LIMITER switched OFF, back to -1 dB,
+        // then to -9 dB. A click is a jump between neighbouring samples:
+        // this note never moves more than 1.2 x 2 pi x 440 / 48000 = 0.069 per
+        // sample, so the output must stay under that (plus a hair).
+        EffectRig rig;
+        const auto input = sine (440.0, 1.2f, 0.8);
+        const float settings[] = { -1.0f, effects::Limiter::offDb, -1.0f, -9.0f };
+        const auto chunk = input.size() / std::size (settings);
+        std::vector<float> output;
+        for (size_t step = 0; step < std::size (settings); ++step)
+        {
+            rig.set (ParamIDs::outputLimiter, settings[step]);
+            const auto part = rig.runMono ({ input.begin() + (long) (step * chunk), input.begin() + (long) ((step + 1) * chunk) });
+            output.insert (output.end(), part.begin(), part.end());
+        }
+        auto biggestStep = 0.0f;
+        for (size_t i = 1; i < output.size(); ++i)
+            biggestStep = std::max (biggestStep, std::abs (output[i] - output[i - 1]));
+        CHECK (biggestStep < 0.072f);
+    }
+
+    SECTION ("Its default is -1 dB, and it doesn't change with rigs")
+    {
+        EffectRig rig;
+        auto* limiter = rig.processor.getParameters().getParameter (ParamIDs::outputLimiter);
+        CHECK (limiter->getText (limiter->getDefaultValue(), 16) == "-1.0 dB");
+        CHECK (ParamIDs::notInRigs.contains (ParamIDs::outputLimiter));
+        CHECK (rig.processor.getLatencySamples() == 0);   // no look-ahead: nothing delays the voice
+    }
+}

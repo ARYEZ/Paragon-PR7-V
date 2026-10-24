@@ -85,6 +85,8 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     presence.prepare (sampleRate, preparedBlockSize);
     lowCut.prepare (sampleRate, preparedBlockSize);
     lowCut.reset (param (ParamIDs::inputLowCut));
+    limiter.prepare (sampleRate);
+    limiter.reset (param (ParamIDs::outputLimiter));
     graphicEq.prepare (sampleRate, preparedBlockSize);
     doubler.prepare (sampleRate, preparedBlockSize);
     modulation.prepare (sampleRate, preparedBlockSize);
@@ -360,6 +362,10 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         for (size_t channel = 0; channel < stereoBlock.getNumChannels(); ++channel)
             stereoBlock.getChannelPointer (channel)[i] *= gain;
     }
+
+    // LIMITER: nothing leaves above its ceiling. (BYPASS, below, still gives
+    // the untouched input.)
+    limiter.process (stereoBlock, param (ParamIDs::outputLimiter));
 
     // BYPASS crossfades to the clean input. The chain keeps running underneath
     // so delay and reverb tails, and the amp's state, are ready when it's

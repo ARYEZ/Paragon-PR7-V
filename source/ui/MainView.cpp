@@ -72,9 +72,9 @@ void InkArrowButton::paintButton (juce::Graphics& g, bool, bool down)
 
 //==============================================================================
 GainColumn::GainColumn (const juce::String& title, juce::AudioProcessorValueTreeState& parameters,
-                        const juce::String& parameterId, LevelMeterSource& meterSource,
-                        const juce::String& lowCutId)
+                        const juce::String& parameterId, LevelMeterSource& meterSource, Extra extra)
     : attachment (parameters, parameterId, knob),
+      reductionDb (std::move (extra.reductionDb)),
       meter (meterSource)
 {
     titleLabel.setText (title, juce::dontSendNotification);
@@ -92,44 +92,79 @@ GainColumn::GainColumn (const juce::String& title, juce::AudioProcessorValueTree
     addAndMakeVisible (knob);
     addAndMakeVisible (meter);
 
-    if (lowCutId.isNotEmpty())
+    if (extra.parameterId.isNotEmpty())
     {
-        lowCutLabel.setText ("LOW CUT", juce::dontSendNotification);
-        lowCutLabel.setJustificationType (juce::Justification::centred);
-        lowCutLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        lowCutLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.7f));
+        extraLabel.setText (extra.title, juce::dontSendNotification);
+        extraLabel.setJustificationType (juce::Justification::centred);
+        extraLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        extraLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.7f));
 
-        lowCutAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, lowCutId, lowCutKnob);
-        lowCutKnob.setColour (juce::Slider::textBoxTextColourId, ParagonColours::accent);
-        lowCutKnob.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-        lowCutKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 18);
-        if (auto* parameter = parameters.getParameter (lowCutId))   // double-click: back to the default (80 Hz)
-            lowCutKnob.setDoubleClickReturnValue (true, parameters.getParameterRange (lowCutId).convertFrom0to1 (parameter->getDefaultValue()));
+        extraAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, extra.parameterId, extraKnob);
+        extraKnob.setColour (juce::Slider::textBoxTextColourId, ParagonColours::accent);
+        extraKnob.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        extraKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 18);
+        if (auto* parameter = parameters.getParameter (extra.parameterId))   // double-click: back to the default
+            extraKnob.setDoubleClickReturnValue (true, parameters.getParameterRange (extra.parameterId).convertFrom0to1 (parameter->getDefaultValue()));
 
-        addAndMakeVisible (lowCutLabel);
-        addAndMakeVisible (lowCutKnob);
+        addAndMakeVisible (extraLabel);
+        addAndMakeVisible (extraKnob);
+    }
+
+    if (reductionDb)
+        startTimerHz (30);
+}
+
+juce::Rectangle<float> GainColumn::lightArea() const
+{
+    // Just right of the title's text.
+    const auto textWidth = juce::GlyphArrangement::getStringWidth (extraLabel.getFont(), extraLabel.getText());
+    const auto bounds = extraLabel.getBounds().toFloat();
+    return juce::Rectangle<float> (6.0f, 6.0f).withCentre ({ bounds.getCentreX() + textWidth * 0.5f + 7.0f, bounds.getCentreY() });
+}
+
+void GainColumn::timerCallback()
+{
+    // Lit from 0.1 dB of limiting, so it shows real work rather than noise.
+    const auto shouldBeOn = reductionDb() < -0.1f;
+    if (shouldBeOn != lightOn)
+    {
+        lightOn = shouldBeOn;
+        repaint (lightArea().expanded (4.0f).getSmallestIntegerContainer());
     }
 }
 
 void GainColumn::paint (juce::Graphics& g)
 {
     DockStyle::drawPanel (g, getLocalBounds().toFloat());
+
+    if (reductionDb)
+    {
+        // The limiter's light: dark when idle, glowing orange while it limits.
+        const auto light = lightArea();
+        if (lightOn)
+        {
+            g.setColour (ParagonColours::accent.withAlpha (0.35f));
+            g.fillEllipse (light.expanded (2.5f));
+        }
+        g.setColour (lightOn ? ParagonColours::accent : juce::Colours::white.withAlpha (0.15f));
+        g.fillEllipse (light);
+    }
 }
 
 void GainColumn::resized()
 {
     // Proportions from the mockup: title, a compact knob, its value in
     // orange, then a tall slim meter.
-    // With LOW CUT, its smaller knob goes under the gain knob, in signal
-    // order, and the meter starts lower.
+    // With an extra knob (LOW CUT, LIMITER), it goes under the gain knob, in
+    // signal order, and the meter starts lower.
     auto area = getLocalBounds();
     titleLabel.setBounds (area.withHeight (26).withY (14));
     knob.setBounds (juce::Rectangle<int> (76, 92).withCentre ({ area.getCentreX(), 86 }));
     auto meterTop = 146;
-    if (lowCutAttachment != nullptr)
+    if (extraAttachment != nullptr)
     {
-        lowCutLabel.setBounds (area.withHeight (14).withY (140));
-        lowCutKnob.setBounds (juce::Rectangle<int> (60, 66).withCentre ({ area.getCentreX(), 189 }));
+        extraLabel.setBounds (area.withHeight (14).withY (140));
+        extraKnob.setBounds (juce::Rectangle<int> (60, 66).withCentre ({ area.getCentreX(), 189 }));
         meterTop = 232;
     }
     meter.setBounds (juce::Rectangle<int> (46, 0).withX (area.getCentreX() - 26).withY (meterTop).withBottom (area.getBottom() - 22));
@@ -138,8 +173,10 @@ void GainColumn::resized()
 //==============================================================================
 MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     : audioProcessor (processorToShow),
-      inputColumn ("INPUT", processorToShow.getParameters(), ParamIDs::inputGain, processorToShow.getInputMeter(), ParamIDs::inputLowCut),
-      outputColumn ("OUTPUT", processorToShow.getParameters(), ParamIDs::outputGain, processorToShow.getOutputMeter()),
+      inputColumn ("INPUT", processorToShow.getParameters(), ParamIDs::inputGain, processorToShow.getInputMeter(),
+                   { ParamIDs::inputLowCut, "LOW CUT", {} }),
+      outputColumn ("OUTPUT", processorToShow.getParameters(), ParamIDs::outputGain, processorToShow.getOutputMeter(),
+                    { ParamIDs::outputLimiter, "LIMITER", [&processorToShow] { return processorToShow.getLimiterReductionDb(); } }),
       bypassAttachment (processorToShow.getParameters(), ParamIDs::bypass, bypassButton),
       tunerAttachment (processorToShow.getParameters(), ParamIDs::tunerOn, tunerPedal),
       muteAttachment (processorToShow.getParameters(), ParamIDs::tunerMute, mutePedal),

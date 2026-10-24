@@ -7,6 +7,7 @@
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
+#include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Reverb.h"
@@ -47,6 +48,10 @@ namespace
     const ToText asLowCut = [] (float hz, int)
     {
         return effects::LowCut::isOff (hz) ? juce::String ("Off") : juce::String (juce::roundToInt (hz)) + " Hz";
+    };
+    const ToText asCeiling = [] (float db, int)
+    {
+        return effects::Limiter::isOff (db) ? juce::String ("Off") : juce::String (db, 1) + " dB";
     };
     const ToText asGate = [] (float value, int)
     {
@@ -252,6 +257,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::doublerRate, "Doubler Rate", skewed (0.05f, 10.0f, 1.0f, 0.01f), 0.8f, v26, asHz));
     layout.add (makeFloat (ParamIDs::doublerDepth, "Doubler Depth", { 0.0f, 1.0f, 0.01f }, 0.4f, v26, asPercent));
     layout.add (makeFloat (ParamIDs::doublerMix, "Doubler Mix", { 0.0f, 1.0f, 0.01f }, 0.7f, v26, asPercent));
+
+    // Added in plugin version 27: the master LIMITER. On at -1 dB by
+    // default, the usual safety margin under digital full scale.
+    layout.add (makeFloat (ParamIDs::outputLimiter, "Limiter", { effects::Limiter::minCeilingDb, effects::Limiter::offDb, 0.1f },
+                           -1.0f, 27, asCeiling));
     return layout;
 }
 

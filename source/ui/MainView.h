@@ -17,25 +17,38 @@
 #include "ui/SignalChain.h"
 
 // A side strip from the mockup: a title, a gain knob with its value
-// underneath, and a level meter. Given a `lowCutId` (the INPUT strip), a
-// smaller LOW CUT knob sits between the gain knob and the meter.
-class GainColumn final : public juce::Component
+// underneath, and a level meter. Given an `Extra`, a smaller knob sits
+// between the gain knob and the meter: LOW CUT on INPUT, LIMITER on OUTPUT.
+class GainColumn final : public juce::Component,
+                         private juce::Timer
 {
 public:
+    struct Extra
+    {
+        juce::String parameterId, title;
+        // If set, a light beside the title shows while this is below 0 (dB
+        // of gain reduction): the limiter at work.
+        std::function<float()> reductionDb;
+    };
+
     GainColumn (const juce::String& title, juce::AudioProcessorValueTreeState& parameters,
-                const juce::String& parameterId, LevelMeterSource& meterSource,
-                const juce::String& lowCutId = {});
+                const juce::String& parameterId, LevelMeterSource& meterSource, Extra extra = {});
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
+    void timerCallback() override;
+    juce::Rectangle<float> lightArea() const;
+
     juce::Label titleLabel;
     juce::Slider knob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
-    juce::Label lowCutLabel;
-    juce::Slider lowCutKnob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowCutAttachment;
+    juce::Label extraLabel;
+    juce::Slider extraKnob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> extraAttachment;
+    std::function<float()> reductionDb;
+    bool lightOn = false;
     LevelMeter meter;
 };
 
