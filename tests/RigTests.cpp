@@ -424,24 +424,17 @@ TEST_CASE ("Each rig's RIG LEVEL adds to the master output", "[rigs]")
     CHECK_THAT (buffer.getMagnitude (0, 0, 256), WithinAbs (0.1 * 1.9953, 0.005));
 }
 
-TEST_CASE ("Rigs saved under an old name (Paragon X1, Paragon PR7) carry over to Paragon PR7-G", "[rigs]")
+TEST_CASE ("Rigs live in their own Paragon PR7-V folder, apart from Paragon PR7-G's", "[rigs]")
 {
-    const auto root = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                          .getChildFile ("ParagonRename-" + juce::String::toHexString (juce::Random::getSystemRandom().nextInt64()));
-    const auto oldFolder = root.getChildFile ("Paragon PR7"), newFolder = root.getChildFile ("Paragon PR7-G");
-    REQUIRE (oldFolder.getChildFile ("Rigs").createDirectory());
-    REQUIRE (oldFolder.getChildFile ("Rigs").getChildFile ("My Rig.x1rig").replaceWithText ("<ParagonRig/>"));
+    const auto folder = RigLibrary::defaultFolder();
+    CHECK (folder.getFileName() == "Rigs");
+    CHECK (folder.getParentDirectory().getFileName() == "Paragon PR7-V");
+    CHECK (folder.getParentDirectory().getParentDirectory().getFileName() == "Paragon");
 
-    CHECK (RigLibrary::carryOverFromOldName (oldFolder, newFolder));
-    CHECK (newFolder.getChildFile ("Rigs").getChildFile ("My Rig.x1rig").existsAsFile());
-    CHECK (oldFolder.getChildFile ("Rigs").getChildFile ("My Rig.x1rig").existsAsFile());   // copied, not moved
-
-    // Only once: after that the new folder is the one in use, even if rigs are deleted from it.
-    newFolder.getChildFile ("Rigs").getChildFile ("My Rig.x1rig").deleteFile();
-    CHECK_FALSE (RigLibrary::carryOverFromOldName (oldFolder, newFolder));
-    CHECK_FALSE (newFolder.getChildFile ("Rigs").getChildFile ("My Rig.x1rig").exists());
-
-    root.deleteRecursively();
+    // The guitar version's rigs folder sits next to it, and is a different folder.
+    const auto guitarFolder = folder.getParentDirectory().getSiblingFile ("Paragon PR7-G").getChildFile ("Rigs");
+    CHECK (folder != guitarFolder);
+    CHECK_FALSE (folder.isAChildOf (guitarFolder.getParentDirectory()));
 }
 
 TEST_CASE ("Rig files from Paragon X1 (.x1rig) still load", "[rigs]")

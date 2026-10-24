@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures")
 
-project(ParagonX1 VERSION 0.32.1 LANGUAGES C CXX)
+project(ParagonX1 VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,11 +20,11 @@ option(PARAGON_BUILD_TESTS "Build the unit tests" ON)
 include(cmake/Dependencies.cmake)
 
 juce_add_plugin(ParagonX1
-    PRODUCT_NAME             "Paragon PR7-G" # was "Paragon X1", then "Paragon PR7"; codes below unchanged so DAWs still recognise it
+    PRODUCT_NAME             "Paragon PR7-V" # the vocal version of Paragon PR7-G: its own name, bundle ID and plugin code, so the two install side by side
     COMPANY_NAME             "Paragon"
-    BUNDLE_ID                "com.paragon.paragonx1"
+    BUNDLE_ID                "com.paragon.paragonpr7v"
     PLUGIN_MANUFACTURER_CODE Prgn     # four characters, at least one upper case
-    PLUGIN_CODE              Px1a     # four characters, exactly one upper case
+    PLUGIN_CODE              Pr7v     # four characters, exactly one upper case; never PR7-G's Px1a or PR7-B's Pr7b
     FORMATS                  VST3
     IS_SYNTH                 FALSE
     NEEDS_MIDI_INPUT         TRUE    # MIDI CC 11 for the expression pedal

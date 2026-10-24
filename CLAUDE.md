@@ -6,6 +6,8 @@ Everything below describes how the project is built, tested and released, and ho
 
 ## First: make it its own plugin (do this before anything else)
 
+**Done in 0.1.0** (plugin code `Pr7v`). Kept as a record of what makes PR7-V separate from PR7-G.
+
 Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two would replace each other and share rigs and settings.
 
 1. **CMakeLists.txt** (`juce_add_plugin`):

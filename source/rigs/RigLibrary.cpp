@@ -24,31 +24,17 @@ RigLibrary::RigLibrary (juce::File folderToUse) : folder (std::move (folderToUse
 
 juce::File RigLibrary::defaultFolder()
 {
-    // Windows: %APPDATA%\Paragon\Paragon PR7-G\Rigs
-    // macOS:   ~/Library/Application Support/Paragon/Paragon PR7-G/Rigs (via userApplicationDataDirectory)
-    // Linux:   ~/.config/Paragon/Paragon PR7-G/Rigs
-    const auto paragon = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                            #if JUCE_MAC
-                             .getChildFile ("Application Support")
-                            #endif
-                             .getChildFile ("Paragon");
-
-    // The plugin was Paragon X1 until 0.11.0 and Paragon PR7 until 0.19.0:
-    // bring the rigs along from the most recent of those that's there.
-    const auto current = paragon.getChildFile ("Paragon PR7-G");
-    if (! carryOverFromOldName (paragon.getChildFile ("Paragon PR7"), current))
-        carryOverFromOldName (paragon.getChildFile ("Paragon X1"), current);
-    return current.getChildFile ("Rigs");
-}
-
-bool RigLibrary::carryOverFromOldName (const juce::File& oldFolder, const juce::File& newFolder)
-{
-    // Copied rather than moved, so an older version still installed keeps
-    // working, and nothing is lost if the copy is interrupted. Only the
-    // first time: once the new folder exists, it's the one in use.
-    if (newFolder.exists() || ! oldFolder.isDirectory())
-        return false;
-    return oldFolder.copyDirectoryTo (newFolder);
+    // Windows: %APPDATA%\Paragon\Paragon PR7-V\Rigs
+    // macOS:   ~/Library/Application Support/Paragon/Paragon PR7-V/Rigs (via userApplicationDataDirectory)
+    // Linux:   ~/.config/Paragon/Paragon PR7-V/Rigs
+    // Its own folder, apart from Paragon PR7-G's: guitar rigs don't carry over.
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+          #if JUCE_MAC
+           .getChildFile ("Application Support")
+          #endif
+           .getChildFile ("Paragon")
+           .getChildFile ("Paragon PR7-V")
+           .getChildFile ("Rigs");
 }
 
 void RigLibrary::rescan()
