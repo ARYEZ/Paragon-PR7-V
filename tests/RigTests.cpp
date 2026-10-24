@@ -84,16 +84,20 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     CHECK (old->name == "Old Double");
     const auto& p = old->parameters;
     CHECK (p.at (ParamIDs::doublerOn) > 0.5f);
-    CHECK_THAT (p.at (ParamIDs::doublerRate), WithinAbs (1.2, 0.001));
-    CHECK_THAT (p.at (ParamIDs::doublerDepth), WithinAbs (0.25, 0.001));
-    CHECK_THAT (p.at (ParamIDs::doublerMix), WithinAbs (0.65, 0.001));
+    // ...and on to 0.7.0's voices: the old takes, at MIX's level (65%), RATE/4.
+    CHECK (p.at (ParamIDs::doublerVoice (0, "On")) > 0.5f);
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (0, "Delay")), WithinAbs (19.0, 0.001));
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (1, "Delay")), WithinAbs (27.0, 0.001));
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (0, "Gain")), WithinAbs (-3.74, 0.05));
+    CHECK_THAT (p.at (ParamIDs::doublerVoice (0, "Rate")), WithinAbs (0.3, 0.001));
+    CHECK (p.count (ParamIDs::doublerMix) == 0);   // the old knobs themselves are gone
     CHECK (p.at (ParamIDs::modOn) < 0.5f);
     CHECK (p.at (ParamIDs::reverbOn) > 0.5f);   // everything else as it was
 
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 26);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 30);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")

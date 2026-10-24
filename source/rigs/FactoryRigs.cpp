@@ -145,7 +145,7 @@ std::vector<Rig> makeFactoryRigs()
 
         make ("Wide Doubler", D, 6, "Rhythm,Modulation", {
             { driveOn, 1 }, { driveGain, 3 }, { driveTone, 5 },
-            { doublerOn, 1 }, { doublerRate, 0.8f }, { doublerDepth, 0.4f }, { doublerMix, 0.7f },
+            { doublerOn, 1 },   // its voices as they start: the Doubler user guide's recipe
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
 
         // LO-FI: for intros and breakdowns. Assign the expression pedal to

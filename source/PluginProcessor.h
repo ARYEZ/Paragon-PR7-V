@@ -159,6 +159,8 @@ public:
     float getCompGainReductionDb() const noexcept { return compGate.getGainReductionDb(); }
     // The note HARMONY hears being sung (a MIDI number), or -1 between notes. For its panel.
     float getHarmonySungNote() const noexcept { return harmony.getSungNote(); }
+    // DOUBLER's MOD RESET: start every voice's wobble together.
+    void resetDoublerModulation() noexcept { doubler.resetModulation(); }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -229,6 +231,8 @@ private:
     struct HarmonyVoiceParameters { std::atomic<float>* parts[8] {}; };
     std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
     effects::Doubler doubler;
+    struct DoublerVoiceParameters { std::atomic<float>* parts[9] {}; };
+    std::array<DoublerVoiceParameters, effects::Doubler::numVoices> doublerVoiceParameters {};
     effects::Modulation modulation;
     effects::Delay delay;
     effects::Reverb reverb;

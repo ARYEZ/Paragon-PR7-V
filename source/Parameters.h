@@ -140,6 +140,9 @@ namespace ParamIDs
 
     // Version 26: the DOUBLER stomp (until then MODULATION's Doubler type).
     inline constexpr auto doublerOn    = "doublerOn";
+    // Version 26's RATE, DEPTH and MIX: no longer parameters since 0.7.0's
+    // four-voice DOUBLER. Read from older rigs and projects only, which
+    // convertOldDoubler turns into voices. Never reuse these IDs.
     inline constexpr auto doublerRate  = "doublerRate";
     inline constexpr auto doublerDepth = "doublerDepth";
     inline constexpr auto doublerMix   = "doublerMix";
@@ -165,6 +168,22 @@ namespace ParamIDs
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
+
+    // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).
+    inline constexpr auto doublerDirectOn   = "doublerDirectOn";
+    inline constexpr auto doublerDirectGain = "doublerDirectGain";
+    inline constexpr auto doublerDirectPan  = "doublerDirectPan";
+    inline constexpr auto doublerFbHighPass = "doublerFbHighPass";
+    inline constexpr auto doublerLowOn      = "doublerLowOn";
+    inline constexpr auto doublerLowGain    = "doublerLowGain";
+    inline constexpr auto doublerLowFreq    = "doublerLowFreq";
+    inline constexpr auto doublerHighOn     = "doublerHighOn";
+    inline constexpr auto doublerHighGain   = "doublerHighGain";
+    inline constexpr auto doublerHighFreq   = "doublerHighFreq";
+    inline constexpr auto doublerOutput     = "doublerOutput";
+    // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
+    inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate" };
+    inline juce::String doublerVoice (int voice, const juce::String& part) { return "dv" + juce::String (voice + 1) + part; }
 
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
@@ -199,3 +218,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 // returns a parameter's saved value (or nothing), and `set` stores one.
 void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,
                              const std::function<void (const char*, float)>& set);
+
+// Settings saved before 0.7.0 with the two-take DOUBLER (RATE, DEPTH, MIX):
+// sets up voices 1 and 2 to sound close to it (its takes 19 and 27 ms late,
+// one each side, at MIX's level, with a wobble of about the same depth and
+// speed; the new voices are truly detuned, so it's close rather than exact).
+void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
+                        const std::function<void (const juce::String&, float)>& set);

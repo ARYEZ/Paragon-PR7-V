@@ -944,11 +944,10 @@ TEST_CASE ("The auto-wah opens up as you play harder", "[effects][wah]")
     CHECK (brightness (0.3f) - brightness (0.003f) > 12.0f);
 }
 
-TEST_CASE ("DOUBLER adds a take on each side", "[effects][doubler]")
+TEST_CASE ("DOUBLER, as it starts: a take on each side", "[effects][doubler]")
 {
     EffectRig rig;
     rig.set (ParamIDs::doublerOn, 1.0f);
-    rig.set (ParamIDs::doublerMix, 0.7f);
     const auto input = sine (440.0, 0.3f, 1.0);
     const auto output = rig.run (input);
     REQUIRE (allFinite (output[0]));
@@ -1014,9 +1013,19 @@ TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with t
     rig.processor.setStateInformation (older.getData(), (int) older.getSize());
     const auto value = [&rig] (const char* id) { return rig.processor.getParameters().getRawParameterValue (id)->load(); };
     CHECK (value (ParamIDs::doublerOn) > 0.5f);
-    CHECK_THAT (value (ParamIDs::doublerRate), WithinAbs (1.5, 0.01));
-    CHECK_THAT (value (ParamIDs::doublerDepth), WithinAbs (0.3, 0.01));
-    CHECK_THAT (value (ParamIDs::doublerMix), WithinAbs (0.6, 0.01));
+    // Then on to 0.7.0's voices: the old takes, 19 and 27 ms late, one each
+    // side, at MIX's level (60%: -4.4 dB), wobbling at a quarter of RATE.
+    const auto voice = [&value] (int v, const char* part) { return value (ParamIDs::doublerVoice (v, part).toRawUTF8()); };
+    CHECK (voice (0, "On") > 0.5f);
+    CHECK (voice (1, "On") > 0.5f);
+    CHECK (voice (2, "On") < 0.5f);
+    CHECK_THAT (voice (0, "Delay"), WithinAbs (19.0, 0.05));
+    CHECK_THAT (voice (1, "Delay"), WithinAbs (27.0, 0.05));
+    CHECK (voice (0, "Pan") < -0.9f);
+    CHECK (voice (1, "Pan") > 0.9f);
+    CHECK_THAT (voice (0, "Gain"), WithinAbs (-4.4, 0.1));
+    CHECK_THAT (voice (0, "Rate"), WithinAbs (0.375, 0.01));
+    CHECK (std::abs (voice (0, "Depth")) > 0.5f);
     CHECK (value (ParamIDs::modOn) < 0.5f);   // MODULATION itself was only ever the doubler
 
     // And it sounds doubled: the two sides differ, as DOUBLER's takes do.
@@ -1032,7 +1041,7 @@ TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with t
     rig.processor.getStateInformation (current);
     auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
     REQUIRE (currentXml != nullptr);
-    CHECK (currentXml->getIntAttribute ("parameterVersion") == 26);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 30);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")
@@ -2233,5 +2242,182 @@ TEST_CASE ("HARMONY: levels, pan, source and switching off", "[effects][harmony]
     {
         HarmonyRig rig (7.0f);
         CHECK (rig.processor.getLatencySamples() == 0);
+    }
+}
+
+namespace
+{
+    // A rig with DOUBLER on and only voice 1 sounding (in the middle, at
+    // 0 dB, no detune), the direct voice off: the output is voice 1 alone.
+    struct DoublerRig : EffectRig
+    {
+        DoublerRig()
+        {
+            set (ParamIDs::doublerOn, 1.0f);
+            set (ParamIDs::doublerDirectOn, 0.0f);
+            for (int voice = 1; voice < effects::Doubler::numVoices; ++voice)
+                setVoice ("On", 0.0f, voice);
+            setVoice ("Gain", 0.0f);
+            setVoice ("Pan", 0.0f);
+            setVoice ("Detune", 0.0f);
+        }
+        void setVoice (const char* part, float value, int voice = 0) { set (ParamIDs::doublerVoice (voice, part).toRawUTF8(), value); }
+    };
+
+    // A click 100 ms in: after DOUBLER's 20 ms fade in as it's switched on,
+    // which a click right at the start would partly slip through.
+    constexpr double clickAtMs = 100.0;
+    std::vector<float> lateClick (double seconds)
+    {
+        auto samples = silence (seconds);
+        samples[(size_t) (clickAtMs * sampleRate / 1000.0)] = 1.0f;
+        return samples;
+    }
+
+    // When the click first comes out, in ms after it went in.
+    double arrivalMs (const std::vector<float>& samples, float threshold = 0.05f)
+    {
+        for (size_t i = 0; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > threshold)
+                return (double) i / sampleRate * 1000.0 - clickAtMs;
+        return -1.0;
+    }
+}
+
+TEST_CASE ("DOUBLER: each voice detuned, delayed and placed as set", "[effects][doubler]")
+{
+    const auto note = sungVowel (220.0, 1.0);
+
+    SECTION ("DETUNE moves the voice's pitch by its cents, keeping its timing")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Detune", 50.0f);
+        CHECK (std::abs (centsBetween (pitchOf (rig.run (note)[0]), 220.0) - 50.0) < 4.0);
+    }
+
+    SECTION ("OCTAVE puts it an octave down")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Octave", 1.0f);
+        CHECK (std::abs (centsBetween (pitchOf (rig.run (note)[0]), 110.0)) < 4.0);
+    }
+
+    SECTION ("DELAY puts it that late; below the detuning's own ~13 ms it comes at about that")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        CHECK_THAT (arrivalMs (rig.run (lateClick (0.3))[0]), WithinAbs (40.0, 0.5));
+
+        DoublerRig shortest;
+        shortest.setVoice ("Delay", 2.0f);
+        // The detuning's own delay: 4 samples plus half of its 25 ms jump, 12.6 ms at 48 kHz.
+        CHECK_THAT (arrivalMs (shortest.run (lateClick (0.3))[0]), WithinAbs (12.6, 1.0));
+    }
+
+    SECTION ("FEEDBACK repeats it, each repeat quieter by the feedback")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Delay", 40.0f);
+        rig.setVoice ("Feedback", 0.5f);
+        const auto output = rig.run (lateClick (0.4))[0];
+        const auto peakNear = [&output] (double ms)
+        {
+            ms += clickAtMs;
+            auto peak = 0.0f;
+            for (auto i = (size_t) ((ms - 3.0) * sampleRate / 1000.0); i < (size_t) ((ms + 3.0) * sampleRate / 1000.0); ++i)
+                peak = std::max (peak, std::abs (output[i]));
+            return peak;
+        };
+        CHECK (peakNear (40.0) > 0.5f);
+        CHECK_THAT (peakNear (80.0) / peakNear (40.0), WithinAbs (0.5, 0.1));
+        CHECK_THAT (peakNear (120.0) / peakNear (80.0), WithinAbs (0.5, 0.1));
+    }
+
+    SECTION ("PAN: hard left is only on the left")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Pan", -1.0f);
+        const auto output = rig.run (note);
+        CHECK (rms (output[0], 0.2) > 0.01f);
+        CHECK (rms (output[1], 0.2) < 1.0e-5f);
+    }
+
+    SECTION ("GAIN and OUTPUT set the level")
+    {
+        const auto loudness = [&note] (float gainDb, float outputDb)
+        {
+            DoublerRig rig;
+            rig.setVoice ("Gain", gainDb);
+            rig.set (ParamIDs::doublerOutput, outputDb);
+            return rms (rig.run (note)[0], 0.2);
+        };
+        const auto full = loudness (0.0f, 0.0f);
+        CHECK_THAT (dB (full / rms (note, 0.2)), WithinAbs (0.0, 1.0));   // a voice at 0 dB is as loud as you
+        CHECK_THAT (dB (loudness (-12.0f, 0.0f) / full), WithinAbs (-12.0, 0.3));
+        CHECK_THAT (dB (loudness (0.0f, -6.0f) / full), WithinAbs (-6.0, 0.3));
+    }
+
+    SECTION ("DEPTH wobbles its pitch around DETUNE, at RATE")
+    {
+        DoublerRig rig;
+        rig.setVoice ("Depth", 60.0f);
+        rig.setVoice ("Rate", 1.0f);
+        const auto output = rig.run (sungVowel (220.0, 1.6))[0];
+        // Its pitch, a quarter of a cycle apart: up 60 cents, back, down 60.
+        std::vector<double> pitches;
+        for (const auto seconds : { 0.55, 0.8, 1.05, 1.3, 1.55 })
+            pitches.push_back (centsBetween (pitchOf ({ output.begin(), output.begin() + (long) (seconds * sampleRate) }), 220.0));
+        const auto [low, high] = std::minmax_element (pitches.begin(), pitches.end());
+        CHECK (*high - *low > 60.0);   // it moves, by roughly the 120 cents from top to bottom
+        CHECK (*high < 75.0);
+        CHECK (*low > -75.0);
+    }
+}
+
+TEST_CASE ("DOUBLER: the direct voice, and the shelves on the doubles", "[effects][doubler]")
+{
+    const auto note = sungVowel (220.0, 1.0);
+
+    SECTION ("With every voice off, the direct voice comes through exactly")
+    {
+        DoublerRig rig;
+        rig.set (ParamIDs::doublerDirectOn, 1.0f);
+        rig.setVoice ("On", 0.0f);
+        const auto output = rig.run (note);
+        CHECK (maxAbsDifference (note, output[0], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+        CHECK (maxAbsDifference (note, output[1], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+    }
+
+    SECTION ("DIRECT's PAN and GAIN")
+    {
+        DoublerRig rig;
+        rig.set (ParamIDs::doublerDirectOn, 1.0f);
+        rig.set (ParamIDs::doublerDirectPan, 1.0f);
+        rig.set (ParamIDs::doublerDirectGain, -6.0f);
+        rig.setVoice ("On", 0.0f);
+        const auto output = rig.run (note);
+        CHECK (rms (output[0], 0.2) < 1.0e-5f);
+        CHECK_THAT (dB (rms (output[1], 0.2) / rms (note, 0.2)), WithinAbs (-6.0, 0.2));
+    }
+
+    SECTION ("The HIGH shelf cuts the doubles' highs, not your own voice")
+    {
+        const auto highsOf = [] (bool voices, float highShelfDb)
+        {
+            DoublerRig rig;
+            rig.set (ParamIDs::doublerDirectOn, voices ? 0.0f : 1.0f);
+            rig.setVoice ("On", voices ? 1.0f : 0.0f);
+            rig.set (ParamIDs::doublerHighGain, highShelfDb);
+            return levelAt (rig.run (sine (5000.0, 0.2f, 0.6))[0], 5000.0, 0.2);
+        };
+        CHECK_THAT (dB (highsOf (true, -12.0f) / highsOf (true, 0.0f)), WithinAbs (-12.0, 1.0));
+        CHECK_THAT (dB (highsOf (false, -12.0f) / highsOf (false, 0.0f)), WithinAbs (0.0, 0.01));
+    }
+
+    SECTION ("Off, it's exactly the input")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::doublerOutput, -12.0f);   // set up, but off
+        CHECK (maxAbsDifference (note, rig.run (note)[0]) < 1.0e-6f);
     }
 }

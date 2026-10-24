@@ -189,6 +189,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       expressionPanel (processorToShow.getParameters()),
       eqPanel (processorToShow.getParameters()),
       harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); }),
+      doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
             juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
@@ -337,7 +338,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (3, "DOUBLER", { ParamIDs::doublerOn }, doublerBlock, [this]
     {
-        return "Mix " + valueText (ParamIDs::doublerMix) + "  Depth " + valueText (ParamIDs::doublerDepth);
+        juce::StringArray on;
+        for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+            if (rawValue (ParamIDs::doublerVoice (voice, "On").toRawUTF8()) > 0.5f)
+                on.add (juce::String (voice + 1));
+        return on.isEmpty() ? juce::String ("No voices") : (on.size() == 1 ? "Voice " : "Voices ") + on.joinIntoString (", ");
     });
     // HARMONY and the octaver; it brings back whichever were on, and the
     // first time, HARMONY. FREEZE has its own switch in the panel (a press
@@ -421,9 +426,6 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     panels[driveBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "SATURATION", { { ParamIDs::driveOn, "ON" }, { ParamIDs::driveModel, "MODEL" }, { ParamIDs::driveGain, "DRIVE" }, { ParamIDs::driveTone, "TONE" },
                          { ParamIDs::driveLevel, "LEVEL" } } } });
-    panels[doublerBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "DOUBLER", { { ParamIDs::doublerOn, "ON" }, { ParamIDs::doublerRate, "RATE" }, { ParamIDs::doublerDepth, "DEPTH" },
-                       { ParamIDs::doublerMix, "MIX" } } } });
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
                           { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
@@ -471,6 +473,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     }
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
+    addChildComponent (doublerPanel);
     for (auto* view : { &harmonyView, &octaveView })
     {
         view->setClickingTogglesState (true);
@@ -543,6 +546,7 @@ void MainView::selectBlock (int block)
     eqPanel.setVisible (block == eqBlock && onProcessorPage);
     const auto showingPitch = block == pitchBlock && onProcessorPage;
     harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
+    doublerPanel.setVisible (block == doublerBlock && onProcessorPage);
     harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
     octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
     for (auto* view : { &harmonyView, &octaveView })
@@ -848,6 +852,7 @@ void MainView::resized()
             panel->setBounds (summaryArea);
     eqPanel.setBounds (summaryArea);
     harmonyPanel.setBounds (summaryArea);
+    doublerPanel.setBounds (summaryArea);
     // PITCH's view tabs sit in its header, after the icon and name.
     harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
     octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);

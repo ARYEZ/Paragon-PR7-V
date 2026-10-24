@@ -2,6 +2,7 @@
 
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
+#include "dsp/effects/Doubler.h"
 #include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
@@ -246,13 +247,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::inputLowCut, "Low Cut",
                            skewed (effects::LowCut::offHz, effects::LowCut::maxHz, 100.0f, 1.0f), 80.0f, 25, asLowCut));
 
-    // Added in plugin version 26: the DOUBLER stomp. Off by default; its
-    // settings start where the old Doubler type's factory rig had them.
-    constexpr int v26 = 26;
-    layout.add (makeSwitch (ParamIDs::doublerOn, "Doubler On", v26, false));
-    layout.add (makeFloat (ParamIDs::doublerRate, "Doubler Rate", skewed (0.05f, 10.0f, 1.0f, 0.01f), 0.8f, v26, asHz));
-    layout.add (makeFloat (ParamIDs::doublerDepth, "Doubler Depth", { 0.0f, 1.0f, 0.01f }, 0.4f, v26, asPercent));
-    layout.add (makeFloat (ParamIDs::doublerMix, "Doubler Mix", { 0.0f, 1.0f, 0.01f }, 0.7f, v26, asPercent));
+    // Added in plugin version 26: the DOUBLER stomp. Off by default. (Its
+    // version 26 RATE, DEPTH and MIX went with 0.7.0's four voices.)
+    layout.add (makeSwitch (ParamIDs::doublerOn, "Doubler On", 26, false));
 
     // Added in plugin version 27: the master LIMITER. On at -1 dB by
     // default, the usual safety margin under digital full scale.
@@ -309,7 +306,88 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Harmony::silentDb, 6.0f, 0.1f },
                                starts ? -3.0f : 0.0f, v29, asLevel));
     }
+
+    // Added in plugin version 30: the four-voice DOUBLER, inspired by Waves
+    // Doubler. Voices 1 and 2 start as its user guide sets them (9.4 and
+    // 23.7 ms, -6 dB, one each side) and detuned as its guide suggests (a
+    // few cents down on one side, up on the other); 3 and 4 start off.
+    constexpr int v30 = 30;
+    const ToText asDoublerLevel = [] (float db, int)
+    {
+        return db <= effects::Doubler::minGainDb ? juce::String ("Off") : juce::String (db, 1) + " dB";
+    };
+    const ToText asCentsShift = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)); };
+    const ToText asDelayMs = [] (float ms, int) { return juce::String (ms, 1); };
+    const ToText asFrequency = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) : juce::String (hz / 1000.0f, 2) + "k"; };
+    const ToText asRate = [] (float hz, int) { return juce::String (hz, hz < 10.0f ? 1 : 0); };
+    const ToText asDoublerPan = [] (float pan, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+        return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+    };
+    layout.add (makeSwitch (ParamIDs::doublerDirectOn, "Doubler Direct On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerDirectGain, "Doubler Direct Gain", { effects::Doubler::minGainDb, 0.0f, 0.1f }, 0.0f, v30, asDoublerLevel));
+    layout.add (makeFloat (ParamIDs::doublerDirectPan, "Doubler Direct Pan", { -1.0f, 1.0f, 0.01f }, 0.0f, v30, asDoublerPan));
+    layout.add (makeFloat (ParamIDs::doublerFbHighPass, "Doubler Feedback High-Pass", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 16.0f, v30, asFrequency));
+    layout.add (makeSwitch (ParamIDs::doublerLowOn, "Doubler Low Shelf On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerLowGain, "Doubler Low Shelf", { -24.0f, 12.0f, 0.1f }, 0.0f, v30, asDb));
+    layout.add (makeFloat (ParamIDs::doublerLowFreq, "Doubler Low Shelf Frequency", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 101.0f, v30, asFrequency));
+    layout.add (makeSwitch (ParamIDs::doublerHighOn, "Doubler High Shelf On", v30, true));
+    layout.add (makeFloat (ParamIDs::doublerHighGain, "Doubler High Shelf", { -24.0f, 12.0f, 0.1f }, 0.0f, v30, asDb));
+    layout.add (makeFloat (ParamIDs::doublerHighFreq, "Doubler High Shelf Frequency", skewed (16.0f, 20000.0f, 400.0f, 1.0f), 1306.0f, v30, asFrequency));
+    layout.add (makeFloat (ParamIDs::doublerOutput, "Doubler Output", { -24.0f, 0.0f, 0.1f }, 0.0f, v30, asDb));
+    struct VoiceDefaults { bool on; float gain, pan, delay, detune; };
+    const VoiceDefaults defaults[] = { { true, -6.0f, -1.0f, 9.4f, -4.0f }, { true, -6.0f, 1.0f, 23.7f, 4.0f },
+                                       { false, -12.0f, 1.0f, 16.0f, -7.0f }, { false, -12.0f, -1.0f, 21.0f, 7.0f } };
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        const auto name = "Doubler " + juce::String (voice + 1) + " ";
+        const auto& start = defaults[voice];
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v30, start.on));
+        layout.add (makeFloat (id ("Gain").toRawUTF8(), name + "Gain", { effects::Doubler::minGainDb, 0.0f, 0.1f }, start.gain, v30, asDoublerLevel));
+        layout.add (makeFloat (id ("Pan").toRawUTF8(), name + "Pan", { -1.0f, 1.0f, 0.01f }, start.pan, v30, asDoublerPan));
+        layout.add (makeFloat (id ("Delay").toRawUTF8(), name + "Delay", { 0.0f, effects::Doubler::maxDelayMs, 0.1f }, start.delay, v30, asDelayMs));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v30, asPercent));
+        layout.add (makeSwitch (id ("Octave").toRawUTF8(), name + "Octave Down", v30, false));
+        layout.add (makeFloat (id ("Detune").toRawUTF8(), name + "Detune", { -100.0f, 100.0f, 1.0f }, start.detune, v30, asCentsShift));
+        layout.add (makeFloat (id ("Depth").toRawUTF8(), name + "Mod Depth", { -200.0f, 200.0f, 1.0f }, 0.0f, v30, asCentsShift));
+        layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Mod Rate", skewed (0.1f, 400.0f, 2.0f, 0.01f), 1.0f, v30, asRate));
+    }
     return layout;
+}
+
+void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
+                        const std::function<void (const juce::String&, float)>& set)
+{
+    const auto rate = get (ParamIDs::doublerRate), depth = get (ParamIDs::doublerDepth), mix = get (ParamIDs::doublerMix);
+    if (! rate.has_value() && ! depth.has_value() && ! mix.has_value())
+        return;   // never set up: the new defaults it is
+
+    // The old takes: 19 and 27 ms late, one each side, at MIX's level, their
+    // delay wandering by (0.15 + 1.2 x DEPTH) ms (a sine at a quarter of RATE,
+    // and a smaller one 2.71 times faster). A wandering delay bends the pitch
+    // by its speed of change: that's the wobble's depth in cents.
+    const auto driftHz = 0.25f * rate.value_or (0.8f);
+    const auto wanderSeconds = (0.15f + 1.2f * depth.value_or (0.4f)) * 0.001f;
+    const auto bend = juce::MathConstants<float>::twoPi * driftHz * wanderSeconds * (0.6f + 0.4f * 2.71f);
+    const auto wobbleCents = 1200.0f * std::log2 (1.0f + bend);
+    const auto gainDb = juce::jmax (effects::Doubler::minGainDb, juce::Decibels::gainToDecibels (mix.value_or (0.7f), effects::Doubler::minGainDb));
+
+    const std::pair<float, float> takes[] = { { -1.0f, 19.0f }, { 1.0f, 27.0f } };   // pan, delay
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::doublerVoice (voice, part); };
+        set (id ("On"), voice < 2 ? 1.0f : 0.0f);
+        if (voice >= 2)
+            continue;
+        set (id ("Gain"), gainDb);
+        set (id ("Pan"), takes[voice].first);
+        set (id ("Delay"), takes[voice].second);
+        set (id ("Detune"), 0.0f);
+        set (id ("Depth"), voice == 0 ? wobbleCents : -wobbleCents);   // the two takes wandered independently
+        set (id ("Rate"), driftHz);
+    }
 }
 
 void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,

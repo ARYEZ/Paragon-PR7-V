@@ -4,6 +4,7 @@
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "ui/DoublerPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/HarmonyPanel.h"
@@ -143,17 +144,21 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: eleven EffectPanels, with the
-    // graphic EQ's own panel as block 5 (after SATURATION).
+    // The knob panels in signal-chain order: ten EffectPanels, with the
+    // graphic EQ's own panel as block 5 (after SATURATION) and DOUBLER's as 7.
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 11);
+    REQUIRE (effectPanels.size() == 10);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
     constexpr int eqIndex = 5;
     panels.insert (panels.begin() + eqIndex, eqPanels[0]);
+    std::vector<DoublerPanel*> doublerPanels;
+    findAll (*editor, doublerPanels);
+    REQUIRE (doublerPanels.size() == 1);
+    panels.insert (panels.begin() + 7, doublerPanels[0]);
     // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE view is
     // the first EffectPanel, checked below.
     std::vector<HarmonyPanel*> harmonyPanels;

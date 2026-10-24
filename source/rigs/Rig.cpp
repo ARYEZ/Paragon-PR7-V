@@ -12,7 +12,8 @@ namespace
     // 10: the drive's MODEL, defaulting to the Tube Screamer model.
     // 15: the reverb's TYPE, defaulting to HALL.
     // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
-    constexpr int parameterVersion = 26;
+    // 30: the four-voice DOUBLER, replacing its RATE, DEPTH and MIX.
+    constexpr int parameterVersion = 30;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
@@ -80,14 +81,22 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     // Saved before the reverb had a TYPE: it was the original, now CLASSIC (0).
     if (savedWith < 15 && rig.parameters.count ("reverbType") == 0)
         rig.parameters["reverbType"] = 0.0f;
-    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp.
+    const auto get = [&rig] (const juce::String& id) -> std::optional<float>
+    {
+        const auto found = rig.parameters.find (id);
+        return found != rig.parameters.end() ? std::optional<float> (found->second) : std::nullopt;
+    };
+    const auto set = [&rig] (const juce::String& id, float value) { rig.parameters[id] = value; };
+    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp...
     if (savedWith < 26)
-        moveOldDoublerSettings ([&rig] (const char* id) -> std::optional<float>
-                                {
-                                    const auto found = rig.parameters.find (id);
-                                    return found != rig.parameters.end() ? std::optional<float> (found->second) : std::nullopt;
-                                },
-                                [&rig] (const char* id, float value) { rig.parameters[id] = value; });
+        moveOldDoublerSettings ([&get] (const char* id) { return get (id); }, [&set] (const char* id, float value) { set (id, value); });
+    // ...and the two-take DOUBLER: now its four voices.
+    if (savedWith < 30)
+    {
+        convertOldDoubler (get, set);
+        for (const auto* gone : { ParamIDs::doublerRate, ParamIDs::doublerDepth, ParamIDs::doublerMix })
+            rig.parameters.erase (gone);
+    }
 
     return rig;
 }

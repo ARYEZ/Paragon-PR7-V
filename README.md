@@ -51,10 +51,15 @@ descriptions below still talk about guitar.
     **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
     mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,
     level; 8x oversampled to avoid harsh aliasing.
-  - **3 Doubler:** automatic double tracking. It sounds as if you sang the part three times: you in the middle and a
-    "take" each side, each a little late and drifting slowly in timing and pitch. RATE is how quickly the takes drift,
-    DEPTH how loose they are, MIX how loud. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects
-    move to this stomp by themselves.)
+  - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
+    truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
+    take sung alongside rather than a chorus. Its panel is a table, a row per voice: **GAIN**, **PAN**, **DELAY**
+    (0-100 ms; the detuning itself takes about 13 ms, so shorter settings come out at about that), **FDBK** (repeats),
+    **OCT** (an octave down), **DETUNE** (cents), and a pitch wobble, **DEPTH** at **RATE**. Beside it: your own voice
+    (**DIRECT** on, gain, pan), **OUTPUT**, LOW and HIGH shelves on the doubles only, **FB HIGH-PASS** (keeps repeats
+    clear) and **MOD RESET** (starts every wobble together). Drag a box up or down; double-click to reset. It starts
+    with two voices, one each side. (Until 0.3.0 this was one of MODULATION's types; old rigs and projects move to this
+    stomp by themselves.)
   - **4 Pitch:** **HARMONY** (inspired by Waves Harmony) and the octaver. The stomp brings back whichever were on; its
     first press switches on HARMONY. Its panel has two views:
     - **HARMONY:** up to eight harmony voices made from your own voice, kept in the song's **KEY** and **SCALE** (set these

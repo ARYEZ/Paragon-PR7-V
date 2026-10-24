@@ -1,39 +1,94 @@
 #pragma once
 
 #include "EffectUtils.h"
+#include "PitchShifter.h"
 
 namespace effects
 {
-    // Stomp 3, DOUBLER: automatic double tracking, after the graphic EQ and
-    // before modulation. It sounds as if the part was sung three times: the
-    // original in the middle and a "take" each side. Each take is the voice
-    // a little late (19 and 27 ms, so they don't line up into a chorus), its
-    // timing and pitch drifting slowly and independently, as no two takes
-    // are ever sung exactly alike.
+    // Stomp 3, DOUBLER, after HARMONY and before modulation. Inspired by Waves
+    // Doubler (the owner's reference, from its user guide): our own design.
     //
-    // RATE is how quickly the takes drift, DEPTH how loose they are, MIX how
-    // loud they are against the original. (Until 0.3.0 this was MODULATION's
-    // Doubler type; the sound is the same.)
+    // Up to four voices, each a copy of the voice that's truly detuned (its
+    // pitch moved by a few cents with its timing kept, rather than a delay
+    // swept to bend the pitch, as a chorus does), delayed, and placed in the
+    // stereo picture. A copy that's a little late and a little out of tune
+    // decorrelates from the original: it sounds like a second take sung
+    // alongside, rather than a chorus. Each voice:
+    //
+    //   GAIN, PAN, DELAY (0-100 ms), FEEDBACK (some of the voice back into
+    //   its own delay, through the FEEDBACK HIGH-PASS), OCTAVE (an octave
+    //   down), DETUNE (cents), and its own pitch wobble: DEPTH (cents either
+    //   way; positive starts upwards) at RATE.
+    //
+    // Then a low and a high shelf on the voices (not the direct voice), the
+    // DIRECT voice's own gain and pan, and an OUTPUT gain for everything.
+    //
+    // The detuning (the correlation-spliced PitchShifter) has a delay of its
+    // own, about 12.5 ms, that drifts as it detunes: DELAY settings below it
+    // come out at about that.
     class Doubler
     {
     public:
+        static constexpr int numVoices = 4;
+        static constexpr float minGainDb = -48.0f;
+        static constexpr float maxDelayMs = 100.0f;
+
+        struct Voice
+        {
+            bool on = false;
+            float gainDb = -6.0f;
+            float pan = 0.0f;          // -1 left to +1 right
+            float delayMs = 10.0f;
+            float feedback = 0.0f;     // 0 to 1
+            bool octaveDown = false;
+            float detuneCents = 0.0f;
+            float depthCents = 0.0f;   // the wobble, either way of DETUNE
+            float rateHz = 1.0f;
+        };
+
         struct Settings
         {
             bool on = false;
-            float rateHz = 0.8f;
-            float depth = 0.4f;   // 0 to 1
-            float mix = 0.7f;     // 0 to 1
+            std::array<Voice, numVoices> voices;
+            bool directOn = true;
+            float directGainDb = 0.0f;
+            float directPan = 0.0f;
+            float feedbackHighPassHz = 16.0f;
+            bool lowShelfOn = true, highShelfOn = true;
+            float lowShelfDb = 0.0f, lowShelfHz = 101.0f;
+            float highShelfDb = 0.0f, highShelfHz = 1306.0f;
+            float outputDb = 0.0f;
+            float wet = 1.0f;          // the expression pedal's MORPH: the voices faded in from the heel
         };
 
-        Doubler();
         void prepare (double sampleRate, int maxBlockSize);
         void process (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
 
+        // MOD RESET: start every voice's wobble together, from the top.
+        void resetModulation() noexcept { resetRequested = true; }
+
+        // The detuning's own delay at rest, in ms. For tests.
+        float getDetuneDelayMs() const noexcept { return nominalDelayMs; }
+
     private:
+        struct VoiceState
+        {
+            juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> delay { 1 << 14 };
+            PitchShifter shifter;
+            juce::dsp::StateVariableTPTFilter<float> feedbackFilter;
+            juce::SmoothedValue<float> delaySamples, left, right;
+            float lfoPhase = 0.0f, lastOut = 0.0f;
+        };
+
+        void updateShelves (const Settings&) noexcept;
+
         double sampleRate = 48000.0;
-        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> delayLine;
-        float lfoPhase = 0.0f;   // 0 to 1
-        juce::SmoothedValue<float> depth, mix;
+        float nominalDelayMs = 12.5f;
+        std::array<VoiceState, numVoices> voices;
+        std::array<juce::dsp::IIR::Filter<float>, 2> lowShelf, highShelf;   // left and right
+        float shelfSettings[4] { 1.0e9f, 0.0f, 0.0f, 0.0f };               // what the shelves were last set to
+        juce::SmoothedValue<float> directLeft, directRight, output;
+        std::atomic<bool> resetRequested { false };
         BypassFade bypass;
     };
 }

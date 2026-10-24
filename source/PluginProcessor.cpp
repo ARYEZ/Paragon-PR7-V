@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 26;
+    constexpr int parameterVersion = 30;
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -36,6 +36,9 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
     for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::harmonyVoiceParts.size(); ++part)
             harmonyVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::harmonyVoice (voice, ParamIDs::harmonyVoiceParts[part]));
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+        for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
+            doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
 
     rigLibrary = std::make_unique<RigLibrary>();
 
@@ -354,8 +357,36 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     }
     harmony.process (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings);
 
-    doubler.process (stereoBlock, { isOn (ParamIDs::doublerOn), param (ParamIDs::doublerRate), param (ParamIDs::doublerDepth),
-                                    param (ParamIDs::doublerMix) * morph });
+    // DOUBLER: MORPH fades its voices in from the heel.
+    effects::Doubler::Settings doublerSettings;
+    doublerSettings.on = isOn (ParamIDs::doublerOn);
+    for (size_t v = 0; v < doublerSettings.voices.size(); ++v)
+    {
+        const auto& parts = doublerVoiceParameters[v].parts;   // in doublerVoiceParts' order
+        auto& voice = doublerSettings.voices[v];
+        voice.on = parts[0]->load() > 0.5f;
+        voice.gainDb = parts[1]->load();
+        voice.pan = parts[2]->load();
+        voice.delayMs = parts[3]->load();
+        voice.feedback = parts[4]->load();
+        voice.octaveDown = parts[5]->load() > 0.5f;
+        voice.detuneCents = parts[6]->load();
+        voice.depthCents = parts[7]->load();
+        voice.rateHz = parts[8]->load();
+    }
+    doublerSettings.directOn = isOn (ParamIDs::doublerDirectOn);
+    doublerSettings.directGainDb = param (ParamIDs::doublerDirectGain);
+    doublerSettings.directPan = param (ParamIDs::doublerDirectPan);
+    doublerSettings.feedbackHighPassHz = param (ParamIDs::doublerFbHighPass);
+    doublerSettings.lowShelfOn = isOn (ParamIDs::doublerLowOn);
+    doublerSettings.lowShelfDb = param (ParamIDs::doublerLowGain);
+    doublerSettings.lowShelfHz = param (ParamIDs::doublerLowFreq);
+    doublerSettings.highShelfOn = isOn (ParamIDs::doublerHighOn);
+    doublerSettings.highShelfDb = param (ParamIDs::doublerHighGain);
+    doublerSettings.highShelfHz = param (ParamIDs::doublerHighFreq);
+    doublerSettings.outputDb = param (ParamIDs::doublerOutput);
+    doublerSettings.wet = morph;
+    doubler.process (stereoBlock, doublerSettings);
 
     // Types with no dry/wet mix (tremolo, vibrato, auto-pan...) morph their depth instead.
     const auto modType = (effects::Modulation::Type) (int) param (ParamIDs::modType);
@@ -727,24 +758,29 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     addIfMissing (ParamIDs::driveModel, (int) effects::Drive::Model::classic);    // before the drive had a MODEL
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
 
-    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp.
-    if ((int) state.getProperty (parameterVersionKey, 0) < 26)
-        moveOldDoublerSettings ([&state] (const char* id) -> std::optional<float>
-                                {
-                                    const auto saved = state.getChildWithProperty ("id", id);
-                                    return saved.isValid() ? std::optional<float> ((float) saved["value"]) : std::nullopt;
-                                },
-                                [&state] (const char* id, float value)
-                                {
-                                    auto saved = state.getChildWithProperty ("id", id);
-                                    if (! saved.isValid())
-                                    {
-                                        saved = juce::ValueTree ("PARAM");
-                                        saved.setProperty ("id", id, nullptr);
-                                        state.appendChild (saved, nullptr);
-                                    }
-                                    saved.setProperty ("value", value, nullptr);
-                                });
+    const auto get = [&state] (const juce::String& id) -> std::optional<float>
+    {
+        const auto saved = state.getChildWithProperty ("id", id);
+        return saved.isValid() ? std::optional<float> ((float) saved["value"]) : std::nullopt;
+    };
+    const auto set = [&state] (const juce::String& id, float value)
+    {
+        auto saved = state.getChildWithProperty ("id", id);
+        if (! saved.isValid())
+        {
+            saved = juce::ValueTree ("PARAM");
+            saved.setProperty ("id", id, nullptr);
+            state.appendChild (saved, nullptr);
+        }
+        saved.setProperty ("value", value, nullptr);
+    };
+    const auto savedWith = (int) state.getProperty (parameterVersionKey, 0);
+    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp...
+    if (savedWith < 26)
+        moveOldDoublerSettings ([&get] (const char* id) { return get (id); }, [&set] (const char* id, float value) { set (id, value); });
+    // ...and the two-take DOUBLER (RATE, DEPTH, MIX): now its four voices.
+    if (savedWith < 30)
+        convertOldDoubler (get, set);
     parameters.replaceState (state);
 
     // Restoring the project changed parameters, which marked the rig as
