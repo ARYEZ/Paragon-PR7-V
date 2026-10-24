@@ -1340,7 +1340,51 @@ TEST_CASE ("Delay engine on its own: one echo, at the set time, at full level", 
     for (int i = 1; i < buffer.getNumSamples(); ++i)
         if (std::abs (buffer.getSample (0, i)) > std::abs (buffer.getSample (0, loudest)))
             loudest = i;
-    CAPTURE (loudest, buffer.getSample (0, loudest), buffer.getSample (1, 4800));
+    // Where the left side's first sound after the click is.
+    int firstLeft = -1;
+    for (int i = 1; i < buffer.getNumSamples() && firstLeft < 0; ++i)
+        if (std::abs (buffer.getSample (0, i)) > 1.0e-6f)
+            firstLeft = i;
+    CAPTURE (loudest, buffer.getSample (0, loudest), buffer.getSample (1, 4800), buffer.getSample (0, 0), firstLeft);
+
+    // JUCE's delay line by itself, at the old (2.5 s) and new (3.5 s) sizes.
+    for (const auto seconds : { 2.51, 3.51 })
+    {
+        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> line { 4 };
+        line.setMaximumDelayInSamples ((int) std::ceil (seconds * sampleRate) + 4);
+        line.prepare ({ sampleRate, (juce::uint32) blockSize, 2 });
+        std::array<int, 2> arrived { -1, -1 };
+        for (int i = 0; i < 6000; ++i)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const auto out = line.popSample (ch, 4800.0f);
+                if (arrived[(size_t) ch] < 0 && std::abs (out) > 0.25f)
+                    arrived[(size_t) ch] = i;
+            }
+            for (int ch = 0; ch < 2; ++ch)
+                line.pushSample (ch, i == 0 ? 0.5f : 0.0f);
+        }
+        CAPTURE (seconds, arrived[0], arrived[1]);
+        CHECK (arrived[0] == 4800);
+        CHECK (arrived[1] == 4800);
+    }
+
+    // The engine on a one-channel block.
+    {
+        effects::Delay monoDelay;
+        monoDelay.prepare (sampleRate, blockSize);
+        juce::AudioBuffer<float> monoBuffer (1, (int) (0.3 * sampleRate));
+        monoBuffer.clear();
+        monoBuffer.setSample (0, 0, 0.5f);
+        for (int start = 0; start < monoBuffer.getNumSamples(); start += blockSize)
+        {
+            const auto count = juce::jmin (blockSize, monoBuffer.getNumSamples() - start);
+            monoDelay.process (juce::dsp::AudioBlock<float> (monoBuffer).getSubBlock ((size_t) start, (size_t) count), settings, 120.0);
+        }
+        CAPTURE (monoBuffer.getSample (0, 4800));
+        CHECK_THAT (monoBuffer.getSample (0, 4800), WithinAbs (0.5, 0.01));
+    }
     CHECK (loudest == 4800);
     CHECK_THAT (buffer.getSample (0, 4800), WithinAbs (0.5, 0.01));
     CHECK_THAT (buffer.getSample (1, 4800), WithinAbs (0.5, 0.01));
