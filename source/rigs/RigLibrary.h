@@ -19,14 +19,11 @@ public:
         bool isFactory = false;
     };
 
-    // `folder` defaults to the user's Paragon PR7-G rigs folder; tests pass a temporary one.
+    // `folder` defaults to the user's Paragon PR7-V rigs folder; tests pass a temporary one.
     explicit RigLibrary (juce::File folder = defaultFolder());
 
     static juce::File defaultFolder();
 
-    // Copies the folder the plugin used under its old name (Paragon X1) to
-    // the new one, the first time only. Returns true if it copied.
-    static bool carryOverFromOldName (const juce::File& oldFolder, const juce::File& newFolder);
     const juce::File& getFolder() const noexcept { return folder; }
 
     // Re-reads the folder. Files that aren't valid rigs are skipped.

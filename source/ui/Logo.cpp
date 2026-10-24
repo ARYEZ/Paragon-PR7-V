@@ -8,7 +8,7 @@ namespace Logo
         // are 0.24 wide and bars 0.2 tall: chunky, for a bold silhouette.
         constexpr float slant = 0.3f;     // how far the top leans right, per unit of height
         constexpr float spacing = 0.1f;
-        constexpr float letterWidths[] = { 0.8f, 0.84f, 0.8f, 0.4f, 0.8f };   // P, R, 7, dash, G
+        constexpr float letterWidths[] = { 0.8f, 0.84f, 0.8f, 0.4f, 0.8f };   // P, R, 7, dash, V
         constexpr float totalWidth = 0.8f + 0.84f + 0.8f + 0.4f + 0.8f + 4.0f * spacing + slant;
 
         // The two speed cuts, as fractions of the height from the top.
@@ -37,7 +37,7 @@ namespace Logo
             addPolygon (path, { { 0.24f, 0.2f }, { 0.56f, 0.2f }, { 0.56f, 0.4f }, { 0.24f, 0.4f } }, x);
         }
 
-        // The letters, 1 unit tall, upright: [0] is P, R and "-G", [1] is the 7.
+        // The letters, 1 unit tall, upright: [0] is P, R and "-V", [1] is the 7.
         std::pair<juce::Path, juce::Path> letterPaths()
         {
             juce::Path pr, seven;
@@ -55,14 +55,15 @@ namespace Logo
                                  { 0.5f, 0.2f }, { 0.0f, 0.2f } }, x);
             x += letterWidths[2] + spacing;
 
-            // "-G" (the guitar processor): a dash at mid height, clear of the
-            // speed cuts, and a G with the same bevelled corners as the P and R.
+            // "-V" (the vocal processor): a dash at mid height, clear of the
+            // speed cuts, and a V cut square like the 7, its arms about a stem
+            // wide, meeting in a flat foot. Once leaned, the left arm stands
+            // nearly upright and the right one runs at the 7's angle.
             addPolygon (pr, { { 0.0f, 0.42f }, { 0.4f, 0.42f }, { 0.4f, 0.6f }, { 0.0f, 0.6f } }, x);
             x += letterWidths[3] + spacing;
 
-            addPolygon (pr, { { 0.16f, 0.0f }, { 0.8f, 0.0f }, { 0.8f, 0.2f }, { 0.24f, 0.2f }, { 0.24f, 0.8f },
-                              { 0.56f, 0.8f }, { 0.56f, 0.62f }, { 0.42f, 0.62f }, { 0.42f, 0.44f }, { 0.8f, 0.44f },
-                              { 0.8f, 0.85f }, { 0.64f, 1.0f }, { 0.16f, 1.0f }, { 0.0f, 0.85f }, { 0.0f, 0.15f } }, x);
+            addPolygon (pr, { { 0.0f, 0.0f }, { 0.26f, 0.0f }, { 0.4f, 0.56f }, { 0.54f, 0.0f }, { 0.8f, 0.0f },
+                              { 0.52f, 1.0f }, { 0.28f, 1.0f } }, x);
 
             // Lean them forward: the top moves right, the baseline stays put.
             const auto lean = juce::AffineTransform (1.0f, -slant, slant, 0.0f, 1.0f, 0.0f);

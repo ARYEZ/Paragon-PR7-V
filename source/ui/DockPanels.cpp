@@ -385,14 +385,14 @@ void SettingsPage::paint (juce::Graphics& g)
     section (tunerArea, "TUNER", "Hold TAP or press TUNER on the pedal to tune. Reference pitch for A4:");
     section (expressionArea, "EXPRESSION PEDAL",
              "A MIDI expression pedal moves the on-screen pedal. Pick the MIDI controller it sends "
-             "(most send CC 11), and route the MIDI track to Paragon PR7-G in your DAW.");
+             "(most send CC 11), and route the MIDI track to Paragon PR7-V in your DAW.");
     section (finishArea, "FINISH",
              "The unit's colour: pearl white with black keys, or pearl white or pearl black with neon pink-to-orange keys. "
-             "Saved on this computer, so every Paragon PR7-G you open uses it.");
+             "Saved on this computer, so every Paragon PR7-V you open uses it.");
     section (rigsArea, "RIGS", "Your rigs are files in this folder, so you can back them up or share them:\n"
                                + processor.getRigLibrary().getFolder().getFullPathName());
     section (aboutArea, "ABOUT",
-             juce::String ("Paragon PR7-G v") + JucePlugin_VersionString
+             juce::String ("Paragon PR7-V v") + JucePlugin_VersionString
                  + ". Free and open source under the GNU AGPLv3.\n"
                    "Built with JUCE (AGPLv3), NeuralAmpModelerCore (MIT), Eigen (MPL 2.0) and the Inter typeface (SIL OFL).");
 }
