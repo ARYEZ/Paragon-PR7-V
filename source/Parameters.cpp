@@ -95,11 +95,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeGainParameter (ParamIDs::inputGain, "Input"));
     layout.add (makeGainParameter (ParamIDs::outputGain, "Output"));
 
-    // Added in plugin version 2 (Phase 2).
-    layout.add (makeSwitch (ParamIDs::ampOn, "Amp On", 2));
-    layout.add (makeSwitch (ParamIDs::ampNormalise, "Amp Normalise", 2));
-    layout.add (makeSwitch (ParamIDs::cabOn, "Cab On", 2));
-
     // Added in plugin version 3 (Phase 3). Effects default to off, so
     // projects saved with earlier versions sound exactly the same.
     constexpr int v3 = 3;
@@ -249,5 +244,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // notes, but above the rumble a mic stand picks up.
     layout.add (makeFloat (ParamIDs::inputLowCut, "Low Cut",
                            skewed (effects::LowCut::offHz, effects::LowCut::maxHz, 100.0f, 1.0f), 80.0f, 25, asLowCut));
+
+    // Added in plugin version 26: the DOUBLER stomp. Off by default; its
+    // settings start where the old Doubler type's factory rig had them.
+    constexpr int v26 = 26;
+    layout.add (makeSwitch (ParamIDs::doublerOn, "Doubler On", v26, false));
+    layout.add (makeFloat (ParamIDs::doublerRate, "Doubler Rate", skewed (0.05f, 10.0f, 1.0f, 0.01f), 0.8f, v26, asHz));
+    layout.add (makeFloat (ParamIDs::doublerDepth, "Doubler Depth", { 0.0f, 1.0f, 0.01f }, 0.4f, v26, asPercent));
+    layout.add (makeFloat (ParamIDs::doublerMix, "Doubler Mix", { 0.0f, 1.0f, 0.01f }, 0.7f, v26, asPercent));
     return layout;
+}
+
+void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,
+                             const std::function<void (const char*, float)>& set)
+{
+    const auto type = get (ParamIDs::modType);
+    if (! type.has_value() || juce::roundToInt (*type) != effects::Modulation::oldDoublerType)
+        return;
+
+    // MODULATION's knobs had these defaults when the Doubler was one of its types.
+    set (ParamIDs::doublerOn, get (ParamIDs::modOn).value_or (0.0f));
+    set (ParamIDs::doublerRate, get (ParamIDs::modRate).value_or (0.8f));
+    set (ParamIDs::doublerDepth, get (ParamIDs::modDepth).value_or (0.45f));
+    set (ParamIDs::doublerMix, get (ParamIDs::modMix).value_or (0.5f));
+    set (ParamIDs::modOn, 0.0f);
+    set (ParamIDs::modType, (float) effects::Modulation::Type::chorus);
 }

@@ -31,9 +31,11 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 
 ## The project
 
-- An AGPLv3 **JUCE VST3** plugin: a NAM (Neural Amp Modeler) player with a full multi-effects chain, drawn as a floor processor with an expression pedal.
+- An AGPLv3 **JUCE VST3** plugin: a vocal multi-effects chain, drawn as a floor processor with an expression pedal. No amp or cabinet: PR7-G's NAM amp and IR loader (and the NAM, Eigen and AudioDSPTools dependencies) were removed in 0.3.0 at the owner's request. JUCE is the only dependency. No latency.
   - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
-- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → COMP/GATE → FILTER/PITCH → GLITCH (Pre) → OD/DIST → AMP (NAM) → CAB (IR) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → MOD → DELAY → REVERB → LO-FI.
+- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → DOUBLER → MOD → DELAY → REVERB → LO-FI. Mono up to the EQ, stereo from the DOUBLER on.
+- **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches the octaver (FREEZE has its own switch). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
+- **Planned (owner's decisions):** a master **limiter** set apart by OUTPUT (not a stomp); a **de-esser** in DYNAMICS; **harmony** (with the octave) in PITCH.
 - **Code layout:** DSP in `source/dsp/effects/`, UI in `source/ui/`, parameters in `source/Parameters.*`, rigs in `source/rigs/`, tests in `tests/`.
 - **Parameters:**
   - Saved by ID and choices by **index**: only ever *append* choices, never reorder.
@@ -76,13 +78,13 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 ## Ideas for the vocal version (to plan with the owner)
 
 - **The input:** a microphone, not a guitar.
-  - Mic-level input gain and a **high-pass filter** first in the chain (rumble and plosives).
+  - Done in 0.2.0: **LOW CUT**, a high-pass filter first in the chain (rumble and plosives), under INPUT.
   - The guitar tuner becomes a pitch display, or goes.
 - **Vocal staples:**
   - **Pitch correction:** key and scale, speed from natural to hard "robot" correction.
   - **Harmony:** one or two voices a third, fifth or octave away, following the key.
   - **De-esser.**
-  - **Doubler:** short delays with slight pitch and timing drift for a double-tracked sound.
+  - **Doubler:** done in 0.3.0 as stomp 3 (moved out of MODULATION, same sound).
   - **Formant shift:** "chipmunk" to "giant" without changing the pitch.
   - **Vocoder or robot** voice.
   - **Megaphone / telephone / radio** lo-fi voices (LO-FI is a start).
@@ -91,6 +93,6 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - The graphic EQ (bands may move up for voice).
   - Delay and reverb: slap, plate, hall and throws.
   - Mod: chorus and flanger.
-- **The NAM amp and cab:** become optional "colour", or load **mic preamp** captures instead of guitar amps.
+- **The NAM amp and cab:** removed in 0.3.0 (the owner: "not needed for vocals").
 - **Pitch tools to adapt:** PITCH's octaver and FREEZE, and the expression pedal (ideal for harmony level, delay throws and pitch bends live).
 - **Factory rigs** for vocals: clean pop, rock grit, rap/trap, worship, lo-fi radio, robot, and song-inspired voices.

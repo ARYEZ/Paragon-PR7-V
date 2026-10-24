@@ -21,9 +21,8 @@ namespace
 // Hidden test (the "[.]" tag): renders the editor to a PNG for reviewing the
 // UI without a DAW. Run with:
 //   PARAGON_SNAPSHOT=editor.png ./ParagonX1Tests "[snapshot]"
-// Optionally set PARAGON_SNAPSHOT_MODEL and PARAGON_SNAPSHOT_IR to file paths
-// to show the amp and cabinet slots loaded, and PARAGON_SNAPSHOT_EFFECTS=1 to
-// switch on the drive, delay and reverb. PARAGON_SNAPSHOT_PAGE=presets shows
+// Optionally set PARAGON_SNAPSHOT_EFFECTS=1 to switch on the saturation,
+// delay and reverb. PARAGON_SNAPSHOT_PAGE=presets shows
 // the rig browser, with a couple of example user rigs, and =settings the SETTINGS page. PARAGON_SNAPSHOT_WIDTH
 // sets the window width (default 1280).
 template <typename Type>
@@ -53,12 +52,6 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     const auto rigFolder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("ParagonX1SnapshotRigs");
     rigFolder.deleteRecursively();
     processor.useRigFolder (rigFolder);
-
-    if (const auto model = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MODEL", {}); model.isNotEmpty())
-        processor.loadAmpModel (juce::File (model));
-    if (const auto ir = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_IR", {}); ir.isNotEmpty())
-        processor.loadCabinetIR (juce::File (ir));
-    REQUIRE (processor.waitForLoads (20000));
 
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_EFFECTS", {}) == "1")
         for (const auto* id : { "driveOn", "delayOn", "reverbOn" })
@@ -134,7 +127,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PAGE", {}) == "settings")
         if (auto* tab = dynamic_cast<juce::Button*> (findById (*editor, "settingsTab")))
             tab->onClick();
-    // PARAGON_SNAPSHOT_BLOCK=n opens block n's knobs (0 = pitch, 1 = comp ... 7 = glitch ... 11 = lo-fi) in place of the graphic EQ.
+    // PARAGON_SNAPSHOT_BLOCK=n opens block n's knobs (0 = pitch, 1 = dynamics ... 6 = doubler ... 10 = lo-fi: the signal chain strip's order) in place of the graphic EQ.
     if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_BLOCK", {}); block.isNotEmpty())
         if (auto* chain = findType<SignalChain> (*editor))
             chain->onSelect (block.getIntValue());

@@ -41,6 +41,6 @@ private:
     std::vector<Block> blocks;
     std::vector<juce::Rectangle<float>> blockAreas;
     std::vector<bool> lastOn;
-    juce::Rectangle<float> guitarArea, outputArea;
+    juce::Rectangle<float> micArea, outputArea;
     int selected = 0;
 };

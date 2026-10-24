@@ -141,16 +141,17 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: eleven EffectPanels, with the
-    // graphic EQ's own panel as block 6 (after the cabinet).
+    // The knob panels in signal-chain order: ten EffectPanels, with the
+    // graphic EQ's own panel as block 4 (after SATURATION).
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 11);
+    REQUIRE (effectPanels.size() == 10);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
-    panels.insert (panels.begin() + 6, eqPanels[0]);
+    constexpr int eqIndex = 4;
+    panels.insert (panels.begin() + eqIndex, eqPanels[0]);
 
     const auto visiblePanel = [&]
     {
@@ -166,25 +167,39 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     };
 
     // To start with the dock shows the graphic EQ.
-    CHECK (visiblePanel() == 6);
+    CHECK (visiblePanel() == eqIndex);
 
     std::vector<SignalChain*> chains;
     findAll (*editor, chains);
     REQUIRE (chains.size() == 1);
-    for (int block = 0; block < 12; ++block)
+    for (int block = 0; block < (int) panels.size(); ++block)
     {
         chains[0]->onSelect (block);
         CHECK (visiblePanel() == block);
     }
 
-    // Footswitch 3's name shows modulation (block 8); footswitch 4's shows delay (block 9).
+    // The seven stomps, 1 to 7: DYNAMICS, SATURATION, DOUBLER on the top
+    // row; PITCH, MODULATION, DELAY, REVERB on the bottom. Each one's name
+    // shows its own block (by signal-chain position).
     std::vector<Footswitch*> footswitches;
     findAll (*editor, footswitches);
-    REQUIRE (footswitches.size() == 4);
-    footswitches[2]->onSelect();
-    CHECK (visiblePanel() == 8);
-    footswitches[3]->onSelect();
-    CHECK (visiblePanel() == 9);
+    REQUIRE (footswitches.size() == 7);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+    {
+        return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX());   // reading order
+    });
+    const int expectedBlocks[] = { 1, 3, 6, 0, 7, 8, 9 };
+    for (size_t i = 0; i < footswitches.size(); ++i)
+    {
+        INFO ("stomp " << i + 1);
+        footswitches[i]->onSelect();
+        CHECK (visiblePanel() == expectedBlocks[i]);
+    }
+    for (size_t i = 1; i < 3; ++i)
+        CHECK (footswitches[i]->getY() == footswitches[0]->getY());   // one top row of three...
+    for (size_t i = 4; i < 7; ++i)
+        CHECK (footswitches[i]->getY() == footswitches[3]->getY());   // ...one bottom row of four...
+    CHECK (footswitches[0]->getBottom() <= footswitches[3]->getY());   // ...above it
 
     // The GRAPHIC EQ button on any other block's panel goes back to the EQ.
     std::vector<juce::TextButton*> buttons;
@@ -193,11 +208,11 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     REQUIRE (back != buttons.end());
     CHECK ((*back)->isVisible());
     (*back)->onClick();
-    CHECK (visiblePanel() == 6);
+    CHECK (visiblePanel() == eqIndex);
     CHECK_FALSE ((*back)->isVisible());
 }
 
-TEST_CASE ("BYPASS passes the clean guitar, on both channels", "[ui][bypass]")
+TEST_CASE ("BYPASS passes the clean voice, on both channels", "[ui][bypass]")
 {
     ParagonX1AudioProcessor processor;
     processor.setPlayConfigDetails (1, 2, 48000.0, 512);
@@ -222,19 +237,16 @@ TEST_CASE ("BYPASS passes the clean guitar, on both channels", "[ui][bypass]")
     CHECK (processor.getBypassParameter() == processor.getParameters().getParameter (ParamIDs::bypass));
 }
 
-TEST_CASE ("BYPASS stays in time when the amp adds latency", "[ui][bypass]")
+TEST_CASE ("No latency, so singing through it live has no delay, and BYPASS stays in time", "[ui][bypass]")
 {
-    // At 44.1 kHz a 48 kHz model is resampled, which adds latency. The
-    // bypassed signal must be delayed by the same amount, or toggling bypass
-    // would shift the guitar against the rest of the mix.
+    // Nothing in PR7-V's chain looks ahead (the NAM amp, which did, went in
+    // 0.3.0), so the voice comes straight through. The bypassed signal must
+    // line up with the processed one, or toggling bypass would shift it.
     ParagonX1AudioProcessor processor;
     processor.setPlayConfigDetails (1, 2, 44100.0, 512);
     processor.prepareToPlay (44100.0, 512);
-    processor.loadAmpModel (juce::File (PARAGON_NAM_EXAMPLE_MODELS).getChildFile ("wavenet.nam"));
-    REQUIRE (processor.waitForLoads (20000));
-    processor.prepareToPlay (44100.0, 512);
     const auto latency = processor.getLatencySamples();
-    REQUIRE (latency > 0);
+    CHECK (latency == 0);
 
     set (processor, ParamIDs::bypass, 1.0f);
     for (int block = 0; block < 4; ++block)
@@ -243,8 +255,7 @@ TEST_CASE ("BYPASS stays in time when the amp adds latency", "[ui][bypass]")
     std::vector<float> click (512, 0.0f);
     click[10] = 0.5f;
     const auto output = playThrough (processor, click);
-    CHECK_THAT (output[(size_t) (10 + latency)], WithinAbs (0.5, 1.0e-6));
-    CHECK_THAT (output[10], WithinAbs (0.0, 1.0e-6));
+    CHECK_THAT (output[(size_t) (10 + latency)], WithinAbs (0.5, 1.0e-6));   // the click, exactly where it went in
 }
 
 TEST_CASE ("BYPASS is global: rigs don't change it and it doesn't mark them modified", "[ui][bypass]")

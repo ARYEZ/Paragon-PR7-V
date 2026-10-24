@@ -43,7 +43,7 @@ void SignalChain::resized()
     auto area = getLocalBounds().toFloat().reduced (16.0f, 8.0f);
     area.removeFromTop (18.0f);   // "SIGNAL CHAIN" title
 
-    guitarArea = area.removeFromLeft (70.0f);
+    micArea = area.removeFromLeft (70.0f);
     outputArea = area.removeFromRight (110.0f);
 
     // Blocks spread evenly with gaps for the dotted connectors.
@@ -71,7 +71,7 @@ void SignalChain::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
     g.drawText ("SIGNAL CHAIN", bounds.reduced (16.0f, 6.0f).withHeight (14.0f), juce::Justification::centredLeft, false);
 
-    Icons::draw (g, Icons::Type::guitar, guitarArea.reduced (14.0f, 6.0f), ParagonColours::textDim, 1.6f);
+    Icons::draw (g, Icons::Type::microphone, micArea.reduced (14.0f, 6.0f), ParagonColours::textDim, 1.6f);
 
     // Dotted connectors between everything, glowing where signal is flowing
     // through a switched-on block.
@@ -85,7 +85,7 @@ void SignalChain::paint (juce::Graphics& g)
     };
 
     const auto midY = blockAreas.empty() ? bounds.getCentreY() : blockAreas.front().getCentreY();
-    auto previousRight = guitarArea.getRight();
+    auto previousRight = micArea.getRight();
 
     for (size_t i = 0; i < blocks.size(); ++i)
     {

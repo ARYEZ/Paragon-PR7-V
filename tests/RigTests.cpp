@@ -49,8 +49,6 @@ namespace
         TempRigFolder temp;
         ParagonX1AudioProcessor processor;
     };
-
-    const juce::File exampleModels { PARAGON_NAM_EXAMPLE_MODELS };
 }
 
 TEST_CASE ("A rig survives being written to a file and read back", "[rigs]")
@@ -62,8 +60,6 @@ TEST_CASE ("A rig survives being written to a file and read back", "[rigs]")
     rig.favourite = true;
     rig.tags = { "Rock", "High Gain" };
     rig.parameters = { { "driveGain", 6.5f }, { "delayTime", 420.0f } };
-    rig.ampModelPath = "C:\\Models\\Plexi.nam";
-    rig.cabIrPath = "/Users/me/IRs/4x12 V30.wav";
 
     const auto restored = Rig::fromXml (*juce::XmlDocument::parse (rig.toXml()->toString()));
     REQUIRE (restored.has_value());
@@ -72,9 +68,32 @@ TEST_CASE ("A rig survives being written to a file and read back", "[rigs]")
     CHECK (restored->favourite);
     CHECK (restored->tags == rig.tags);
     CHECK (restored->parameters == rig.parameters);
-    CHECK (restored->ampModelPath == rig.ampModelPath);
-    CHECK (restored->cabIrPath == rig.cabIrPath);
-    CHECK_FALSE (restored->keepAmpAndCab);
+}
+
+TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the Doubler moves to its stomp", "[rigs]")
+{
+    // As 0.2.0 wrote it: a NAM model and IR, and MODULATION on its Doubler type (10).
+    const auto old = Rig::fromXml (*juce::XmlDocument::parse (
+        "<ParagonRig version=\"1\" parameterVersion=\"15\" name=\"Old Double\" bank=\"A\" number=\"3\""
+        "            ampModel=\"C:\\Models\\Plexi.nam\" cabIr=\"C:\\IRs\\V30.wav\" keepAmpAndCab=\"0\">"
+        "  <Param id=\"modOn\" value=\"1\"/><Param id=\"modType\" value=\"10\"/>"
+        "  <Param id=\"modRate\" value=\"1.2\"/><Param id=\"modDepth\" value=\"0.25\"/><Param id=\"modMix\" value=\"0.65\"/>"
+        "  <Param id=\"reverbOn\" value=\"1\"/>"
+        "</ParagonRig>"));
+    REQUIRE (old.has_value());
+    CHECK (old->name == "Old Double");
+    const auto& p = old->parameters;
+    CHECK (p.at (ParamIDs::doublerOn) > 0.5f);
+    CHECK_THAT (p.at (ParamIDs::doublerRate), WithinAbs (1.2, 0.001));
+    CHECK_THAT (p.at (ParamIDs::doublerDepth), WithinAbs (0.25, 0.001));
+    CHECK_THAT (p.at (ParamIDs::doublerMix), WithinAbs (0.65, 0.001));
+    CHECK (p.at (ParamIDs::modOn) < 0.5f);
+    CHECK (p.at (ParamIDs::reverbOn) > 0.5f);   // everything else as it was
+
+    // Saved again, it's a current rig: no amp or cab, and not converted twice.
+    const auto resaved = old->toXml();
+    CHECK_FALSE (resaved->hasAttribute ("ampModel"));
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 26);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -91,7 +110,6 @@ TEST_CASE ("Every factory rig is valid", "[rigs]")
     for (const auto& rig : makeFactoryRigs())
     {
         INFO (rig.name);
-        CHECK (rig.keepAmpAndCab);
         names.addIfNotAlreadyThere (rig.name);
         slots.addIfNotAlreadyThere (rig.getSlotName());
 
@@ -273,48 +291,6 @@ TEST_CASE ("A rig that doesn't mention a parameter sets it to its default", "[ri
     CHECK_THAT (r.get (ParamIDs::presence), WithinAbs (0.0, 0.01));
 }
 
-TEST_CASE ("User rigs bring their amp and cab; factory rigs keep yours", "[rigs]")
-{
-    RigRig r;
-    const auto wavenet = exampleModels.getChildFile ("wavenet.nam");
-    const auto lstm = exampleModels.getChildFile ("lstm.nam");
-
-    r.processor.loadAmpModel (wavenet);
-    REQUIRE (r.processor.waitForLoads (20000));
-    REQUIRE (r.processor.saveCurrentRigAs ("Wavenet Rig"));
-
-    r.processor.loadAmpModel (lstm);
-    REQUIRE (r.processor.waitForLoads (20000));
-    REQUIRE (r.processor.saveCurrentRigAs ("LSTM Rig"));
-
-    SECTION ("Loading a user rig loads its model")
-    {
-        r.processor.loadRig (r.entryNamed ("Wavenet Rig"));
-        REQUIRE (r.processor.waitForLoads (20000));
-        CHECK (r.processor.getAmpStatus().file == wavenet);
-    }
-
-    SECTION ("Loading a factory rig keeps the current model")
-    {
-        r.processor.loadRig (r.entryNamed ("Ambient Swells"));
-        REQUIRE (r.processor.waitForLoads (20000));
-        CHECK (r.processor.getAmpStatus().file == lstm);
-        CHECK (r.get (ParamIDs::reverbOn) > 0.5f);
-    }
-
-    SECTION ("A user rig saved with no amp unloads the amp")
-    {
-        r.processor.clearAmpModel();
-        REQUIRE (r.processor.waitForLoads (20000));
-        REQUIRE (r.processor.saveCurrentRigAs ("No Amp"));
-        r.processor.loadRig (r.entryNamed ("Wavenet Rig"));
-        REQUIRE (r.processor.waitForLoads (20000));
-        r.processor.loadRig (r.entryNamed ("No Amp"));
-        REQUIRE (r.processor.waitForLoads (20000));
-        CHECK (r.processor.getAmpStatus().file == juce::File());
-    }
-}
-
 TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]")
 {
     RigRig r;
@@ -327,16 +303,10 @@ TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]
         CHECK (r.processor.isRigModified());
     }
 
-    SECTION ("Loading a different amp marks it modified")
-    {
-        r.processor.loadAmpModel (exampleModels.getChildFile ("wavenet.nam"));
-        CHECK (r.processor.isRigModified());
-        REQUIRE (r.processor.waitForLoads (20000));
-    }
-
     SECTION ("The global knobs don't count")
     {
         r.set (ParamIDs::inputGain, 3.0f);
+        r.set (ParamIDs::inputLowCut, 150.0f);
         r.set (ParamIDs::outputGain, -3.0f);
         CHECK_FALSE (r.processor.isRigModified());
     }
@@ -400,7 +370,6 @@ TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
 
     ParagonX1AudioProcessor restored;
     restored.setStateInformation (saved.getData(), (int) saved.getSize());
-    REQUIRE (restored.waitForLoads (20000));
     CHECK (restored.getCurrentRig().name == "Project Rig");
     CHECK (restored.getCurrentRig().file == rigFile);
     CHECK (restored.isRigModified());   // the tweak is remembered as unsaved

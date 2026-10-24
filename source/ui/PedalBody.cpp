@@ -337,6 +337,6 @@ void PedalBody::paintBadge (juce::Graphics& g) const
 
     g.setFont (juce::FontOptions (lineHeight * 0.27f, juce::Font::bold));
     g.setColour (Finish::printedRed());
-    g.drawText ("NEURAL MULTI-FX PROCESSOR", area.withTrimmedTop (4.0f).withHeight (lineHeight * 0.4f),
+    g.drawText ("VOCAL MULTI-FX PROCESSOR", area.withTrimmedTop (4.0f).withHeight (lineHeight * 0.4f),
                 juce::Justification::centredLeft, false);
 }

@@ -2,15 +2,17 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <functional>
+#include <optional>
+
 // Parameter IDs are saved in DAW projects and presets, so never rename one
 // once it has shipped. Add new parameters with a new ID instead.
 namespace ParamIDs
 {
     inline constexpr auto inputGain    = "inputGain";
     inline constexpr auto outputGain   = "outputGain";
-    inline constexpr auto ampOn        = "ampOn";
-    inline constexpr auto ampNormalise = "ampNormalise";
-    inline constexpr auto cabOn        = "cabOn";
+    // (Version 2's ampOn, ampNormalise and cabOn went with the NAM amp and
+    // cabinet in 0.3.0. Never reuse those IDs.)
 
     // Phase 3
     inline constexpr auto presence       = "presence";
@@ -136,6 +138,12 @@ namespace ParamIDs
     // the chain for the microphone. Its lowest setting is OFF.
     inline constexpr auto inputLowCut = "inputLowCut";   // Hz
 
+    // Version 26: the DOUBLER stomp (until then MODULATION's Doubler type).
+    inline constexpr auto doublerOn    = "doublerOn";
+    inline constexpr auto doublerRate  = "doublerRate";
+    inline constexpr auto doublerDepth = "doublerDepth";
+    inline constexpr auto doublerMix   = "doublerMix";
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the
@@ -158,3 +166,10 @@ namespace ParamRanges
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+// Settings saved before 0.3.0 with MODULATION's TYPE on Doubler: moves them to
+// the DOUBLER stomp (same RATE, DEPTH and MIX, switched on if MODULATION was)
+// and leaves MODULATION off on Chorus, so they sound as they did. `get`
+// returns a parameter's saved value (or nothing), and `set` stores one.
+void moveOldDoublerSettings (const std::function<std::optional<float> (const char*)>& get,
+                             const std::function<void (const char*, float)>& set);

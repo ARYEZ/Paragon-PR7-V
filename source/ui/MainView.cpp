@@ -36,13 +36,13 @@ namespace
     constexpr float clusterLabelY[] = { 119, 160 };
     constexpr float clusterButtonY[] = { 136, 177 };
 
-    // The AMP / CABINET / RIG panels: three equal panels spread evenly
-    // across their section (174 to 1325), with equal gaps between them.
-    constexpr float slotX[] = { 204, 580, 956 };
-    constexpr float slotWidth = 340;
-
-    // Footswitch pads' left edges; each is 154 wide.
-    constexpr float footswitchX[] = { 228, 517, 807, 1090 };
+    // Footswitch pads' left edges (each is 154 wide) and each row's top.
+    // The bottom row (stomps 4-7) is where the original four were; the top
+    // row (1-3) sits in the gaps between them, three over four, as on floor
+    // units, so a foot on one top switch can't catch the two below it.
+    constexpr float footswitchX[] = { 372.5f, 662, 948.5f,      // 1-3
+                                      228, 517, 807, 1090 };    // 4-7
+    constexpr float footswitchY[] = { 254, 254, 254, 400, 400, 400, 400 };
 
     void styleInkLabel (juce::Label& label, float size)
     {
@@ -145,10 +145,6 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       muteAttachment (processorToShow.getParameters(), ParamIDs::tunerMute, mutePedal),
       rigLevelAttachment (processorToShow.getParameters(), ParamIDs::rigLevel, rigLevelKnob),
       presenceAttachment (processorToShow.getParameters(), ParamIDs::presence, presenceKnob),
-      ampSlot ("AMP", "*.nam", "Load / Edit NAM Model",
-               processorToShow.getParameters(), ParamIDs::ampOn),
-      cabSlot ("CABINET", "*.wav;*.aif;*.aiff;*.flac", "Load / Edit IR",
-               processorToShow.getParameters(), ParamIDs::cabOn),
       expressionPedal (processorToShow),
       heelIndicator (processorToShow),
       tunerReader (processorToShow),
@@ -157,14 +153,13 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       eqPanel (processorToShow.getParameters()),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch, juce::String (ParamIDs::octOn) + "," + ParamIDs::freezeOn },
-          { "COMP / GATE", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
+          { "DYNAMICS", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
           { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::filterPitch, ParamIDs::fpOn },
-          { "OD / DIST", Icons::Type::drive, ParagonColours::drive, ParamIDs::driveOn },
-          { "NAMP", Icons::Type::amp, ParagonColours::amp, ParamIDs::ampOn },
-          { "CABINET IR", Icons::Type::cabinet, ParagonColours::cab, ParamIDs::cabOn },
+          { "SATURATION", Icons::Type::drive, ParagonColours::drive, ParamIDs::driveOn },
           { "EQ", Icons::Type::eq, ParagonColours::eq, ParamIDs::eqOn },
           { "GLITCH", Icons::Type::glitch, ParagonColours::glitch, ParamIDs::glitchOn },
-          { "MOD", Icons::Type::modulation, ParagonColours::modulation, ParamIDs::modOn },   // MODULATION: short, to fit twelve blocks
+          { "DOUBLER", Icons::Type::doubler, ParagonColours::doubler, ParamIDs::doublerOn },
+          { "MOD", Icons::Type::modulation, ParagonColours::modulation, ParamIDs::modOn },   // MODULATION: short, to fit the strip
           { "DELAY", Icons::Type::delay, ParagonColours::delay, ParamIDs::delayOn },
           { "REVERB", Icons::Type::reverb, ParagonColours::reverb, ParamIDs::reverbOn },
           { "LO-FI", Icons::Type::loFi, ParagonColours::loFi, ParamIDs::lofiOn } }),
@@ -256,18 +251,9 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     }
     rigLevelKnob.setTooltip ("This rig's volume, saved with the rig: use it to balance rigs. "
                              "The OUTPUT knob on the right is the overall volume.");
-    presenceKnob.setTooltip ("Cut or boost the top end (above about 3.5 kHz) after the cabinet, like an amp's presence control.");
+    presenceKnob.setTooltip ("Cut or boost the top end (above about 3.5 kHz): more air and presence on the voice, or less harshness.");
     styleInkLabel (rigLevelLabel, 12.5f);
     styleInkLabel (presenceLabel, 12.5f);
-
-    ampSlot.onLoad = [this] (const juce::File& file) { audioProcessor.loadAmpModel (file); };
-    ampSlot.onClear = [this] { audioProcessor.clearAmpModel(); };
-    ampSlot.onTitleClicked = [this] { selectBlock (ampBlock); };
-    cabSlot.onLoad = [this] (const juce::File& file) { audioProcessor.loadCabinetIR (file); };
-    cabSlot.onClear = [this] { audioProcessor.clearCabinetIR(); };
-    cabSlot.onTitleClicked = [this] { selectBlock (cabBlock); };
-    rigSlot.onStep = [this] (int direction) { audioProcessor.stepRig (direction); };
-    rigSlot.onOpen = [this] { showPage (Page::presets); };
 
     tunerReader.onReading = [this] (const TunerReader::Reading& reading)
     {
@@ -279,47 +265,59 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         refreshRig();
     };
 
-    // The four footswitches, in signal-chain order. Footswitch 4 switches
-    // delay and reverb together; clicking its name shows the delay's knobs.
-    footswitches[0] = std::make_unique<Footswitch> (1, "COMP / GATE", state, juce::StringArray { ParamIDs::compOn });
-    footswitches[0]->describe = [this]
+    // The seven stomps. Each press turns its block on or off; clicking its
+    // name shows the block's knobs. The order is the owner's, for singing:
+    // the top row shapes the voice, the bottom row adds to it. (PITCH works
+    // first in the sound, where it tracks the clean voice best: see the
+    // processor.)
+    const auto addStomp = [this, &state] (int number, const char* name, const char* onId, int block, std::function<juce::String()> describe)
+    {
+        auto& footswitch = footswitches[(size_t) number - 1];
+        footswitch = std::make_unique<Footswitch> (number, name, state, juce::StringArray { onId });
+        footswitch->describe = std::move (describe);
+        footswitch->onSelect = [this, block] { selectBlock (block); };
+        footswitch->refresh();
+    };
+    addStomp (1, "DYNAMICS", ParamIDs::compOn, compBlock, [this]
     {
         auto text = valueText (ParamIDs::compThreshold) + "  " + valueText (ParamIDs::compRatio);
-        if (audioProcessor.getParameters().getRawParameterValue (ParamIDs::gateThreshold)->load() > effects::CompGate::gateOffDb)
+        if (rawValue (ParamIDs::gateThreshold) > effects::CompGate::gateOffDb)
             text << "  + gate";
         return text;
-    };
-    footswitches[1] = std::make_unique<Footswitch> (2, "OD / DISTORTION", state, juce::StringArray { ParamIDs::driveOn });
-    footswitches[1]->describe = [this]
+    });
+    addStomp (2, "SATURATION", ParamIDs::driveOn, driveBlock, [this]
     {
-        const auto screamer = juce::roundToInt (rawValue (ParamIDs::driveModel)) == (int) effects::Drive::Model::screamer;
-        return juce::String (screamer ? "Screamer" : "Classic") + "  Drive " + valueText (ParamIDs::driveGain);
-    };
-    footswitches[2] = std::make_unique<Footswitch> (3, "MODULATION", state, juce::StringArray { ParamIDs::modOn });
-    footswitches[2]->describe = [this]
+        return valueText (ParamIDs::driveModel) + "  Drive " + valueText (ParamIDs::driveGain);
+    });
+    addStomp (3, "DOUBLER", ParamIDs::doublerOn, doublerBlock, [this]
+    {
+        return "Mix " + valueText (ParamIDs::doublerMix) + "  Depth " + valueText (ParamIDs::doublerDepth);
+    });
+    // The octaver for now; FREEZE has its own switch in the panel (one
+    // press turning both on at once would hold a note by surprise).
+    addStomp (4, "PITCH", ParamIDs::octOn, pitchBlock, [this]
+    {
+        return "1 Down " + valueText (ParamIDs::octSubOne) + "  1 Up " + valueText (ParamIDs::octUp);
+    });
+    addStomp (5, "MODULATION", ParamIDs::modOn, modBlock, [this]
     {
         return valueText (ParamIDs::modType) + "  " + valueText (rawValue (ParamIDs::modSync) > 0.5f ? ParamIDs::modSync : ParamIDs::modRate);
-    };
-    footswitches[3] = std::make_unique<Footswitch> (4, "REVERB / DELAY", state, juce::StringArray { ParamIDs::delayOn, ParamIDs::reverbOn });
-    footswitches[3]->describe = [this]
+    });
+    addStomp (6, "DELAY", ParamIDs::delayOn, delayBlock, [this]
     {
-        const auto synced = audioProcessor.getParameters().getRawParameterValue (ParamIDs::delaySync)->load() > 0.5f;
-        return valueText (ParamIDs::delayType) + " " + valueText (synced ? ParamIDs::delaySync : ParamIDs::delayTime)
-             + "  " + valueText (ParamIDs::reverbType) + " " + valueText (ParamIDs::reverbMix);
-    };
-    const int footswitchBlocks[] = { compBlock, driveBlock, modBlock, delayBlock };
-    for (size_t i = 0; i < footswitches.size(); ++i)
+        return valueText (ParamIDs::delayType) + "  " + valueText (rawValue (ParamIDs::delaySync) > 0.5f ? ParamIDs::delaySync : ParamIDs::delayTime);
+    });
+    addStomp (7, "REVERB", ParamIDs::reverbOn, reverbBlock, [this]
     {
-        footswitches[i]->onSelect = [this, block = footswitchBlocks[i]] { selectBlock (block); };
-        footswitches[i]->refresh();
-    }
+        return valueText (ParamIDs::reverbType) + "  Mix " + valueText (ParamIDs::reverbMix);
+    });
 
     addAndMakeVisible (pedal);   // first, so everything on the pedal sits on top of it
     processorPage = { &pedal, &display, &rigUp, &rigDown, &pedalSave, &pedalSaveAs, &bypassButton,
                       &undoPedal, &redoPedal, &tunerPedal, &mutePedal, &tapPedal,
                       &undoLabel, &redoLabel, &bypassLabel, &tunerLabel, &muteLabel, &tapLabel, &holdLabel,
                       &rigLevelKnob, &presenceKnob, &rigLevelLabel, &presenceLabel,
-                      &ampSlot, &cabSlot, &rigSlot, &expressionPedal, &heelIndicator,
+                      &expressionPedal, &heelIndicator,
                       &rigNavigator, &selectedRig, &expressionPanel };
     for (auto& footswitch : footswitches)
         processorPage.push_back (footswitch.get());
@@ -364,13 +362,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                               { ParamIDs::fpXpProgram, "PROGRAM", fpIs (effects::FilterPitch::Type::whammyWah) },
                               { ParamIDs::fpMix, "MIX" } } } });
     panels[driveBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "OVERDRIVE", { { ParamIDs::driveOn, "ON" }, { ParamIDs::driveModel, "MODEL" }, { ParamIDs::driveGain, "DRIVE" }, { ParamIDs::driveTone, "TONE" },
+        { "SATURATION", { { ParamIDs::driveOn, "ON" }, { ParamIDs::driveModel, "MODEL" }, { ParamIDs::driveGain, "DRIVE" }, { ParamIDs::driveTone, "TONE" },
                          { ParamIDs::driveLevel, "LEVEL" } } } });
-    panels[ampBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "AMP (NAM)", { { ParamIDs::ampOn, "ON" }, { ParamIDs::ampNormalise, "NORMALISE" }, { ParamIDs::presence, "PRESENCE" },
-                         { ParamIDs::rigLevel, "RIG LEVEL" } } } });
-    panels[cabBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "CABINET (IR)", { { ParamIDs::cabOn, "ON" }, { ParamIDs::presence, "PRESENCE" } } } });
+    panels[doublerBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
+        { "DOUBLER", { { ParamIDs::doublerOn, "ON" }, { ParamIDs::doublerRate, "RATE" }, { ParamIDs::doublerDepth, "DEPTH" },
+                       { ParamIDs::doublerMix, "MIX" } } } });
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
                           { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
@@ -402,11 +398,12 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     const std::pair<Icons::Type, juce::Colour> headers[] = {
         { Icons::Type::pitch, ParagonColours::pitch }, { Icons::Type::comp, ParagonColours::comp }, { Icons::Type::filterPitch, ParagonColours::filterPitch },
         { Icons::Type::drive, ParagonColours::drive },
-        { Icons::Type::amp, ParagonColours::amp }, { Icons::Type::cabinet, ParagonColours::cab },
         { Icons::Type::eq, ParagonColours::eq }, { Icons::Type::glitch, ParagonColours::glitch },
+        { Icons::Type::doubler, ParagonColours::doubler },
         { Icons::Type::modulation, ParagonColours::modulation }, { Icons::Type::delay, ParagonColours::delay },
         { Icons::Type::reverb, ParagonColours::reverb }, { Icons::Type::loFi, ParagonColours::loFi } };
-    const char* titles[] = { "PITCH", "COMP / GATE", "FILTER / PITCH", "OD / DISTORTION", "AMP (NAM)", "CABINET (IR)", "GRAPHIC EQ", "GLITCH", "MODULATION", "DELAY", "REVERB", "LO-FI" };
+    const char* titles[] = { "PITCH", "DYNAMICS", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
+    static_assert (std::size (headers) == numBlocks && std::size (titles) == numBlocks);
     for (size_t i = 0; i < panels.size(); ++i)
     {
         if (panels[i] == nullptr)
@@ -437,7 +434,6 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     selectBlock (eqBlock);   // the dock shows the graphic EQ until another block is picked
 
     audioProcessor.rigBroadcaster.addChangeListener (this);
-    audioProcessor.statusBroadcaster.addChangeListener (this);
     changeListenerCallback (nullptr);
     Finish::changes().addChangeListener (this);
     applyFinish();
@@ -453,7 +449,6 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
 MainView::~MainView()
 {
     Finish::changes().removeChangeListener (this);
-    audioProcessor.statusBroadcaster.removeChangeListener (this);
     audioProcessor.rigBroadcaster.removeChangeListener (this);
 }
 
@@ -480,9 +475,10 @@ void MainView::selectBlock (int block)
     if (block != eqBlock)
         closePanel.toFront (false);
 
-    const int footswitchBlocks[] = { compBlock, driveBlock, modBlock, delayBlock };
+    const int footswitchBlocks[] = { compBlock, driveBlock, doublerBlock, pitchBlock, modBlock, delayBlock, reverbBlock };
+    static_assert (std::size (footswitchBlocks) == std::tuple_size_v<decltype (footswitches)>);
     for (size_t i = 0; i < footswitches.size(); ++i)
-        footswitches[i]->setSelected (footswitchBlocks[i] == block || (i == 3 && block == reverbBlock));
+        footswitches[i]->setSelected (footswitchBlocks[i] == block);
 
     signalChain.setSelected (block);
 }
@@ -513,7 +509,6 @@ void MainView::refreshRig()
 
     display.setContents ({ entry != nullptr ? entry->rig.number : 0, rig.name,
                            entry != nullptr ? Rig::bankName (entry->rig.bank) : juce::String(), modified, bypassed, tunerState });
-    rigSlot.setRig (entry != nullptr ? entry->rig.getSlotName() : juce::String(), rig.name, modified);
     selectedRig.refresh();
 }
 
@@ -637,8 +632,6 @@ void MainView::changeListenerCallback (juce::ChangeBroadcaster* source)
     }
 
     refreshRig();
-    ampSlot.setStatus (audioProcessor.getAmpStatus());
-    cabSlot.setStatus (audioProcessor.getCabStatus());
 }
 
 void MainView::paint (juce::Graphics& g)
@@ -717,8 +710,6 @@ void MainView::resized()
     geometry.face = local (mockF (164, 94, 1338, 534));
     geometry.pedalBay = local (mockF (1347, 86, 1535, 547));
     geometry.sections = { local (mockF (174, 240, 1325, 388)), local (mockF (174, 396, 1325, 524)) };
-    for (const auto x : slotX)
-        geometry.insets.push_back (local (mockF (x, 250, x + slotWidth, 382)));
     geometry.badge = local (mockF (212, 117, 410, 207));
 
     // Printed lines: SAVE ... SAVE AS, and the bracket tying TUNER and
@@ -759,13 +750,10 @@ void MainView::resized()
     presenceKnob.setBounds (mock (1203, 98, 1317, 212));
     presenceLabel.setBounds (mock (1200, 196, 1320, 214));
 
-    ampSlot.setBounds (mock (slotX[0], 250, slotX[0] + slotWidth, 382));
-    cabSlot.setBounds (mock (slotX[1], 250, slotX[1] + slotWidth, 382));
-    rigSlot.setBounds (mock (slotX[2], 250, slotX[2] + slotWidth, 382));
     heelIndicator.setBounds (mock (1262, 407, 1314, 423));
 
     for (size_t i = 0; i < footswitches.size(); ++i)
-        footswitches[i]->setBounds (mock (footswitchX[i] - 48, 400, footswitchX[i] + 164, 520));
+        footswitches[i]->setBounds (mock (footswitchX[i] - 48, footswitchY[i], footswitchX[i] + 164, footswitchY[i] + 120));
 
     // Exactly where the artwork was cut from the mockup, plus headroom above
     // for the toe to rise into.

@@ -1,5 +1,7 @@
 #include "Rig.h"
 
+#include "Parameters.h"
+
 namespace
 {
     // Bump when the file layout changes in a way older code can't read.
@@ -9,7 +11,8 @@ namespace
     // occasional parameter whose default changed (older plugins ignore it).
     // 10: the drive's MODEL, defaulting to the Tube Screamer model.
     // 15: the reverb's TYPE, defaulting to HALL.
-    constexpr int parameterVersion = 15;
+    // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
+    constexpr int parameterVersion = 26;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
@@ -35,10 +38,6 @@ std::unique_ptr<juce::XmlElement> Rig::toXml() const
     xml->setAttribute ("number", number);
     xml->setAttribute ("favourite", favourite);
     xml->setAttribute ("tags", tags.joinIntoString (","));
-    xml->setAttribute ("ampModel", ampModelPath);
-    xml->setAttribute ("cabIr", cabIrPath);
-    if (keepAmpAndCab)
-        xml->setAttribute ("keepAmpAndCab", true);
 
     for (const auto& [id, value] : parameters)
     {
@@ -66,9 +65,8 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     rig.tags = juce::StringArray::fromTokens (xml.getStringAttribute ("tags"), ",", {});
     rig.tags.trim();
     rig.tags.removeEmptyStrings();
-    rig.ampModelPath = xml.getStringAttribute ("ampModel");
-    rig.cabIrPath = xml.getStringAttribute ("cabIr");
-    rig.keepAmpAndCab = xml.getBoolAttribute ("keepAmpAndCab");
+    // Rigs from before 0.3.0 may name a NAM model and IR ("ampModel",
+    // "cabIr"): PR7-V has no amp or cabinet, so they're ignored.
 
     for (const auto* parameter : xml.getChildWithTagNameIterator (parameterTag))
         if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
@@ -82,6 +80,14 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     // Saved before the reverb had a TYPE: it was the original, now CLASSIC (0).
     if (savedWith < 15 && rig.parameters.count ("reverbType") == 0)
         rig.parameters["reverbType"] = 0.0f;
+    // Saved with MODULATION on its old Doubler type: now the DOUBLER stomp.
+    if (savedWith < 26)
+        moveOldDoublerSettings ([&rig] (const char* id) -> std::optional<float>
+                                {
+                                    const auto found = rig.parameters.find (id);
+                                    return found != rig.parameters.end() ? std::optional<float> (found->second) : std::nullopt;
+                                },
+                                [&rig] (const char* id, float value) { rig.parameters[id] = value; });
 
     return rig;
 }

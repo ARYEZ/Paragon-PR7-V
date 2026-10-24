@@ -944,12 +944,11 @@ TEST_CASE ("The auto-wah opens up as you play harder", "[effects][wah]")
     CHECK (brightness (0.3f) - brightness (0.003f) > 12.0f);
 }
 
-TEST_CASE ("The doubler adds a take on each side", "[effects][mod]")
+TEST_CASE ("DOUBLER adds a take on each side", "[effects][doubler]")
 {
     EffectRig rig;
-    rig.set (ParamIDs::modOn, 1.0f);
-    rig.set (ParamIDs::modType, typeIndex (ModType::doubler));
-    rig.set (ParamIDs::modMix, 0.7f);
+    rig.set (ParamIDs::doublerOn, 1.0f);
+    rig.set (ParamIDs::doublerMix, 0.7f);
     const auto input = sine (440.0, 0.3f, 1.0);
     const auto output = rig.run (input);
     REQUIRE (allFinite (output[0]));
@@ -988,6 +987,52 @@ TEST_CASE ("Projects saved before the drive MODEL keep the original overdrive", 
     };
     CHECK (modelAfterLoading (older) == (int) effects::Drive::Model::classic);
     CHECK (modelAfterLoading (saved) == (int) effects::Drive::Model::screamer);
+}
+
+TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with the DOUBLER stomp on", "[effects][doubler]")
+{
+    // A project as 0.1.0 or 0.2.0 saved it: MODULATION on, TYPE 10 (Doubler),
+    // its own RATE, DEPTH and MIX, and no parameterVersion.
+    EffectRig original;
+    juce::MemoryBlock saved;
+    original.processor.getStateInformation (saved);
+    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
+    REQUIRE (xml != nullptr);
+    xml->removeAttribute ("parameterVersion");
+    const std::pair<const char*, double> oldSettings[] = { { ParamIDs::modOn, 1.0 }, { ParamIDs::modType, 10.0 }, { ParamIDs::modRate, 1.5 },
+                                                           { ParamIDs::modDepth, 0.3 }, { ParamIDs::modMix, 0.6 } };
+    for (const auto& [id, value] : oldSettings)
+    {
+        auto* child = xml->getChildByAttribute ("id", id);
+        REQUIRE (child != nullptr);
+        child->setAttribute ("value", value);
+    }
+    juce::MemoryBlock older;
+    juce::AudioProcessor::copyXmlToBinary (*xml, older);
+
+    EffectRig rig;
+    rig.processor.setStateInformation (older.getData(), (int) older.getSize());
+    const auto value = [&rig] (const char* id) { return rig.processor.getParameters().getRawParameterValue (id)->load(); };
+    CHECK (value (ParamIDs::doublerOn) > 0.5f);
+    CHECK_THAT (value (ParamIDs::doublerRate), WithinAbs (1.5, 0.01));
+    CHECK_THAT (value (ParamIDs::doublerDepth), WithinAbs (0.3, 0.01));
+    CHECK_THAT (value (ParamIDs::doublerMix), WithinAbs (0.6, 0.01));
+    CHECK (value (ParamIDs::modOn) < 0.5f);   // MODULATION itself was only ever the doubler
+
+    // And it sounds doubled: the two sides differ, as DOUBLER's takes do.
+    const auto output = rig.run (sine (440.0, 0.3f, 1.0));
+    std::vector<float> difference (output[0].size());
+    for (size_t i = 0; i < difference.size(); ++i)
+        difference[i] = output[0][i] - output[1][i];
+    CHECK (rms (difference, 0.2) > 0.1f * rms (output[0], 0.2));
+
+    // A project saved now isn't touched: a later MODULATION type numbered 10
+    // mustn't be mistaken for the old Doubler.
+    juce::MemoryBlock current;
+    rig.processor.getStateInformation (current);
+    auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
+    REQUIRE (currentXml != nullptr);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 26);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")
@@ -1420,10 +1465,9 @@ TEST_CASE ("Every effect copes with a mono track and with oversized blocks", "[e
 TEST_CASE ("Full chain runs comfortably faster than real time", "[effects][performance]")
 {
     EffectRig rig;
-    rig.processor.loadAmpModel (juce::File (PARAGON_NAM_EXAMPLE_MODELS).getChildFile ("wavenet.nam"));
-    REQUIRE (rig.processor.waitForLoads (20000));
-    for (const auto* id : { ParamIDs::compOn, ParamIDs::fpOn, ParamIDs::driveOn, ParamIDs::eqOn, ParamIDs::modOn, ParamIDs::delayOn,
-                            ParamIDs::reverbOn })
+    rig.set (ParamIDs::inputLowCut, 80.0f);
+    for (const auto* id : { ParamIDs::compOn, ParamIDs::fpOn, ParamIDs::driveOn, ParamIDs::eqOn, ParamIDs::doublerOn, ParamIDs::modOn,
+                            ParamIDs::delayOn, ParamIDs::reverbOn })
         rig.set (id, 1.0f);
     // The costliest settings: the pitch shifter two octaves up (it jumps most often) and the rotary.
     rig.set (ParamIDs::fpType, (float) effects::FilterPitch::Type::pitchShifter);
