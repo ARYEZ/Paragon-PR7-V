@@ -197,7 +197,8 @@ namespace effects
         const auto analogOn = settings.analog != Analog::off;
         const auto analogCoefficient = analogOn ? onePole (sampleRate, character.toneHz) : 1.0f;
         const auto loFiCoefficient = onePole (sampleRate, 5500.0f);
-        const auto flip = [&settings] (int ch) { return (ch == 0 ? settings.phaseLeft : settings.phaseRight) ? -1.0f : 1.0f; };
+        // FLIP: each side's echoes' polarity, as a gain.
+        const float flipGain[maxChannels] { settings.phaseLeft ? -1.0f : 1.0f, settings.phaseRight ? -1.0f : 1.0f };
         const auto startSide = settings.startRight ? 1 : 0;
 
         for (int i = 0; i < numSamples; ++i)
@@ -376,7 +377,7 @@ namespace effects
                     loFiState[ch][1] += loFiCoefficient * (loFiState[ch][0] - loFiState[ch][1]);
                     toLine = std::round (loFiState[ch][1] * 2048.0f) / 2048.0f;   // 12 bits
                 }
-                heard[ch] *= flip (ch);
+                heard[ch] *= flipGain[ch];
 
                 if (type == Type::reverse)
                     reverseRings[(size_t) ch].push (toLine);
