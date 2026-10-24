@@ -132,11 +132,16 @@ namespace ParamIDs
     inline constexpr auto freezeAttack   = "freezeAttack";     // ms
     inline constexpr auto freezeRelease  = "freezeRelease";    // ms
 
+    // Version 25: LOW CUT on the INPUT strip, a high-pass filter first in
+    // the chain for the microphone. Its lowest setting is OFF.
+    inline constexpr auto inputLowCut = "inputLowCut";   // Hz
+
     // Global settings: kept when switching rigs. Everything else is part of a rig.
     // The expression pedal's position is global for the same reason a real
     // pedal's is: it's where your foot is, not part of the sound. What the
-    // pedal is assigned to, and its range, are saved with each rig.
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression };
+    // pedal is assigned to, and its range, are saved with each rig. LOW CUT
+    // goes with INPUT: it's set for your microphone and room, not a sound.
+    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut };
 }
 
 namespace ExpressionTargets

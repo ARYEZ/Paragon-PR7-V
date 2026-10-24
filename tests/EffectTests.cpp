@@ -43,6 +43,9 @@ namespace
         {
             processor.setPlayConfigDetails (1, channels, sampleRate, blockSize);
             processor.setPlayHead (&playHead);
+            // LOW CUT off, so each test hears only the effect it's about.
+            // The LOW CUT tests turn it back on.
+            set (ParamIDs::inputLowCut, effects::LowCut::offHz);
             processor.prepareToPlay (sampleRate, blockSize);
         }
 
@@ -1676,3 +1679,89 @@ TEST_CASE ("Projects and rigs saved before reverb types keep the original reverb
            == (int) effects::Delay::Type::digital);
 }
 
+
+TEST_CASE ("LOW CUT: takes out rumble below its frequency and leaves the voice alone", "[effects][lowcut]")
+{
+    // A 12 dB-per-octave (Butterworth) high-pass: 3 dB down at the knob's
+    // frequency, about 12 dB an octave below, about 24 dB two octaves below.
+    const auto levelThrough = [] (float lowCutHz, double hz)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::inputLowCut, lowCutHz);
+        const auto input = sine (hz, 0.3f, 1.0);
+        return dB (levelAt (rig.runMono (input), hz, 0.3) / levelAt (input, hz, 0.3));
+    };
+
+    SECTION ("At 100 Hz")
+    {
+        CHECK_THAT (levelThrough (100.0f, 25.0), WithinAbs (-24.1, 1.0));   // mic-stand rumble
+        CHECK_THAT (levelThrough (100.0f, 50.0), WithinAbs (-12.3, 0.5));   // mains hum, plosive thump
+        CHECK_THAT (levelThrough (100.0f, 100.0), WithinAbs (-3.0, 0.3));
+        CHECK_THAT (levelThrough (100.0f, 220.0), WithinAbs (-0.2, 0.2));   // a low sung note: barely touched
+        CHECK_THAT (levelThrough (100.0f, 1000.0), WithinAbs (0.0, 0.05));  // the body of the voice: untouched
+    }
+
+    SECTION ("The knob moves the corner")
+    {
+        CHECK_THAT (levelThrough (200.0f, 200.0), WithinAbs (-3.0, 0.3));
+        CHECK (levelThrough (200.0f, 100.0) < levelThrough (80.0f, 100.0) - 9.0f);
+    }
+}
+
+TEST_CASE ("LOW CUT: OFF is exactly the input; the default is 80 Hz", "[effects][lowcut]")
+{
+    EffectRig rig;   // the rig starts with LOW CUT at OFF
+    const auto rumble = sine (40.0, 0.3f, 0.5);
+    CHECK (maxAbsDifference (rumble, rig.runMono (rumble)) < 1.0e-6f);
+
+    auto* lowCut = rig.processor.getParameters().getParameter (ParamIDs::inputLowCut);
+    CHECK (lowCut->getText (lowCut->convertTo0to1 (effects::LowCut::offHz), 16) == "Off");
+    CHECK (lowCut->getText (lowCut->getDefaultValue(), 16) == "80 Hz");
+
+    // A fresh plugin starts with it on, filtering from the very first note.
+    ParagonX1AudioProcessor fresh;
+    fresh.setPlayConfigDetails (1, 2, sampleRate, blockSize);
+    fresh.prepareToPlay (sampleRate, blockSize);
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    buffer.clear();
+    for (int i = 0; i < blockSize; ++i)
+        buffer.setSample (0, i, 0.3f);   // a step: what a plosive does to the mic
+    juce::MidiBuffer midi;
+    fresh.processBlock (buffer, midi);
+    CHECK (std::abs (buffer.getSample (0, blockSize - 1)) < 0.3f * 0.95f);   // already draining away
+}
+
+TEST_CASE ("LOW CUT: turning the knob, or switching it off and on, doesn't click", "[effects][lowcut]")
+{
+    // A steady 1 kHz note while LOW CUT sweeps from OFF to the top and back.
+    // A click would show as a sample far from the clean sine.
+    EffectRig rig;
+    const auto input = sine (1000.0, 0.3f, 1.2);
+    std::vector<float> output;
+    const float settings[] = { effects::LowCut::offHz, effects::LowCut::maxHz, 80.0f, effects::LowCut::offHz, 300.0f, 150.0f };
+    const auto chunk = input.size() / std::size (settings);
+    for (size_t step = 0; step < std::size (settings); ++step)
+    {
+        rig.set (ParamIDs::inputLowCut, settings[step]);
+        const auto part = rig.runMono ({ input.begin() + (long) (step * chunk), input.begin() + (long) ((step + 1) * chunk) });
+        output.insert (output.end(), part.begin(), part.end());
+    }
+
+    // A click is a sudden jump between neighbouring samples. A 0.3 sine at
+    // 1 kHz never moves more than 0.3 x 2 pi x 1000 / 48000 = 0.039 per
+    // sample, so the output must stay under that (plus a hair).
+    CHECK (allFinite (output));
+    auto biggestStep = 0.0f;
+    for (size_t i = 1; i < output.size(); ++i)
+        biggestStep = std::max (biggestStep, std::abs (output[i] - output[i - 1]));
+    CHECK (biggestStep < 0.0415f);
+
+    // And the note keeps its level throughout: even at 400 Hz, LOW CUT takes
+    // under 0.3 dB off 1 kHz. (It shifts its timing slightly, which is why
+    // this compares levels rather than samples.)
+    for (size_t step = 0; step < std::size (settings); ++step)
+    {
+        const auto from = (double) (step * chunk) / sampleRate, to = (double) ((step + 1) * chunk) / sampleRate;
+        CHECK_THAT (dB (rms (output, from, to) / rms (input, from, to)), WithinAbs (0.0, 0.35));
+    }
+}

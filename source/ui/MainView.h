@@ -19,12 +19,14 @@
 #include "ui/SignalChain.h"
 
 // A side strip from the mockup: a title, a gain knob with its value
-// underneath, and a level meter.
+// underneath, and a level meter. Given a `lowCutId` (the INPUT strip), a
+// smaller LOW CUT knob sits between the gain knob and the meter.
 class GainColumn final : public juce::Component
 {
 public:
     GainColumn (const juce::String& title, juce::AudioProcessorValueTreeState& parameters,
-                const juce::String& parameterId, LevelMeterSource& meterSource);
+                const juce::String& parameterId, LevelMeterSource& meterSource,
+                const juce::String& lowCutId = {});
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -33,6 +35,9 @@ private:
     juce::Label titleLabel;
     juce::Slider knob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
+    juce::Label lowCutLabel;
+    juce::Slider lowCutKnob { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowCutAttachment;
     LevelMeter meter;
 };
 

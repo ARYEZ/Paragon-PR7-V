@@ -20,6 +20,7 @@ namespace
         explicit TestRig (double rate = 48000.0) : sampleRate (rate)
         {
             processor.setPlayConfigDetails (1, 2, sampleRate, blockSize);
+            set (ParamIDs::inputLowCut, effects::LowCut::offHz);   // LOW CUT off: these tests are about the amp and cab
             processor.prepareToPlay (sampleRate, blockSize);
         }
 

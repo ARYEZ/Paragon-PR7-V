@@ -72,7 +72,8 @@ void InkArrowButton::paintButton (juce::Graphics& g, bool, bool down)
 
 //==============================================================================
 GainColumn::GainColumn (const juce::String& title, juce::AudioProcessorValueTreeState& parameters,
-                        const juce::String& parameterId, LevelMeterSource& meterSource)
+                        const juce::String& parameterId, LevelMeterSource& meterSource,
+                        const juce::String& lowCutId)
     : attachment (parameters, parameterId, knob),
       meter (meterSource)
 {
@@ -90,6 +91,24 @@ GainColumn::GainColumn (const juce::String& title, juce::AudioProcessorValueTree
     addAndMakeVisible (titleLabel);
     addAndMakeVisible (knob);
     addAndMakeVisible (meter);
+
+    if (lowCutId.isNotEmpty())
+    {
+        lowCutLabel.setText ("LOW CUT", juce::dontSendNotification);
+        lowCutLabel.setJustificationType (juce::Justification::centred);
+        lowCutLabel.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        lowCutLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.7f));
+
+        lowCutAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, lowCutId, lowCutKnob);
+        lowCutKnob.setColour (juce::Slider::textBoxTextColourId, ParagonColours::accent);
+        lowCutKnob.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        lowCutKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 18);
+        if (auto* parameter = parameters.getParameter (lowCutId))   // double-click: back to the default (80 Hz)
+            lowCutKnob.setDoubleClickReturnValue (true, parameters.getParameterRange (lowCutId).convertFrom0to1 (parameter->getDefaultValue()));
+
+        addAndMakeVisible (lowCutLabel);
+        addAndMakeVisible (lowCutKnob);
+    }
 }
 
 void GainColumn::paint (juce::Graphics& g)
@@ -101,16 +120,25 @@ void GainColumn::resized()
 {
     // Proportions from the mockup: title, a compact knob, its value in
     // orange, then a tall slim meter.
+    // With LOW CUT, its smaller knob goes under the gain knob, in signal
+    // order, and the meter starts lower.
     auto area = getLocalBounds();
     titleLabel.setBounds (area.withHeight (26).withY (14));
     knob.setBounds (juce::Rectangle<int> (76, 92).withCentre ({ area.getCentreX(), 86 }));
-    meter.setBounds (juce::Rectangle<int> (46, 0).withX (area.getCentreX() - 26).withY (146).withBottom (area.getBottom() - 22));
+    auto meterTop = 146;
+    if (lowCutAttachment != nullptr)
+    {
+        lowCutLabel.setBounds (area.withHeight (14).withY (140));
+        lowCutKnob.setBounds (juce::Rectangle<int> (60, 66).withCentre ({ area.getCentreX(), 189 }));
+        meterTop = 232;
+    }
+    meter.setBounds (juce::Rectangle<int> (46, 0).withX (area.getCentreX() - 26).withY (meterTop).withBottom (area.getBottom() - 22));
 }
 
 //==============================================================================
 MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     : audioProcessor (processorToShow),
-      inputColumn ("INPUT", processorToShow.getParameters(), ParamIDs::inputGain, processorToShow.getInputMeter()),
+      inputColumn ("INPUT", processorToShow.getParameters(), ParamIDs::inputGain, processorToShow.getInputMeter(), ParamIDs::inputLowCut),
       outputColumn ("OUTPUT", processorToShow.getParameters(), ParamIDs::outputGain, processorToShow.getOutputMeter()),
       bypassAttachment (processorToShow.getParameters(), ParamIDs::bypass, bypassButton),
       tunerAttachment (processorToShow.getParameters(), ParamIDs::tunerOn, tunerPedal),

@@ -99,6 +99,8 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     filterPitch.prepare (sampleRate, preparedBlockSize);
     drive.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
+    lowCut.prepare (sampleRate, preparedBlockSize);
+    lowCut.reset (param (ParamIDs::inputLowCut));
     graphicEq.prepare (sampleRate, preparedBlockSize);
     modulation.prepare (sampleRate, preparedBlockSize);
     delay.prepare (sampleRate, preparedBlockSize);
@@ -229,9 +231,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
 {
     const auto numOutputChannels = juce::jmin (getTotalNumOutputChannels(), buffer.getNumChannels());
 
-    // A guitar is a mono source, and NAM models are mono, so the chain up to
-    // the cabinet runs on the first input channel. On a stereo track that is
-    // the left channel, which is how most amp sims treat stereo input.
+    // A microphone is a mono source, and NAM models are mono, so the chain up
+    // to the cabinet runs on the first input channel. On a stereo track that
+    // is the left channel.
     auto* mono = buffer.getWritePointer (0, start);
     juce::dsp::AudioBlock<float> monoBlock (&mono, 1, (size_t) numSamples);
 
@@ -244,14 +246,19 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         dry[i] = bypassDelay.popSample (0, latency);
     }
 
-    // The tuner listens to the guitar itself, before anything changes it.
+    // The tuner listens to the voice itself, before anything changes it.
     inputTap.write (mono, numSamples);
 
     inputGain.setTargetValue (juce::Decibels::decibelsToGain (inputGainDb->load()));
     inputGain.applyGain (mono, numSamples);
     inputMeter.pushSamples (mono, numSamples);
 
-    // PITCH: TUNING, OCTAVER and FREEZE, before anything else shapes the guitar.
+    // LOW CUT: rumble and plosive thumps out first, so nothing after it
+    // (above all the compressor) reacts to them. The INPUT meter, just
+    // before, shows what the mic sends, for setting the gain.
+    lowCut.process (monoBlock, param (ParamIDs::inputLowCut));
+
+    // PITCH: TUNING, OCTAVER and FREEZE, before the effects shape the voice.
     pitchBlock.process (monoBlock, { param (ParamIDs::pitchTune), isOn (ParamIDs::octOn), param (ParamIDs::octSubTwo),
                                      param (ParamIDs::octSubOne), param (ParamIDs::octDry), param (ParamIDs::octUp),
                                      isOn (ParamIDs::freezeOn), param (ParamIDs::freezeLevel),

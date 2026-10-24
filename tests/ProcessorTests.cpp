@@ -91,6 +91,10 @@ TEST_CASE ("Input and output gain apply the requested dB", "[processor]")
 TEST_CASE ("Level meters report the peak and reset after reading", "[processor]")
 {
     auto processor = makePreparedProcessor();
+    // LOW CUT off: the test tone starts suddenly, and a high-pass filter
+    // overshoots for a moment on a sudden start, which the meter would catch.
+    setParameter (*processor, ParamIDs::inputLowCut, effects::LowCut::offHz);
+    processor->prepareToPlay (sampleRate, blockSize);   // off from the first sample, not fading out
     processSettled (*processor, 2, 0.5f);
 
     CHECK_THAT (processor->getInputMeter().takePeak(), WithinAbs (0.5, 0.01));

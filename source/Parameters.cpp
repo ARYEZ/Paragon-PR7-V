@@ -7,6 +7,7 @@
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
+#include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Reverb.h"
 
@@ -42,6 +43,10 @@ namespace
         const char* keys[] = { "Eb", "D", "C#", "C", "B", "Bb", "A", "Ab", "G", "F#", "F", "E (-1 oct)" };
         const auto key = juce::String (keys[juce::jlimit (0, 11, -semitones - 1)]);
         return semitones == -12 ? key : key + " (" + juce::String (semitones) + ")";
+    };
+    const ToText asLowCut = [] (float hz, int)
+    {
+        return effects::LowCut::isOff (hz) ? juce::String ("Off") : juce::String (juce::roundToInt (hz)) + " Hz";
     };
     const ToText asGate = [] (float value, int)
     {
@@ -238,5 +243,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::freezeLevel, "Freeze Level", { 0.0f, 1.0f, 0.01f }, 0.7f, v24, asPercent));
     layout.add (makeFloat (ParamIDs::freezeAttack, "Freeze Attack", skewed (10.0f, 5000.0f, 300.0f, 1.0f), 300.0f, v24, asTime));
     layout.add (makeFloat (ParamIDs::freezeRelease, "Freeze Release", skewed (50.0f, 8000.0f, 1500.0f, 1.0f), 1500.0f, v24, asTime));
+
+    // Added in plugin version 25: LOW CUT for the microphone. On at 80 Hz by
+    // default, the usual starting point for a voice: below the lowest sung
+    // notes, but above the rumble a mic stand picks up.
+    layout.add (makeFloat (ParamIDs::inputLowCut, "Low Cut",
+                           skewed (effects::LowCut::offHz, effects::LowCut::maxHz, 100.0f, 1.0f), 80.0f, 25, asLowCut));
     return layout;
 }

@@ -13,6 +13,7 @@
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/LowCut.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/PitchBlock.h"
 #include "dsp/effects/TalkBox.h"
@@ -230,6 +231,9 @@ private:
 
     AmpStage amp;
     CabStage cab;
+
+    // LOW CUT, straight after the INPUT gain: before anything else.
+    effects::LowCut lowCut;
 
     // Signal chain, in order: wah -> compGate -> drive -> amp -> cab -> presence
     // -> graphic EQ -> modulation -> delay -> reverb. Up to the cab it's mono; from

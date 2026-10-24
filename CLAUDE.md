@@ -33,7 +33,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 
 - An AGPLv3 **JUCE VST3** plugin: a NAM (Neural Amp Modeler) player with a full multi-effects chain, drawn as a floor processor with an expression pedal.
   - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
-- **The chain:** PITCH → (WAH pedal) → COMP/GATE → FILTER/PITCH → GLITCH (Pre) → OD/DIST → AMP (NAM) → CAB (IR) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → MOD → DELAY → REVERB → LO-FI.
+- **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → COMP/GATE → FILTER/PITCH → GLITCH (Pre) → OD/DIST → AMP (NAM) → CAB (IR) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → MOD → DELAY → REVERB → LO-FI.
 - **Code layout:** DSP in `source/dsp/effects/`, UI in `source/ui/`, parameters in `source/Parameters.*`, rigs in `source/rigs/`, tests in `tests/`.
 - **Parameters:**
   - Saved by ID and choices by **index**: only ever *append* choices, never reorder.

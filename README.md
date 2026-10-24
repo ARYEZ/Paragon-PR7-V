@@ -87,13 +87,16 @@ so the guide below still describes the guitar version's effects.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
   (banks A-D), tags and favourites rigs. Factory rigs set the effects and keep your amp and cab.
-  INPUT and OUTPUT stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
+  INPUT, LOW CUT and OUTPUT stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
+- **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
+  rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
+  80 Hz to start; up to 120-150 Hz for a thin or close-miked voice; turn it all the way down for OFF.
 - **TAP** (header or pedal) sets the delay's tempo from your taps; the BPM turns orange. Click the
   BPM to follow your DAW's tempo again. The TAP light flashes in time.
 - **Tuner:** hold TAP, or press TUNER on the pedal. The screen shows the note, how many cents off it
   is (the centre bar turns green when in tune) and the frequency. MUTE silences the output while tuning.
 - **Undo / redo:** the arrows in the header, UNDO / REDO on the pedal, or Ctrl+Z / Ctrl+Shift+Z
-  (Cmd on a Mac). Each knob move, switch, file or rig load is one step. INPUT, OUTPUT and the
+  (Cmd on a Mac). Each knob move, switch, file or rig load is one step. INPUT, LOW CUT, OUTPUT and the
   pedal's position aren't undone.
 - **Expression pedal** (right of the unit): drag it, use the mouse wheel, or send MIDI CC 11 (or the CC chosen in SETTINGS) from a
   real expression pedal (route your MIDI track to the plugin). Assign it on the small EXPRESSION screen beside it (click a line, or scroll; it also shows the
