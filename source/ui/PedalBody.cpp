@@ -223,16 +223,7 @@ void PedalBody::paint (juce::Graphics& g)
         g.drawRoundedRectangle (inset.translated (0.0f, 1.0f).expanded (0.5f), 8.5f, 1.0f);
     }
 
-    // 6. Screws in the face's corners: recessed hex heads.
-    if (! face.isEmpty())
-    {
-        const auto inset = 14.0f;
-        for (const auto centre : { face.getTopLeft().translated (inset, inset), face.getTopRight().translated (-inset, inset),
-                                   face.getBottomLeft().translated (inset, -inset), face.getBottomRight().translated (-inset, -inset) })
-            paintScrew (g, centre, 5.0f);
-    }
-
-    // 7. The expression pedal's bay: a deeper pearl housing, more shaded
+    // 6. The expression pedal's bay: a deeper pearl housing, more shaded
     //    than the face because it curves away, split from it by a dark seam. The pedal component draws the pedal.
     if (const auto bay = geometry.pedalBay; ! bay.isEmpty())
     {
@@ -283,27 +274,6 @@ void PedalBody::strokeTopHighlight (juce::Graphics& g, juce::Rectangle<float> ar
 void PedalBody::drawSatin (juce::Graphics& g) const
 {
     g.drawImage (satin, getLocalBounds().toFloat());
-}
-
-void PedalBody::paintScrew (juce::Graphics& g, juce::Point<float> centre, float radius)
-{
-    // A countersunk screw: a dark ring where it sits in the plate, a domed
-    // chrome head lit from the top left, and a hex socket.
-    const auto head = juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre);
-    g.setColour (juce::Colours::white.withAlpha (Finish::isBlack() ? 0.18f : 0.8f));
-    g.drawEllipse (head.expanded (1.2f).translated (0.0f, 0.8f), 1.0f);
-    g.setColour (juce::Colour (0xff2a1c24).withAlpha (0.7f));
-    g.drawEllipse (head.expanded (0.6f), 1.2f);
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff6eef2), head.getX(), head.getY(),
-                                             juce::Colour (0xff7d6a74), head.getRight(), head.getBottom(), false));
-    g.fillEllipse (head);
-
-    juce::Path socket;
-    socket.addPolygon (centre, 6, radius * 0.48f, juce::MathConstants<float>::pi / 6.0f);
-    g.setColour (juce::Colour (0xff1e1418));
-    g.fillPath (socket);
-    g.setColour (juce::Colours::white.withAlpha (0.5f));
-    g.strokePath (socket, juce::PathStrokeType (0.6f), juce::AffineTransform::translation (0.3f, 0.5f));
 }
 
 void PedalBody::paintBadge (juce::Graphics& g) const

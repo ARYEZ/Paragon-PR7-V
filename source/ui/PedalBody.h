@@ -36,7 +36,6 @@ private:
     void paintBadge (juce::Graphics&) const;
     void drawSatin (juce::Graphics&) const;   // the pearl satin grain over the whole component (clip first)
     static void strokeTopHighlight (juce::Graphics&, juce::Rectangle<float> area, float radius, float thickness, float alpha);
-    static void paintScrew (juce::Graphics&, juce::Point<float> centre, float radius);
 
     juce::Image satin;
     Geometry geometry;

@@ -2,6 +2,10 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.14.1
+
+- **No more screws on the face plate, and no MIN light.** The four screw heads in its corners and the MIN light beside the expression pedal are gone, for a cleaner front (released on its own as 0.9.1, and now joined with everything since). The dock's EXPRESSION ASSIGN screen still shows where the pedal sits.
+
 ## 0.14.0
 
 - **SATURATION is MARS.** The four guitar pedal models PR7-V inherited from PR7-G (Classic, Screamer, Muff Fuzz and Face Fuzz) are gone, and with them the MODEL menu: SATURATION now always opens MARS.
@@ -74,6 +78,11 @@ Each version's notes appear on its GitHub Release page.
 - **Up to 3.5 seconds** of delay (from 2.5).
 - **Your rigs sound the same:** every new control starts where it does nothing.
 - **Not built:** H-Delay's LINK (moving both filters together) and its OUTPUT knob (MIX does that job here).
+
+## 0.9.1
+
+- **No more screws on the face plate.** The four screw heads in its corners are gone, for a cleaner front.
+- **The MIN light beside the expression pedal is gone too.** It lit when the pedal was fully back on its heel; the dock's EXPRESSION ASSIGN screen already shows where the pedal sits.
 
 ## 0.9.0
 
