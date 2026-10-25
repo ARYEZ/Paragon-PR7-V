@@ -6,52 +6,45 @@
 
 namespace
 {
+    using MarsModulation = effects::MarsModulation;
     constexpr float lowestHz = 20.0f, highestHz = 20000.0f;
-
-    void styleLabel (juce::Label& label, const juce::String& text)
-    {
-        label.setText (text, juce::dontSendNotification);
-        label.setJustificationType (juce::Justification::centred);
-        label.setFont (juce::FontOptions (10.5f, juce::Font::bold));
-        label.setColour (juce::Label::textColourId, ParagonColours::textDim);
-        label.setMinimumHorizontalScale (0.6f);
-        label.setBorderSize ({});
-        label.setInterceptsMouseClicks (false, false);
-    }
 
     // Each band's colour on the display, low to high: warm to cool.
     const juce::Colour bandColours[] = { juce::Colour (0xffff7a2e), juce::Colour (0xffffb22e), juce::Colour (0xff3ec7a7), juce::Colour (0xff5aa9ff) };
 }
 
-MarsPanel::MarsPanel (juce::AudioProcessorValueTreeState& state, std::function<float (int)> driveOfBand)
-    : parameters (state), bandDrive (std::move (driveOfBand))
+MarsPanel::MarsPanel (juce::AudioProcessorValueTreeState& state, std::function<float (int)> driveOfBand, const effects::Mars* marsToShow)
+    : parameters (state), bandDrive (std::move (driveOfBand)), mars (marsToShow),
+      sourcesView (state, marsToShow, [this] (int target) { modulateMenu (target, sourcesView); }),
+      slotsView (state, marsToShow)
 {
-    setUp (on, "ON", "SATURATION on or off");
+    using MarsModUi::setUp;
+    setUp (*this, on, "ON", "SATURATION on or off");
     on.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, ParamIDs::driveOn, on.button);
-    setUp (bands, "BANDS", { "1", "2", "3", "4" }, "How many frequency bands, each saturated its own way");
+    setUp (*this, bands, "BANDS", { "1", "2", "3", "4" }, "How many frequency bands, each saturated its own way");
     bands.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::marsBands, bands.box);
 
-    setUp (bandOn, "ON", "This band on, or passed through clean");
-    setUp (style, "STYLE", effects::Mars::styleNames, "The kind of saturation: tube, tape, transformer, amp, or an effect");
-    setUp (drive, "DRIVE", "How hard the band is driven. Its level stays about the same, automatically");
-    setUp (dynamics, "DYNAMICS", "Left: a gate (quiet sounds faded down). Right: pumping compression");
-    setUp (feedback, "FEEDBACK", "Some of the band's output back into it, ringing at FB FREQ");
-    setUp (feedbackFreq, "FB FREQ", "Where the feedback rings: like moving a mic closer to its speaker");
-    setUp (mix, "MIX", "The band's clean sound against the saturated one");
-    setUp (bass, "BASS", "Low shelf on the saturated sound");
-    setUp (mid, "MID", "Mids (around 1 kHz) of the saturated sound");
-    setUp (treble, "TREBLE", "High shelf on the saturated sound");
-    setUp (presence, "PRESENCE", "Upper mids (around 4 kHz): edge and clarity");
-    setUp (level, "LEVEL", "The band's level (all the way down: off)");
+    setUp (*this, bandOn, "ON", "This band on, or passed through clean");
+    setUp (*this, style, "STYLE", effects::Mars::styleNames, "The kind of saturation: tube, tape, transformer, amp, or an effect");
+    setUp (*this, drive, "DRIVE", "How hard the band is driven. Its level stays about the same, automatically");
+    setUp (*this, dynamics, "DYNAMICS", "Left: a gate (quiet sounds faded down). Right: pumping compression");
+    setUp (*this, feedback, "FEEDBACK", "Some of the band's output back into it, ringing at FB FREQ");
+    setUp (*this, feedbackFreq, "FB FREQ", "Where the feedback rings: like moving a mic closer to its speaker");
+    setUp (*this, mix, "MIX", "The band's clean sound against the saturated one");
+    setUp (*this, bass, "BASS", "Low shelf on the saturated sound");
+    setUp (*this, mid, "MID", "Mids (around 1 kHz) of the saturated sound");
+    setUp (*this, treble, "TREBLE", "High shelf on the saturated sound");
+    setUp (*this, presence, "PRESENCE", "Upper mids (around 4 kHz): edge and clarity");
+    setUp (*this, level, "LEVEL", "The band's level (all the way down: off)");
 
-    setUp (input, "INPUT", "Level into MARS: more drives every band harder");
-    setUp (output, "OUTPUT", "Level out of MARS");
-    setUp (globalMix, "MIX", "MARS against your voice as it came in");
-    setUp (quality, "QUALITY", effects::Mars::qualityNames, "Oversampling: cleaner highs with heavy drive, for more CPU");
-    setUp (slope, "SLOPE", effects::Mars::slopeNames, "How steeply the bands are split");
-    setUp (cross1, "XOVER 1", "Between bands 1 and 2");
-    setUp (cross2, "XOVER 2", "Between bands 2 and 3");
-    setUp (cross3, "XOVER 3", "Between bands 3 and 4");
+    setUp (*this, input, "INPUT", "Level into MARS: more drives every band harder");
+    setUp (*this, output, "OUTPUT", "Level out of MARS");
+    setUp (*this, globalMix, "MIX", "MARS against your voice as it came in");
+    setUp (*this, quality, "QUALITY", effects::Mars::qualityNames, "Oversampling: cleaner highs with heavy drive, for more CPU");
+    setUp (*this, slope, "SLOPE", effects::Mars::slopeNames, "How steeply the bands are split");
+    setUp (*this, cross1, "XOVER 1", "Between bands 1 and 2");
+    setUp (*this, cross2, "XOVER 2", "Between bands 2 and 3");
+    setUp (*this, cross3, "XOVER 3", "Between bands 3 and 4");
     const std::pair<Knob*, const char*> globals[] = { { &input, ParamIDs::marsInput }, { &output, ParamIDs::marsOutput }, { &globalMix, ParamIDs::marsMix },
                                                       { &cross1, ParamIDs::marsCross1 }, { &cross2, ParamIDs::marsCross2 }, { &cross3, ParamIDs::marsCross3 } };
     for (auto [knob, id] : globals)
@@ -63,7 +56,19 @@ MarsPanel::MarsPanel (juce::AudioProcessorValueTreeState& state, std::function<f
     quality.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::marsQuality, quality.box);
     slope.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::marsSlope, slope.box);
 
-    const char* pageNames[] = { "BANDS", "GLOBAL" };
+    for (auto [knob, target] : { std::pair { &input, MarsModulation::globalTarget (MarsModulation::input) },
+                                 std::pair { &output, MarsModulation::globalTarget (MarsModulation::output) },
+                                 std::pair { &globalMix, MarsModulation::globalTarget (MarsModulation::globalMix) },
+                                 std::pair { &cross1, MarsModulation::globalTarget (MarsModulation::crossover1) },
+                                 std::pair { &cross2, MarsModulation::globalTarget (MarsModulation::crossover2) },
+                                 std::pair { &cross3, MarsModulation::globalTarget (MarsModulation::crossover3) } })
+        knob->slider.target = target;
+    for (auto* knob : modulatableKnobs())
+        knob->slider.onModulateMenu = [this, knob] (int target) { modulateMenu (target, knob->slider); };
+    addChildComponent (sourcesView);
+    addChildComponent (slotsView);
+
+    const char* pageNames[] = { "BANDS", "GLOBAL", "MOD", "SLOTS" };
     for (size_t i = 0; i < pages.size(); ++i)
     {
         auto& button = pages[i];
@@ -78,41 +83,30 @@ MarsPanel::MarsPanel (juce::AudioProcessorValueTreeState& state, std::function<f
 
     selectBand (0);
     showPage (0);
-    startTimerHz (20);
+    startTimerHz (30);
 }
 
 MarsPanel::~MarsPanel() = default;
 
-void MarsPanel::setUp (Knob& knob, const juce::String& labelText, const juce::String& tooltip)
+std::vector<MarsPanel::Knob*> MarsPanel::modulatableKnobs()
 {
-    styleLabel (knob.label, labelText);
-    knob.slider.setColour (juce::Slider::textBoxTextColourId, ParagonColours::accent);
-    knob.slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    knob.slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, 15);
-    knob.slider.setTooltip (tooltip);
-    addAndMakeVisible (knob.label);
-    addAndMakeVisible (knob.slider);
+    return { &drive, &dynamics, &feedback, &feedbackFreq, &mix, &bass, &mid, &treble, &presence, &level,
+             &input, &output, &globalMix, &cross1, &cross2, &cross3 };
 }
 
-void MarsPanel::setUp (Choice& choice, const juce::String& labelText, const juce::StringArray& items, const juce::String& tooltip)
+void MarsPanel::modulateMenu (int target, juce::Component& knob)
 {
-    styleLabel (choice.label, labelText);
-    choice.box.addItemList (items, 1);
-    choice.box.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
-    choice.box.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
-    choice.box.setColour (juce::ComboBox::textColourId, ParagonColours::accent);
-    choice.box.setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
-    choice.box.setTooltip (tooltip);
-    addAndMakeVisible (choice.label);
-    addAndMakeVisible (choice.box);
+    MarsModUi::showModulateMenu (parameters, target, knob, [this] { showPage (3); });
 }
 
-void MarsPanel::setUp (Switch& control, const juce::String& labelText, const juce::String& tooltip)
+float MarsPanel::liveValue (const juce::String& id, int target) const
 {
-    styleLabel (control.label, labelText);
-    control.button.setTooltip (tooltip);
-    addAndMakeVisible (control.label);
-    addAndMakeVisible (control.button);
+    const auto base = value (id);
+    const auto offset = mars != nullptr ? mars->getTargetOffset (target) : 0.0f;
+    if (std::abs (offset) < 1.0e-6f)
+        return base;
+    const auto range = MarsModulation::targetRange (target);
+    return range.convertFrom0to1 (juce::jlimit (0.0f, 1.0f, range.convertTo0to1 (juce::jlimit (range.start, range.end, base)) + offset));
 }
 
 float MarsPanel::value (const juce::String& id) const { return parameters.getRawParameterValue (id)->load(); }
@@ -127,7 +121,7 @@ void MarsPanel::set (const juce::String& id, float plainValue)
 
 int MarsPanel::numBands() const { return juce::roundToInt (value (ParamIDs::marsBands)) + 1; }
 
-std::array<float, effects::Mars::maxBands + 1> MarsPanel::bandEdges() const
+std::array<float, effects::Mars::maxBands + 1> MarsPanel::bandEdges (bool live) const
 {
     // The band edges as MARS uses them: each crossover kept above the last.
     std::array<float, effects::Mars::maxBands + 1> edges {};
@@ -137,7 +131,8 @@ std::array<float, effects::Mars::maxBands + 1> MarsPanel::bandEdges() const
     auto lowest = 30.0f;
     for (int i = 0; i < numBands() - 1; ++i)
     {
-        edges[(size_t) i + 1] = juce::jlimit (lowest, 19200.0f, value (ids[i]));
+        const auto hz = live ? liveValue (ids[i], MarsModulation::globalTarget (MarsModulation::crossover1 + i)) : value (ids[i]);
+        edges[(size_t) i + 1] = juce::jlimit (lowest, 19200.0f, hz);
         lowest = edges[(size_t) i + 1] * 1.25f;
     }
     edges[(size_t) numBands()] = highestHz;
@@ -184,45 +179,34 @@ void MarsPanel::selectBand (int band)
 void MarsPanel::bindBandControls()
 {
     const auto id = [this] (const char* part) { return ParamIDs::marsBand (selected, part); };
-    bandOn.attachment.reset();
-    bandOn.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, id ("On"), bandOn.button);
-    style.attachment.reset();
-    style.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, id ("Style"), style.box);
+    MarsModUi::attach (parameters, bandOn, id ("On"));
+    MarsModUi::attach (parameters, style, id ("Style"));
     const std::pair<Knob*, const char*> knobs[] = { { &drive, "Drive" }, { &dynamics, "Dynamics" }, { &feedback, "Feedback" }, { &feedbackFreq, "FbFreq" },
                                                     { &mix, "Mix" }, { &bass, "Bass" }, { &mid, "Mid" }, { &treble, "Treble" },
                                                     { &presence, "Presence" }, { &level, "Level" } };
-    for (auto [knob, part] : knobs)
-    {
-        knob->attachment.reset();
-        knob->attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id (part), knob->slider);
-        auto* parameter = parameters.getParameter (id (part));
-        knob->slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
-    }
+    const int parts[] = { MarsModulation::drive, MarsModulation::dynamics, MarsModulation::feedback, MarsModulation::feedbackFreq,
+                          MarsModulation::mix, MarsModulation::bass, MarsModulation::mid, MarsModulation::treble,
+                          MarsModulation::presence, MarsModulation::level };
+    for (size_t i = 0; i < std::size (knobs); ++i)
+        MarsModUi::attach (parameters, *knobs[i].first, id (knobs[i].second), MarsModulation::bandTarget (selected, parts[i]));
 }
 
 void MarsPanel::showPage (int newPage)
 {
-    page = juce::jlimit (0, 1, newPage);
+    page = juce::jlimit (0, numPages - 1, newPage);
     pages[(size_t) page].setToggleState (true, juce::dontSendNotification);
-    const auto onBands = page == 0;
+    const auto onBands = page == 0, onGlobal = page == 1;
     for (auto* control : std::initializer_list<juce::Component*> { &on.label, &on.button, &bands.label, &bands.box,
                                                                    &bandOn.label, &bandOn.button, &style.label, &style.box })
         control->setVisible (onBands);
     for (auto* knob : { &drive, &dynamics, &feedback, &feedbackFreq, &mix, &bass, &mid, &treble, &presence, &level })
-    {
-        knob->label.setVisible (onBands);
-        knob->slider.setVisible (onBands);
-    }
+        MarsModUi::show (*knob, onBands);
     for (auto* knob : { &input, &output, &globalMix, &cross1, &cross2, &cross3 })
-    {
-        knob->label.setVisible (! onBands);
-        knob->slider.setVisible (! onBands);
-    }
+        MarsModUi::show (*knob, onGlobal);
     for (auto* choice : { &quality, &slope })
-    {
-        choice->label.setVisible (! onBands);
-        choice->box.setVisible (! onBands);
-    }
+        MarsModUi::show (*choice, onGlobal);
+    sourcesView.setVisible (page == 2);
+    slotsView.setVisible (page == 3);
     resized();
     repaint();
 }
@@ -346,6 +330,23 @@ void MarsPanel::timerCallback()
     }
     if (changed && page == 0)
         repaint (display.toNearestInt().expanded (2));
+
+    // The modulation: its pages, and the knobs (and display) it moves.
+    if (page == 2)
+        sourcesView.refresh();
+    if (page == 3)
+        slotsView.refresh();
+    if (mars != nullptr && page <= 1)
+    {
+        auto sum = 0.0f;
+        for (int target = 1; target < MarsModulation::firstLfoTarget; ++target)
+            sum += std::abs (mars->getTargetOffset (target)) * (float) (target % 7 + 1);
+        if (std::abs (sum - shownModulation) > 0.0005f)
+        {
+            shownModulation = sum;
+            repaint();
+        }
+    }
 }
 
 void MarsPanel::resized()
@@ -356,7 +357,7 @@ void MarsPanel::resized()
     header.removeFromLeft (26 + 8 + titleWidth + 24);
     for (auto& button : pages)
     {
-        button.setBounds (header.removeFromLeft (76).reduced (0, 1));
+        button.setBounds (header.removeFromLeft (60).reduced (0, 1));
         header.removeFromLeft (4);
     }
     area.removeFromTop (10);
@@ -398,6 +399,12 @@ void MarsPanel::resized()
                 place (knob->label, knob->slider, line.removeFromLeft (width).reduced (2, 0), 0);
         }
     }
+    else if (page == 2 || page == 3)
+    {
+        sourcesView.setBounds (area);
+        slotsView.setBounds (area);
+        display = {};
+    }
     else
     {
         // GLOBAL: one row.
@@ -417,6 +424,16 @@ void MarsPanel::resized()
         }
         display = {};
     }
+}
+
+void MarsPanel::paintOverChildren (juce::Graphics& g)
+{
+    if (page > 1)
+        return;
+    for (auto* knob : modulatableKnobs())
+        if (knob->slider.isVisible() && knob->slider.target > 0)
+            MarsModUi::paintModulation (g, *this, knob->slider, mars != nullptr ? mars->getTargetOffset (knob->slider.target) : 0.0f,
+                                        MarsModUi::targetColour (parameters, knob->slider.target));
 }
 
 void MarsPanel::paint (juce::Graphics& g)
@@ -458,7 +475,7 @@ void MarsPanel::paint (juce::Graphics& g)
                     juce::Justification::centredLeft, false);
     }
 
-    const auto edges = bandEdges();
+    const auto edges = bandEdges (true);
     for (int b = 0; b < numBands(); ++b)
     {
         const auto left = xFor (edges[(size_t) b]), right = xFor (edges[(size_t) b + 1]);
@@ -474,7 +491,7 @@ void MarsPanel::paint (juce::Graphics& g)
         }
 
         // Its DRIVE as a bar from the bottom, and how hard it's driven right now as a line.
-        const auto driveAmount = value (ParamIDs::marsBand (b, "Drive"));
+        const auto driveAmount = liveValue (ParamIDs::marsBand (b, "Drive"), MarsModulation::bandTarget (b, MarsModulation::drive));
         auto bar = column.reduced (column.getWidth() * 0.3f, 16.0f);
         g.setColour (colour.withAlpha (isOn ? 0.75f : 0.25f));
         g.fillRoundedRectangle (bar.withTop (bar.getBottom() - bar.getHeight() * driveAmount), 2.0f);

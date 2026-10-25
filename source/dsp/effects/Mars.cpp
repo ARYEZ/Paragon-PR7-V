@@ -175,7 +175,8 @@ namespace effects
         for (size_t i = 1; i < oversamplers.size(); ++i)
             oversamplers[i] = std::make_unique<juce::dsp::Oversampling<float>> (1, i == 1 ? 2 : 3,
                                                                                  juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
-
+        for (int target = 1; target < numKnobTargets; ++target)
+            knobRanges[(size_t) target] = MarsModulation::targetRange (target);
     }
 
     const Mars::LevelTable& Mars::measuredLevels()
@@ -248,9 +249,12 @@ namespace effects
                 state.breakdownShifters[q].prepare (sampleRate * factors[q]);
         }
         dryBuffer.setSize (1, maxBlockSize * factors[2]);
-        for (auto* smoothed : { &inputGain, &outputGain, &mix })
-            smoothed->reset (sampleRate, 0.05);
         bypass.prepare (sampleRate, maxBlockSize);
+        // The modulation moves the knobs about 3000 times a second.
+        tickLength = juce::jmax (1, juce::roundToInt (sampleRate / 3000.0));
+        untilTick = 0;
+        wasModulated = false;
+        modulation.prepare (sampleRate);
         currentQuality = -1;
         setRate ((int) Quality::good);
     }
@@ -267,11 +271,13 @@ namespace effects
         c.hz11000 = onePoleFor (rate, 11000.0); c.hz12000 = onePoleFor (rate, 12000.0); c.hz16000 = onePoleFor (rate, 16000.0);
         c.attack = 1.0 - std::exp (-1.0 / (0.003 * rate));    // DYNAMICS: 3 ms in,
         c.release = 1.0 - std::exp (-1.0 / (0.15 * rate));    // 150 ms out (it pumps)
+        modulation.setListenRate (rate);
+        // The glides land where they were going (their lengths were counted at the old rate).
         for (auto& state : bandStates)
-            for (auto* smoothed : { &state.preGain, &state.makeUp, &state.mix, &state.level })
-                smoothed->reset (rate, 0.05);
-        for (auto* smoothed : { &inputGain, &outputGain, &mix })
-            smoothed->reset (rate, 0.05);
+            for (auto* ramp : { &state.preGain, &state.makeUp, &state.mix, &state.level })
+                *ramp = { ramp->target, ramp->target, 0.0, 0 };
+        for (auto* ramp : { &inputGain, &outputGain, &mix })
+            *ramp = { ramp->target, ramp->target, 0.0, 0 };
         // Everything that depends on the rate is set again on the next block.
         std::fill (splitShown.begin(), splitShown.end(), -1.0f);
         bandsShown = -1;
@@ -420,10 +426,10 @@ namespace effects
     double Mars::processBand (int band, double x, const Band& settings) noexcept
     {
         auto& state = bandStates[(size_t) band];
-        const auto preGainNow = state.preGain.getNextValue();
-        const auto makeUpNow = state.makeUp.getNextValue();
-        const auto mixNow = state.mix.getNextValue();
-        const auto levelNow = state.level.getNextValue();
+        const auto preGainNow = state.preGain.next();
+        const auto makeUpNow = state.makeUp.next();
+        const auto mixNow = state.mix.next();
+        const auto levelNow = state.level.next();
         if (! settings.on)
             return x * levelNow;
 
@@ -480,110 +486,234 @@ namespace effects
         return (x * (1.0 - mixNow) + y * mixNow) * levelNow;
     }
 
-    void Mars::process (juce::dsp::AudioBlock<float> monoBlock, const Settings& settings) noexcept
+    void Mars::setKnobs (const Settings& settings, bool modulated) noexcept
+    {
+        // Each knob as set, or (modulated) glided towards its setting over
+        // about 20 ms and then moved by the modulation. Knobs that aren't
+        // being moved skip the range sums.
+        std::array<float, numKnobTargets> knobs {};
+        for (int b = 0; b < maxBands; ++b)
+        {
+            const auto& band = settings.bands[(size_t) b];
+            const float values[] = { band.drive, band.dynamics, band.feedback, band.feedbackHz, band.bassDb, band.midDb,
+                                     band.trebleDb, band.presenceDb, band.mix, band.levelDb };
+            for (int part = 0; part < MarsModulation::bandParts; ++part)
+                knobs[(size_t) MarsModulation::bandTarget (b, part)] = values[part];
+        }
+        const float globals[] = { settings.crossoverHz[0], settings.crossoverHz[1], settings.crossoverHz[2],
+                                  settings.inputDb, settings.outputDb, settings.mix };
+        for (int part = 0; part < 6; ++part)
+            knobs[(size_t) MarsModulation::globalTarget (part)] = globals[part];
+
+        if (modulated)
+        {
+            const auto glide = (float) (1.0 - std::exp (-(double) tickLength / (0.02 * baseRate)));
+            for (size_t t = 1; t < knobs.size(); ++t)
+            {
+                smoothedKnobs[t] += glide * (knobs[t] - smoothedKnobs[t]);
+                knobs[t] = smoothedKnobs[t];
+                if (const auto amount = modulation.offset ((int) t); ! juce::exactlyEqual (amount, 0.0f))
+                {
+                    const auto& range = knobRanges[t];
+                    knobs[t] = range.convertFrom0to1 (juce::jlimit (0.0f, 1.0f, range.convertTo0to1 (juce::jlimit (range.start, range.end, knobs[t])) + amount));
+                }
+            }
+        }
+        else
+        {
+            smoothedKnobs = knobs;
+        }
+
+        for (int b = 0; b < maxBands; ++b)
+        {
+            auto& band = live[(size_t) b];
+            band = settings.bands[(size_t) b];
+            const auto knob = [&] (int part) { return knobs[(size_t) MarsModulation::bandTarget (b, part)]; };
+            band.drive = knob (MarsModulation::drive);
+            band.dynamics = knob (MarsModulation::dynamics);
+            band.feedback = knob (MarsModulation::feedback);
+            band.feedbackHz = knob (MarsModulation::feedbackFreq);
+            band.bassDb = knob (MarsModulation::bass);
+            band.midDb = knob (MarsModulation::mid);
+            band.trebleDb = knob (MarsModulation::treble);
+            band.presenceDb = knob (MarsModulation::presence);
+            band.mix = knob (MarsModulation::mix);
+            band.levelDb = knob (MarsModulation::level);
+        }
+
+        // The glides: one tick long while modulated, so the gains follow it; 50 ms otherwise.
+        const auto factor = factors[juce::jlimit (0, 2, currentQuality)];
+        const auto steps = modulated ? tickLength * factor : juce::roundToInt (0.05 * rate);
+        const auto numBands = juce::jlimit (1, maxBands, settings.numBands);
+        liveBands = numBands;
+
+        // The crossovers, kept in order and apart, set again when they move.
+        std::array<float, maxBands - 1> crossovers {};
+        auto lowest = 30.0f;
+        for (size_t i = 0; i < crossovers.size(); ++i)
+        {
+            crossovers[i] = juce::jlimit (lowest, (float) baseRate * 0.4f, knobs[(size_t) MarsModulation::globalTarget ((int) i)]);
+            lowest = crossovers[i] * 1.25f;
+        }
+        if (crossovers != splitShown || settings.slope != slopeShown || numBands != bandsShown)
+        {
+            for (size_t i = 0; i < splits.size(); ++i)
+                splits[i].set (rate, crossovers[i], settings.slope);
+            // The lower bands go through the later splits' all-passes:
+            // band 1 through splits 2 and 3, band 2 through split 3.
+            compensation[0].set (rate, crossovers[1], settings.slope);
+            compensation[1].set (rate, crossovers[2], settings.slope);
+            compensation[2].set (rate, crossovers[2], settings.slope);
+            if (settings.slope != slopeShown || numBands != bandsShown)
+                resetBands();
+            splitShown = crossovers;
+            slopeShown = settings.slope;
+            bandsShown = numBands;
+        }
+
+        for (int b = 0; b < maxBands; ++b)
+        {
+            const auto& band = live[(size_t) b];
+            auto& state = bandStates[(size_t) b];
+            state.preGain.set (preGain (band.style, band.drive), steps);
+            state.makeUp.set (autoGain (band.style, band.drive), steps);
+            state.mix.set (juce::jlimit (0.0f, 1.0f, band.mix), steps);
+            state.level.set (band.levelDb <= minLevelDb ? 0.0f : juce::Decibels::decibelsToGain (band.levelDb), steps);
+            state.feedbackFilter.set (rate, juce::jlimit (50.0f, 10000.0f, band.feedbackHz), 4.0);
+            const std::array<float, 4> tone { band.bassDb, band.midDb, band.trebleDb, band.presenceDb };
+            if (tone != state.toneShown)
+            {
+                using Make = juce::dsp::IIR::ArrayCoefficients<double>;
+                const auto gain = [] (float db) { return juce::Decibels::decibelsToGain ((double) db); };
+                const std::array<std::array<double, 6>, 4> made {
+                    Make::makeLowShelf (rate, 110.0, 0.7, gain (tone[0])),
+                    Make::makePeakFilter (rate, 1000.0, 0.7, gain (tone[1])),
+                    Make::makeHighShelf (rate, 8000.0, 0.7, gain (tone[2])),
+                    Make::makePeakFilter (rate, 4000.0, 1.0, gain (tone[3])) };
+                for (size_t i = 0; i < 4; ++i)
+                    state.tone[i].c = made[i];
+                state.toneShown = tone;
+            }
+        }
+        const auto global = [&] (int part) { return knobs[(size_t) MarsModulation::globalTarget (part)]; };
+        inputGain.set (juce::Decibels::decibelsToGain (global (MarsModulation::input)), steps);
+        outputGain.set (juce::Decibels::decibelsToGain (global (MarsModulation::output)), steps);
+        mix.set (juce::jlimit (0.0f, 1.0f, global (MarsModulation::globalMix)), steps);
+    }
+
+    void Mars::runSegment (juce::dsp::AudioBlock<float> block) noexcept
+    {
+        const auto quality = currentQuality;
+        const auto numBands = liveBands;
+
+        // Up to the working rate, process, back down.
+        auto working = quality == 0 ? block : oversamplers[(size_t) quality]->processSamplesUp (block);
+        auto* samples = working.getChannelPointer (0);
+        for (size_t i = 0; i < working.getNumSamples(); ++i)
+        {
+            const auto dry = (double) samples[i];
+            const auto in = dry * inputGain.next();
+
+            // Split into bands, keeping the lower ones in phase with later splits.
+            std::array<double, maxBands> bandIn {};
+            auto rest = in;
+            for (int k = 0; k < numBands - 1; ++k)
+            {
+                const auto [low, high] = splits[(size_t) k].process (rest);
+                bandIn[(size_t) k] = low;
+                rest = high;
+                if (k == 1)
+                    bandIn[0] = compensation[0].allPass (bandIn[0]);
+                if (k == 2)
+                {
+                    bandIn[0] = compensation[1].allPass (bandIn[0]);
+                    bandIn[1] = compensation[2].allPass (bandIn[1]);
+                }
+            }
+            bandIn[(size_t) numBands - 1] = rest;
+            modulation.listen (in, bandIn);
+
+            auto sum = 0.0;
+            for (int b = 0; b < numBands; ++b)
+            {
+                drivePeak[(size_t) b] = juce::jmax (drivePeak[(size_t) b],
+                                                    (float) (std::abs (bandIn[(size_t) b]) * bandStates[(size_t) b].preGain.getCurrentValue()));
+                sum += processBand (b, bandIn[(size_t) b], live[(size_t) b]);
+            }
+
+            const auto wet = sum * outputGain.next();
+            const auto mixNow = mix.next();
+            samples[i] = (float) (dry * (1.0 - mixNow) + wet * mixNow);
+        }
+        if (quality != 0)
+            oversamplers[(size_t) quality]->processSamplesDown (block);
+    }
+
+    void Mars::process (juce::dsp::AudioBlock<float> monoBlock, const Settings& settings, const MarsModulation::Context& context) noexcept
     {
         bypass.process (monoBlock, settings.on, [&] (juce::dsp::AudioBlock<float> block)
         {
             const auto quality = juce::jlimit (0, 2, (int) settings.quality);
             if (quality != currentQuality)
                 setRate (quality);
-            const auto numBands = juce::jlimit (1, maxBands, settings.numBands);
+            drivePeak.fill (0.0f);
 
-            // The crossovers, kept in order and apart, set again when they move.
-            std::array<float, maxBands - 1> crossovers {};
-            auto lowest = 30.0f;
-            for (size_t i = 0; i < crossovers.size(); ++i)
+            // A MIDI note starts the sources once, at the first tick of the block.
+            MarsModulation::MidiState laterMidi;
+            if (context.midi != nullptr)
             {
-                crossovers[i] = juce::jlimit (lowest, (float) baseRate * 0.4f, settings.crossoverHz[i]);
-                lowest = crossovers[i] * 1.25f;
+                laterMidi = *context.midi;
+                laterMidi.blockDone();
             }
-            if (crossovers != splitShown || settings.slope != slopeShown || numBands != bandsShown)
-            {
-                for (size_t i = 0; i < splits.size(); ++i)
-                    splits[i].set (rate, crossovers[i], settings.slope);
-                // The lower bands go through the later splits' all-passes:
-                // band 1 through splits 2 and 3, band 2 through split 3.
-                compensation[0].set (rate, crossovers[1], settings.slope);
-                compensation[1].set (rate, crossovers[2], settings.slope);
-                compensation[2].set (rate, crossovers[2], settings.slope);
-                if (settings.slope != slopeShown || numBands != bandsShown)
-                    resetBands();
-                splitShown = crossovers;
-                slopeShown = settings.slope;
-                bandsShown = numBands;
-            }
+            auto tickContext = context;
+            const auto numSamples = block.getNumSamples();
 
-            for (int b = 0; b < maxBands; ++b)
+            if (! MarsModulation::isActive (settings.modulation))
             {
-                const auto& band = settings.bands[(size_t) b];
-                auto& state = bandStates[(size_t) b];
-                state.preGain.setTargetValue (preGain (band.style, band.drive));
-                state.makeUp.setTargetValue (autoGain (band.style, band.drive));
-                state.mix.setTargetValue (juce::jlimit (0.0f, 1.0f, band.mix));
-                state.level.setTargetValue (band.levelDb <= minLevelDb ? 0.0f : juce::Decibels::decibelsToGain (band.levelDb));
-                state.feedbackFilter.set (rate, juce::jlimit (50.0f, 10000.0f, band.feedbackHz), 4.0);
-                const std::array<float, 4> tone { band.bassDb, band.midDb, band.trebleDb, band.presenceDb };
-                if (tone != state.toneShown)
+                // Nothing to move: the sources still run (the panel shows
+                // them), once a block, and the knobs are as set.
+                modulation.tick (settings.modulation, context, (double) numSamples / baseRate);
+                wasModulated = false;
+                setKnobs (settings, false);
+                runSegment (block);
+            }
+            else
+            {
+                if (! wasModulated)
+                    untilTick = 0;
+                wasModulated = true;
+                size_t done = 0;
+                while (done < numSamples)
                 {
-                    using Make = juce::dsp::IIR::ArrayCoefficients<double>;
-                    const auto gain = [] (float db) { return juce::Decibels::decibelsToGain ((double) db); };
-                    const std::array<std::array<double, 6>, 4> made {
-                        Make::makeLowShelf (rate, 110.0, 0.7, gain (tone[0])),
-                        Make::makePeakFilter (rate, 1000.0, 0.7, gain (tone[1])),
-                        Make::makeHighShelf (rate, 8000.0, 0.7, gain (tone[2])),
-                        Make::makePeakFilter (rate, 4000.0, 1.0, gain (tone[3])) };
-                    for (size_t i = 0; i < 4; ++i)
-                        state.tone[i].c = made[i];
-                    state.toneShown = tone;
-                }
-            }
-            inputGain.setTargetValue (juce::Decibels::decibelsToGain (settings.inputDb));
-            outputGain.setTargetValue (juce::Decibels::decibelsToGain (settings.outputDb));
-            mix.setTargetValue (juce::jlimit (0.0f, 1.0f, settings.mix));
-
-            // Up to the working rate, process, back down.
-            auto working = quality == 0 ? block : oversamplers[(size_t) quality]->processSamplesUp (block);
-            auto* samples = working.getChannelPointer (0);
-            std::array<float, maxBands> drivePeak {};
-            for (size_t i = 0; i < working.getNumSamples(); ++i)
-            {
-                const auto dry = (double) samples[i];
-                const auto in = dry * inputGain.getNextValue();
-
-                // Split into bands, keeping the lower ones in phase with later splits.
-                std::array<double, maxBands> bandIn {};
-                auto rest = in;
-                for (int k = 0; k < numBands - 1; ++k)
-                {
-                    const auto [low, high] = splits[(size_t) k].process (rest);
-                    bandIn[(size_t) k] = low;
-                    rest = high;
-                    if (k == 1)
-                        bandIn[0] = compensation[0].allPass (bandIn[0]);
-                    if (k == 2)
+                    if (untilTick <= 0)
                     {
-                        bandIn[0] = compensation[1].allPass (bandIn[0]);
-                        bandIn[1] = compensation[2].allPass (bandIn[1]);
+                        if (context.songBeats >= 0.0)
+                            tickContext.songBeats = context.songBeats + (double) done / baseRate * context.bpm / 60.0;
+                        modulation.tick (settings.modulation, tickContext, (double) tickLength / baseRate);
+                        if (context.midi != nullptr)
+                            tickContext.midi = &laterMidi;
+                        setKnobs (settings, true);
+                        untilTick = tickLength;
                     }
+                    const auto length = juce::jmin ((size_t) untilTick, numSamples - done);
+                    runSegment (block.getSubBlock (done, length));
+                    done += length;
+                    untilTick -= (int) length;
                 }
-                bandIn[(size_t) numBands - 1] = rest;
-
-                auto sum = 0.0;
-                for (int b = 0; b < numBands; ++b)
-                {
-                    drivePeak[(size_t) b] = juce::jmax (drivePeak[(size_t) b],
-                                                        (float) std::abs (bandIn[(size_t) b]) * bandStates[(size_t) b].preGain.getCurrentValue());
-                    sum += processBand (b, bandIn[(size_t) b], settings.bands[(size_t) b]);
-                }
-
-                const auto wet = sum * outputGain.getNextValue();
-                const auto mixNow = mix.getNextValue();
-                samples[i] = (float) (dry * (1.0 - mixNow) + wet * mixNow);
             }
-            if (quality != 0)
-                oversamplers[(size_t) quality]->processSamplesDown (block);
+
             for (int b = 0; b < maxBands; ++b)
-                bandDriveMeter[(size_t) b].store (b < numBands ? drivePeak[(size_t) b] : 0.0f);
+                bandDriveMeter[(size_t) b].store (b < liveBands ? drivePeak[(size_t) b] : 0.0f);
+            for (int source = 0; source < MarsModulation::numSources; ++source)
+                shownSources[(size_t) source].store (modulation.sourceValue (source));
+            for (int target = 0; target < MarsModulation::numTargets; ++target)
+                shownOffsets[(size_t) target].store (modulation.offset (target));
+            for (int l = 0; l < MarsModulation::numLfos; ++l)
+                shownLfoPositions[(size_t) l].store (modulation.lfoPosition (l));
+            for (int e = 0; e < MarsModulation::numEgs; ++e)
+                shownEgLevels[(size_t) e].store (modulation.egLevel (e));
+            for (int t = 0; t < 5; ++t)
+                shownTriggerDb[(size_t) t].store (modulation.triggerLevelDb (t));
         });
     }
 }

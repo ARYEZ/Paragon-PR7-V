@@ -163,6 +163,8 @@ public:
     void resetDoublerModulation() noexcept { doubler.resetModulation(); }
     // How hard MARS's band is being driven, for its panel's display.
     float getMarsBandDrive (int band) const noexcept { return mars.getBandDrive (band); }
+    // MARS itself, for its panel to show the modulation (its getters are safe from the message thread).
+    const effects::Mars& getMars() const noexcept { return mars; }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -228,6 +230,22 @@ private:
     effects::Mars mars;   // SATURATION
     struct MarsBandParameters { std::atomic<float>* parts[12] {}; };   // in marsBandParts' order
     std::array<MarsBandParameters, effects::Mars::maxBands> marsBandParameters {};
+    // MARS's modulation settings, in ParamIDs' part orders (marsLfoParts...).
+    struct MarsModulationParameters
+    {
+        using Mod = effects::MarsModulation;
+        using Value = std::atomic<float>*;
+        struct Lfo { std::array<Value, 8> parts {}; std::array<std::array<Value, 4>, Mod::maxSteps> steps {}; };
+        std::array<Lfo, Mod::numLfos> lfos {};
+        std::array<std::array<Value, 12>, Mod::numEgs> egs {};
+        std::array<std::array<Value, 5>, Mod::numEfs> efs {};
+        std::array<std::array<Value, 3>, Mod::numMidis> midis {};
+        std::array<std::array<Value, 4>, Mod::numXys> xys {};
+        std::array<std::array<Value, 3>, Mod::numSlots> slots {};
+        void bind (juce::AudioProcessorValueTreeState&);
+        void read (Mod::Settings&) const noexcept;
+    } marsModulationParameters;
+    effects::MarsModulation::MidiState marsMidi;   // what MIDI has said, for MARS's MIDI sources (audio thread only)
     effects::Presence presence;
     effects::Harmony harmony;   // HARMONY: first in the stereo part, before the doubler
     juce::AudioBuffer<float> cleanVoice;   // the voice just after LOW CUT, for HARMONY to read the note from

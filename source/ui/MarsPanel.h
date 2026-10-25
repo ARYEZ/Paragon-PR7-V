@@ -2,10 +2,12 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-#include "dsp/effects/Mars.h"
+#include "MarsModUi.h"
+#include "MarsSlotsView.h"
+#include "MarsSourcesView.h"
 
 // SATURATION's panel: MARS, the multi-band saturator inspired by
-// FabFilter Saturn 2. Two pages:
+// FabFilter Saturn 2. Four pages:
 //
 //   BANDS   left: ON, how many BANDS, and the band display: the
 //           frequencies left to right, each band a column. Click a band to
@@ -15,15 +17,23 @@
 //           right: the picked band's ON, STYLE, DRIVE, DYNAMICS, FEEDBACK,
 //           FB FREQ, MIX, and BASS, MID, TREBLE, PRESENCE, LEVEL.
 //   GLOBAL  INPUT, OUTPUT, MIX, QUALITY and the crossovers' SLOPE.
+//   MOD     the modulation sources (MarsSourcesView).
+//   SLOTS   the 16 modulation slots (MarsSlotsView).
+//
+// Right-click any knob that can be modulated to modulate it with a source
+// (Saturn 2 drags a source onto it instead). A modulated knob gets a
+// second, thin ring in its source's colour, showing where it is now.
 class MarsPanel final : public juce::Component,
                         private juce::Timer
 {
 public:
-    // `bandDrive` returns how hard a band is being driven right now (for the display).
-    MarsPanel (juce::AudioProcessorValueTreeState&, std::function<float (int)> bandDrive);
+    // `bandDrive` returns how hard a band is being driven right now (for the
+    // display); `mars` (if given) shows the modulation as it happens.
+    MarsPanel (juce::AudioProcessorValueTreeState&, std::function<float (int)> bandDrive, const effects::Mars* mars = nullptr);
     ~MarsPanel() override;
 
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -33,6 +43,10 @@ public:
     void selectBand (int band);
     int getSelectedBand() const noexcept { return selected; }
     void showPage (int page);
+    int getPage() const noexcept { return page; }
+    static constexpr int numPages = 4;
+    MarsSourcesView& getSourcesView() noexcept { return sourcesView; }
+    MarsSlotsView& getSlotsView() noexcept { return slotsView; }
 
     // The display's frequency at an x position, and back. Public for tests.
     float frequencyAt (float x) const;
@@ -43,39 +57,25 @@ public:
     void removeBand (int band);
 
 private:
-    struct Knob
-    {
-        juce::Label label;
-        juce::Slider slider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
-    };
-    struct Choice
-    {
-        juce::Label label;
-        juce::ComboBox box;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attachment;
-    };
-    struct Switch
-    {
-        juce::Label label;
-        juce::ToggleButton button;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
-    };
+    using Knob = MarsModUi::Knob;
+    using Choice = MarsModUi::Choice;
+    using Switch = MarsModUi::Switch;
 
     void timerCallback() override;
     void bindBandControls();
-    void setUp (Knob&, const juce::String& label, const juce::String& tooltip);
-    void setUp (Choice&, const juce::String& label, const juce::StringArray& items, const juce::String& tooltip);
-    void setUp (Switch&, const juce::String& label, const juce::String& tooltip);
+    void modulateMenu (int target, juce::Component& knob);
+    std::vector<Knob*> modulatableKnobs();
+    float liveValue (const juce::String& id, int target) const;   // a knob's value, moved by the modulation
     float value (const juce::String& id) const;
     void set (const juce::String& id, float plainValue);
     int numBands() const;
-    std::array<float, effects::Mars::maxBands + 1> bandEdges() const;   // each band's left and right, in Hz
+    std::array<float, effects::Mars::maxBands + 1> bandEdges (bool live = false) const;   // each band's left and right, in Hz (live: as modulated now)
     int bandAt (float x) const;
     int crossoverAt (float x) const;                                    // the crossover line near x, or -1
 
     juce::AudioProcessorValueTreeState& parameters;
     std::function<float (int)> bandDrive;
+    const effects::Mars* mars;
     int selected = 0, page = 0;
     int draggingCrossover = -1, draggingDriveOf = -1;
     float dragStartDrive = 0.0f;
@@ -84,9 +84,12 @@ private:
     Choice bands, style, quality, slope;
     Knob drive, dynamics, feedback, feedbackFreq, mix, bass, mid, treble, presence, level;
     Knob input, output, globalMix, cross1, cross2, cross3;
-    std::array<juce::TextButton, 2> pages;
+    std::array<juce::TextButton, numPages> pages;
+    MarsSourcesView sourcesView;
+    MarsSlotsView slotsView;
 
     juce::Rectangle<float> display;
     juce::Rectangle<int> bandTitle;
     std::array<float, effects::Mars::maxBands> shownDrive {};
+    float shownModulation = 0.0f;   // a sum of the knobs' offsets: when it moves, they're redrawn
 };

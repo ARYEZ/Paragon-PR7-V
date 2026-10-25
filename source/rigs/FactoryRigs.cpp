@@ -33,6 +33,10 @@ namespace
     // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
     constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, warmTapeStyle = 5,
                     britishAmpStyle = 12, crunchyAmpStyle = 14, destroyStyle = 20;
+    // MARS's modulation (effects::MarsModulation): sources, targets, XLFO SYNC.
+    constexpr float xlfo1 = 1, envelopeFollower1 = 5, expressionPedal = 13;
+    constexpr float band1Drive = 1, band1Level = 10, crossover1 = 41;
+    constexpr float twoBars = 4, oneBar = 5, eighthNote = 8;
 }
 
 // The factory rigs, all for the voice (since 0.12.0; the guitar rigs PR7-V
@@ -403,5 +407,57 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, sixteenth }, { delayFeedback, 0.35f }, { delayMix, 0.2f }, { delayPingPong, 1 },
             { delayHighCut, 5000 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // ---- MARS's modulation (0.15.0) -------------------------------------
+        // Tape that breathes with you: an envelope follower on DRIVE, so the
+        // louder you sing, the harder the tape is pushed.
+        make ("Breathing Tape", E, 16, "Saturation,Mars,Modulation", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -12 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.1f },
+            { "mmSlot1Source", envelopeFollower1 }, { "mmSlot1Target", band1Drive }, { "mmSlot1Amount", 0.6f },
+            { "mmEf1Attack", 20 }, { "mmEf1Release", 250 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // A tube that throbs in time: an XLFO, an eighth note long, pulls
+        // the saturated band down and back up on every eighth.
+        make ("Throb", E, 17, "Saturation,Mars,Modulation,Tempo", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.45f },
+            { "mmLfo1Sync", eighthNote }, { "mmLfo1S1Value", 0 }, { "mmLfo1S2Value", -1 },
+            { "mmSlot1Source", xlfo1 }, { "mmSlot1Target", band1Level }, { "mmSlot1Amount", 0.3f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.12f } }),
+
+        // A voice through a radio being tuned: everything above MARS's
+        // crossover is cut, and a slow XLFO (two bars) sweeps the crossover.
+        make ("Sweeping Radio", E, 18, "Lo-Fi,Mars,Modulation,Tempo", {
+            { rigLevel, -4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 1200 },
+            { "mb1Style", britishAmpStyle }, { "mb1Drive", 0.35f }, { "mb2Level", -36 },
+            { "mmLfo1Sync", twoBars },
+            { "mmSlot1Source", xlfo1 }, { "mmSlot1Target", crossover1 }, { "mmSlot1Amount", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
+
+        // Grit on your foot: the expression pedal turns MARS's DRIVE up,
+        // clean at the heel, crunchy at the toe (whatever the pedal's own setting).
+        make ("Pedal Grit", E, 19, "Saturation,Mars,Modulation,Expression", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.05f },
+            { "mmSlot1Source", expressionPedal }, { "mmSlot1Target", band1Drive }, { "mmSlot1Amount", 0.7f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.12f } }),
+
+        // A rhythmic gate: an eight-step XLFO, a bar long, with no glide,
+        // ducks the voice on the off-steps. Sing long notes through it.
+        make ("Stutter Steps", E, 20, "Mars,Modulation,Tempo,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { "mmLfo1Steps", 7 }, { "mmLfo1Sync", oneBar },
+            { "mmLfo1S1Value", 0 }, { "mmLfo1S1Glide", 0 }, { "mmLfo1S2Value", -1 }, { "mmLfo1S2Glide", 0 },
+            { "mmLfo1S3Value", 0 }, { "mmLfo1S4Value", 0 }, { "mmLfo1S5Value", -1 }, { "mmLfo1S6Value", 0 },
+            { "mmLfo1S7Value", -1 }, { "mmLfo1S8Value", 0 },
+            { "mmSlot1Source", xlfo1 }, { "mmSlot1Target", band1Level }, { "mmSlot1Amount", 0.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
     };
 }

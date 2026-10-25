@@ -3153,3 +3153,187 @@ TEST_CASE ("DOUBLER: the direct voice, and the shelves on the doubles", "[effect
         CHECK (maxAbsDifference (note, rig.run (note)[0]) < 1.0e-6f);
     }
 }
+
+//==============================================================================
+// MARS stage 2: the modulation, heard through the whole plugin.
+namespace
+{
+    using Mod = effects::MarsModulation;
+
+    struct ModulatedMarsRig : MarsRig
+    {
+        ModulatedMarsRig()
+        {
+            // A clean band, so what changes is the modulation, not the saturation.
+            band (0, "Style", (float) effects::Mars::Style::cleanTube);
+            band (0, "Drive", 0.0f);
+        }
+        void slot (int index, int source, int target, float amount)
+        {
+            set (ParamIDs::marsSlot (index, "Source").toRawUTF8(), (float) source);
+            set (ParamIDs::marsSlot (index, "Target").toRawUTF8(), (float) target);
+            set (ParamIDs::marsSlot (index, "Amount").toRawUTF8(), amount);
+        }
+        void lfo (int index, const char* part, float value) { set (ParamIDs::marsLfo (index, part).toRawUTF8(), value); }
+    };
+
+    // The level every 10 ms, in dB, from `fromSeconds` on.
+    std::vector<float> envelopeDb (const std::vector<float>& samples, double fromSeconds)
+    {
+        std::vector<float> levels;
+        const auto window = (size_t) (0.01 * sampleRate);
+        for (auto start = (size_t) (fromSeconds * sampleRate); start + window <= samples.size(); start += window)
+        {
+            double sum = 0.0;
+            for (size_t i = start; i < start + window; ++i)
+                sum += samples[i] * samples[i];
+            levels.push_back (dB ((float) std::sqrt (sum / (double) window) + 1.0e-9f));
+        }
+        return levels;
+    }
+
+    // How many times a level wobbles up through its middle.
+    int wobbles (const std::vector<float>& levels)
+    {
+        const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+        const auto middle = 0.5f * (*low + *high);
+        int count = 0;
+        for (size_t i = 1; i < levels.size(); ++i)
+            count += levels[i - 1] < middle && levels[i] >= middle;
+        return count;
+    }
+}
+
+TEST_CASE ("MARS modulation: an XLFO on a band's LEVEL makes it pulse at RATE", "[effects][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.lfo (0, "Rate", 4.0f);
+    rig.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.5f);
+    const auto output = rig.runMono (sine (440.0, 0.1f, 2.3));
+    REQUIRE (allFinite (output));
+    const auto levels = envelopeDb (output, 0.3);
+    const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+    CAPTURE (*low, *high);
+    // LEVEL's knob runs -36 to +12 dB; at 0 dB, +-50% swings it from -24 dB up to +12.
+    CHECK_THAT (*high - *low, WithinAbs (36.0, 3.0));
+    CHECK (wobbles (levels) == 8);   // 4 a second for 2 seconds
+}
+
+TEST_CASE ("MARS modulation: a synced XLFO follows the DAW's tempo", "[effects][mars][modulation]")
+{
+    const auto wobblesAt = [] (double bpm)
+    {
+        ModulatedMarsRig rig;
+        rig.playHead.bpm = bpm;
+        rig.lfo (0, "Sync", (float) Mod::syncNames.indexOf ("1/4"));
+        rig.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.5f);
+        return wobbles (envelopeDb (rig.runMono (sine (440.0, 0.1f, 4.3)), 0.3));
+    };
+    CHECK (wobblesAt (120.0) == 8);   // a cycle a beat: 2 a second
+    CHECK (wobblesAt (90.0) == 6);
+}
+
+TEST_CASE ("MARS modulation: empty slots change nothing", "[effects][mars][modulation]")
+{
+    const auto input = sine (440.0, 0.3f, 0.5);
+    ModulatedMarsRig plain;
+    const auto reference = plain.runMono (input);
+    ModulatedMarsRig noSource, noAmount;
+    noSource.slot (0, Mod::none, Mod::bandTarget (0, Mod::level), 1.0f);
+    noAmount.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.0f);
+    CHECK (maxAbsDifference (reference, noSource.runMono (input)) == 0.0f);
+    CHECK (maxAbsDifference (reference, noAmount.runMono (input)) == 0.0f);
+}
+
+TEST_CASE ("MARS modulation: an envelope follower on DRIVE saturates the loud parts harder", "[effects][mars][modulation]")
+{
+    // The third harmonic against the note, in dB.
+    const auto grit = [] (bool followed, float amplitude)
+    {
+        ModulatedMarsRig rig;
+        rig.band (0, "Style", (float) effects::Mars::Style::saturatedTube);
+        if (followed)
+            rig.slot (0, Mod::ef1, Mod::bandTarget (0, Mod::drive), 1.0f);
+        const auto output = rig.runMono (sine (330.0, amplitude, 0.8));
+        return dB (levelAt (output, 990.0, 0.4) / levelAt (output, 330.0, 0.4));
+    };
+    CHECK (grit (true, 0.5f) > grit (false, 0.5f) + 10.0f);
+    CHECK (grit (true, 0.5f) > grit (true, 0.02f) + 6.0f);
+}
+
+TEST_CASE ("MARS modulation: the expression pedal as a source", "[effects][mars][modulation]")
+{
+    const auto levelWithPedal = [] (float position)
+    {
+        ModulatedMarsRig rig;
+        rig.set (ParamIDs::expression, position);
+        rig.slot (0, Mod::pedal, Mod::globalTarget (Mod::output), 0.5f);
+        return rms (rig.runMono (sine (440.0, 0.01f, 0.5)), 0.3);
+    };
+    // OUTPUT's knob runs -24 to +24 dB: half of that range is 24 dB.
+    CHECK_THAT (dB (levelWithPedal (1.0f) / levelWithPedal (0.0f)), WithinAbs (24.0, 1.0));
+}
+
+TEST_CASE ("MARS modulation: MIDI from the DAW (the mod wheel) turns a band down", "[effects][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.slot (0, Mod::midi1, Mod::bandTarget (0, Mod::level), -1.0f);   // MIDI 1 starts on the mod wheel
+    const auto input = sine (440.0, 0.1f, 1.0);
+    std::vector<float> output;
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    for (size_t start = 0; start + blockSize <= input.size(); start += blockSize)
+    {
+        juce::MidiBuffer midi;
+        if (start == (size_t) (0.5 * sampleRate) / blockSize * blockSize)
+            midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, 127), 0);
+        buffer.clear();
+        std::copy (input.begin() + (long) start, input.begin() + (long) start + blockSize, buffer.getWritePointer (0));
+        rig.processor.processBlock (buffer, midi);
+        output.insert (output.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + blockSize);
+    }
+    CHECK (rms (output, 0.3, 0.49) > 0.05f);
+    CHECK (rms (output, 0.6) < 1.0e-4f);   // the wheel all the way up: the band all the way down (off)
+}
+
+TEST_CASE ("MARS modulation: a swept crossover moves where the bands split", "[effects][mars][modulation]")
+{
+    // Two bands, the top one off: MARS passes only what's below the
+    // crossover. Sweeping the crossover makes a 1 kHz tone come and go.
+    ModulatedMarsRig rig;
+    rig.set (ParamIDs::marsBands, 1.0f);
+    rig.band (1, "Level", effects::Mars::minLevelDb);
+    rig.set (ParamIDs::marsCross1, 1000.0f);
+    rig.lfo (0, "Rate", 2.0f);
+    rig.slot (0, Mod::lfo1, Mod::globalTarget (Mod::crossover1), 0.3f);
+    const auto output = rig.runMono (sine (1000.0, 0.1f, 2.3));
+    REQUIRE (allFinite (output));
+    const auto levels = envelopeDb (output, 0.3);
+    const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+    CHECK (*high > -24.0f);   // the tone all through (a 0.1 sine is -23 dB)
+    CHECK (*low < *high - 20.0f);
+    CHECK (wobbles (levels) == 4);
+}
+
+TEST_CASE ("MARS with all 16 slots busy still runs comfortably faster than real time", "[effects][performance][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.set (ParamIDs::marsBands, 3.0f);
+    for (int b = 0; b < 4; ++b)
+    {
+        rig.band (b, "Style", (float) effects::Mars::Style::screamingAmp);
+        rig.band (b, "Drive", 0.6f);
+    }
+    // Every slot moving something that costs: drive, tone, crossovers.
+    const int targets[] = { Mod::bandTarget (0, Mod::drive), Mod::bandTarget (1, Mod::bass), Mod::bandTarget (2, Mod::treble),
+                            Mod::bandTarget (3, Mod::presence), Mod::globalTarget (Mod::crossover1), Mod::globalTarget (Mod::crossover2),
+                            Mod::globalTarget (Mod::crossover3), Mod::bandTarget (0, Mod::feedbackFreq) };
+    for (int s = 0; s < Mod::numSlots; ++s)
+        rig.slot (s, s % 2 == 0 ? Mod::lfo1 : Mod::ef1, targets[s % 8], 0.2f);
+    const auto input = sine (220.0, 0.3f, 4.0);
+    const auto startMs = juce::Time::getMillisecondCounterHiRes();
+    const auto output = rig.runMono (input);
+    const auto fraction = (juce::Time::getMillisecondCounterHiRes() - startMs) / 1000.0 / 4.0;
+    WARN ("MARS, 4 bands, 16 slots: " << juce::String (fraction * 100.0, 1) << "% of one core");
+    CHECK (allFinite (output));
+    CHECK (fraction < 0.3);
+}

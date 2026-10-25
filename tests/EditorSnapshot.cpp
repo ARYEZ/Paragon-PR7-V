@@ -117,6 +117,21 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         if (auto* p = processor.getParameters().getParameter (setting.upToFirstOccurrenceOf ("=", false, false)))
             p->setValueNotifyingHost (p->convertTo0to1 (setting.fromFirstOccurrenceOf ("=", false, false).getFloatValue()));
 
+    // PARAGON_SNAPSHOT_PLAY=seconds sings a note (220 Hz, -12 dB) through
+    // the plugin for that long first, so live displays (MARS's modulation) show it.
+    if (const auto play = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PLAY", {}).getDoubleValue(); play > 0.0)
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        for (int b = 0, n = 0; b < (int) (play * 48000.0 / 256.0); ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < 256; ++i, ++n)
+                buffer.setSample (0, i, 0.25f * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * n / 48000.0));
+            processor.processBlock (buffer, midi);
+        }
+    }
+
     // PARAGON_SNAPSHOT_LOUD=1 plays a note 6 dB over full scale, so the
     // LIMITER's light shows it working (and the meters show the level).
     const auto loud = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_LOUD", {}) == "1";
@@ -175,7 +190,8 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
                 button->onClick();
     }
     // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
-    // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2).
+    // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2; MARS's
+    // BANDS, GLOBAL, MOD, SLOTS: 0-3).
     if (const auto page = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PANELPAGE", {}); page.isNotEmpty())
     {
         std::function<void (juce::Component&)> turn = [&] (juce::Component& parent)
@@ -185,7 +201,14 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
                 if (auto* panel = dynamic_cast<EffectPanel*> (child); panel != nullptr && panel->isVisible())
                     panel->showPage (page.getIntValue());
                 if (auto* mars = dynamic_cast<MarsPanel*> (child); mars != nullptr && mars->isVisible())
+                {
                     mars->showPage (page.getIntValue());
+                    // PARAGON_SNAPSHOT_MODTAB=n: MARS's MOD page on source tab n (0 XLFO 1 ... 9 XY 2).
+                    if (const auto modTab = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MODTAB", {}); modTab.isNotEmpty())
+                        mars->getSourcesView().selectTab (modTab.getIntValue());
+                    mars->getSourcesView().refresh();
+                    mars->getSlotsView().refresh();
+                }
                 turn (*child);
             }
         };

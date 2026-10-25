@@ -189,7 +189,8 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       eqPanel (processorToShow.getParameters()),
       harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); }),
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
-      marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); }),
+      marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); },
+                 &processorToShow.getMars()),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
             juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },

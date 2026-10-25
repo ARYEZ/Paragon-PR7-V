@@ -2,6 +2,23 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.15.0
+
+- **MARS can move by itself: modulation (stage 2), inspired by FabFilter Saturn 2's.** Almost every MARS knob can be moved by a modulation source as you sing. Two new pages: **MOD** (the sources) and **SLOTS** (what moves what).
+- **The sources:**
+  - **XLFO 1 and 2:** step LFOs. 1 to 16 steps, each with its own value, GLIDE, CURVE (Linear, Sqr, Sqrt, Sine) and RANDOM. RATE in Hz, or SYNC to the song (16 bars to 1/64, with OFFSET x0.5 to x2; locked to the bar while the song plays). Also BALANCE (one half of the wave quicker than the other), GLIDE for all steps, PHASE, and a MIDI note can restart it (Retrigger or Legato). Edit the steps on the display: click one to pick it, drag it up or down, + and - to add (a copy) or remove one, and drag the triangle for PHASE. They start as a smooth wave.
+  - **EG 1 and 2:** envelope generators (DELAY, ATTACK, DECAY, SUSTAIN, HOLD, RELEASE, each curve bendable), set off by your voice going over THRESHOLD, by one band, or by MIDI notes. RANGE centred makes it swing both ways around the sustain. Drag the points and curve dots on the display.
+  - **EF 1 and 2:** envelope followers, following how loud your voice (or a band) is, with ATTACK, RELEASE and GAIN. TRANSIENT mode reacts only to attacks, such as word starts and consonants.
+  - **MIDI 1 and 2:** velocity, pitch bend, mod wheel, aftertouch or any controller from your DAW, through a RESPONSE curve.
+  - **XY 1 and 2:** a pad to move by hand (or automate), or a single SLIDER.
+  - **The expression pedal** as a source too, whatever the pedal is assigned to. This one is our addition.
+- **16 slots,** each a SOURCE, a TARGET and an AMOUNT (-100% to +100%). Targets are every band's DRIVE, DYNAMICS, FEEDBACK, FB FREQ, BASS, MID, TREBLE, PRESENCE, MIX and LEVEL; the CROSSOVERS, INPUT, OUTPUT and MIX; the XLFOs', EGs' and EFs' own settings; and other slots' amounts (for example, an XY pad that sets how much an XLFO does).
+- **Right-click any of those knobs** to modulate it with a source; it takes the next free slot at +50%. The same menu removes a slot. Saturn 2 lets you drag a source onto a knob instead.
+- **A modulated knob shows it:** a thin ring in the source's colour (yellow when more than one kind moves it), with a bright arc to where the knob is right now. The band display's drive bars and crossovers move too.
+- **Our design, where the manual doesn't say:** the curves, how the followers read level (-48 dB to 0 dB), what TRANSIENT listens for, and the fixed number of sources (Saturn adds as many as you like). Not built: XLFO Snap (Saturn's arpeggiator), renaming sources, the external side-chain trigger, and dragging sources onto knobs.
+- **Five new factory rigs** (bank E): **Breathing Tape** (louder singing pushes the tape harder), **Throb** (a saturated tube pulsing in eighth notes), **Sweeping Radio** (a slow tempo sweep of MARS's crossover), **Pedal Grit** (the expression pedal turns the grit up) and **Stutter Steps** (an eight-step rhythmic gate).
+- **CPU:** the modulation moves the knobs about 3000 times a second. With all 16 slots busy on four heavy bands, MARS used about 7% of one core in our tests. Without modulation it runs exactly as before.
+
 ## 0.14.1
 
 - **No more screws on the face plate, and no MIN light.** The four screw heads in its corners and the MIN light beside the expression pedal are gone, for a cleaner front (released on its own as 0.9.1, and now joined with everything since). The dock's EXPRESSION ASSIGN screen still shows where the pedal sits.

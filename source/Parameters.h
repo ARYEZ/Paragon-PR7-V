@@ -230,6 +230,26 @@ namespace ParamIDs
     inline const juce::StringArray marsBandParts { "On", "Style", "Drive", "Dynamics", "Feedback", "FbFreq",
                                                    "Bass", "Mid", "Treble", "Presence", "Mix", "Level" };
     inline juce::String marsBand (int band, const juce::String& part) { return "mb" + juce::String (band + 1) + part; }
+    // Version 37: MARS's modulation (stage 2). Sources and slots, numbered from 1:
+    // "mmLfo1Rate", "mmLfo2S5Value" (XLFO 2's step 5), "mmEg1Attack",
+    // "mmEf2Mode", "mmMidi1Input", "mmXy1X", "mmSlot12Target"...
+    inline const juce::StringArray marsLfoParts { "Steps", "Rate", "Sync", "Offset", "Balance", "Glide", "Phase", "Midi" };
+    inline const juce::StringArray marsStepParts { "Value", "Glide", "Curve", "Random" };
+    inline const juce::StringArray marsEgParts { "Trigger", "Threshold", "Delay", "Attack", "Decay", "Sustain", "Hold", "Release",
+                                                 "AttackSlope", "DecaySlope", "ReleaseSlope", "Range" };
+    inline const juce::StringArray marsEfParts { "Trigger", "Attack", "Release", "Mode", "Gain" };
+    inline const juce::StringArray marsMidiParts { "Input", "Controller", "Response" };
+    inline const juce::StringArray marsXyParts { "X", "Y", "Mode", "Range" };
+    inline const juce::StringArray marsSlotParts { "Source", "Target", "Amount" };
+    inline juce::String marsLfo (int lfo, const juce::String& part) { return "mmLfo" + juce::String (lfo + 1) + part; }
+    inline juce::String marsStep (int lfo, int step, const juce::String& part) { return "mmLfo" + juce::String (lfo + 1) + "S" + juce::String (step + 1) + part; }
+    inline juce::String marsEg (int eg, const juce::String& part) { return "mmEg" + juce::String (eg + 1) + part; }
+    inline juce::String marsEf (int ef, const juce::String& part) { return "mmEf" + juce::String (ef + 1) + part; }
+    inline juce::String marsMidi (int midi, const juce::String& part) { return "mmMidi" + juce::String (midi + 1) + part; }
+    inline juce::String marsXy (int xy, const juce::String& part) { return "mmXy" + juce::String (xy + 1) + part; }
+    inline juce::String marsSlot (int slot, const juce::String& part) { return "mmSlot" + juce::String (slot + 1) + part; }
+    // The parameter a modulation target moves ("mb2Drive", "marsCross1", "mmLfo1Rate"...).
+    juce::String marsTargetParameter (int target);
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     // Drift (version 32) is appended: only ever add to the end.
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };

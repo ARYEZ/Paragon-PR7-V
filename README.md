@@ -52,6 +52,9 @@ descriptions below still talk about guitar.
   - **2 Saturation:** **MARS**, a multi-band saturator inspired by FabFilter Saturn 2: up to four frequency bands,
     each with its own STYLE (21: tubes, tapes, transformers, amps and effects like Smudge, Breakdown and Destroy), DRIVE
     (its level kept even), DYNAMICS, FEEDBACK, a four-band TONE, MIX and LEVEL; click and drag the bands on its display.
+    Since 0.15.0 its knobs can move on their own (**MOD** and **SLOTS** pages): two step LFOs (XLFO), two envelope
+    generators, two envelope followers, two MIDI sources, two XY pads and the expression pedal, connected through 16
+    slots. Right-click a knob to modulate it.
     (The guitar pedal models PR7-G had went in 0.14.0; rigs and projects that used them load as MARS, set up close.)
   - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
     truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
