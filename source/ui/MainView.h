@@ -167,8 +167,7 @@ private:
     // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
     HarmonyPanel harmonyPanel;
     DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
-    MarsPanel marsPanel;         // SATURATION's panel while its MODEL is MARS (else panels[driveBlock])
-    bool driveShowsMars = false;
+    MarsPanel marsPanel;         // SATURATION's own panel (panels[driveBlock] is empty)
     juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
     bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default

@@ -345,16 +345,12 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (2, "SATURATION", { ParamIDs::driveOn }, driveBlock, [this]
     {
-        if (juce::roundToInt (rawValue (ParamIDs::driveModel)) == (int) effects::Drive::Model::mars)
-        {
-            // MARS: its bands' styles, low to high.
-            const auto numBands = juce::roundToInt (rawValue (ParamIDs::marsBands)) + 1;
-            juce::StringArray styles;
-            for (int band = 0; band < numBands; ++band)
-                styles.add (effects::Mars::styleNames[juce::roundToInt (rawValue (ParamIDs::marsBand (band, "Style").toRawUTF8()))]);
-            return "Mars  " + styles.joinIntoString (" / ");
-        }
-        return valueText (ParamIDs::driveModel) + "  Drive " + valueText (ParamIDs::driveGain);
+        // MARS: its bands' styles, low to high.
+        const auto numBands = juce::roundToInt (rawValue (ParamIDs::marsBands)) + 1;
+        juce::StringArray styles;
+        for (int band = 0; band < numBands; ++band)
+            styles.add (effects::Mars::styleNames[juce::roundToInt (rawValue (ParamIDs::marsBand (band, "Style").toRawUTF8()))]);
+        return "Mars  " + styles.joinIntoString (" / ");
     });
     addStomp (3, "DOUBLER", { ParamIDs::doublerOn }, doublerBlock, [this]
     {
@@ -453,9 +449,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                               { ParamIDs::fpInterval, "INTERVAL", fpIs (effects::FilterPitch::Type::pitchShifter) },
                               { ParamIDs::fpXpProgram, "PROGRAM", fpIs (effects::FilterPitch::Type::whammyWah) },
                               { ParamIDs::fpMix, "MIX" } } } });
-    panels[driveBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "SATURATION", { { ParamIDs::driveOn, "ON" }, { ParamIDs::driveModel, "MODEL" }, { ParamIDs::driveGain, "DRIVE" }, { ParamIDs::driveTone, "TONE" },
-                         { ParamIDs::driveLevel, "LEVEL" } } } });
+    // SATURATION has MARS's own panel (panels[driveBlock] stays empty).
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
                           { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
@@ -601,13 +595,12 @@ void MainView::selectBlock (int block)
     const auto onProcessorPage = page == Page::processor;
     for (size_t i = 0; i < panels.size(); ++i)
         if (panels[i] != nullptr)
-            panels[i]->setVisible ((int) i == block && onProcessorPage && ! (block == pitchBlock && pitchShowsHarmony)
-                                   && ! (block == driveBlock && driveShowsMars));
+            panels[i]->setVisible ((int) i == block && onProcessorPage && ! (block == pitchBlock && pitchShowsHarmony));
     eqPanel.setVisible (block == eqBlock && onProcessorPage);
     const auto showingPitch = block == pitchBlock && onProcessorPage;
     harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
     doublerPanel.setVisible (block == doublerBlock && onProcessorPage);
-    marsPanel.setVisible (block == driveBlock && onProcessorPage && driveShowsMars);
+    marsPanel.setVisible (block == driveBlock && onProcessorPage);
     harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
     octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
     for (auto* view : { &harmonyView, &octaveView })
@@ -668,13 +661,6 @@ void MainView::timerCallback()
 
 void MainView::refreshPerformance()
 {
-    // SATURATION's panel follows its MODEL: MARS has its own.
-    const auto marsPicked = juce::roundToInt (rawValue (ParamIDs::driveModel)) == (int) effects::Drive::Model::mars;
-    if (marsPicked != driveShowsMars)
-    {
-        driveShowsMars = marsPicked;
-        selectBlock (selectedBlock);
-    }
 
     // Tempo: the tapped tempo in orange, or the DAW's.
     const auto tapped = audioProcessor.getTappedBpm() > 0.0;

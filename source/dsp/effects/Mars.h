@@ -5,7 +5,8 @@
 
 namespace effects
 {
-    // MARS: the SATURATION block's multi-band saturator (its fifth MODEL).
+    // MARS: the SATURATION block, a multi-band saturator (the pedal models
+    // PR7-G had went in 0.14.0; their settings are converted to MARS).
     // Inspired by FabFilter Saturn 2 (the owner's reference, from its user
     // manual): our own design, following what the manual describes.
     //

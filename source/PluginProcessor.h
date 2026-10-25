@@ -9,7 +9,6 @@
 #include "dsp/effects/DeEsser.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
-#include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
@@ -226,8 +225,7 @@ private:
     effects::CompGate compGate;
     effects::DeEsser deEsser;           // DYNAMICS' de-esser, after the compressor
     effects::FilterPitch filterPitch;   // after the compressor, before the drive
-    effects::Drive drive;
-    effects::Mars mars;   // SATURATION's MARS model, run in the drive's place when it's picked
+    effects::Mars mars;   // SATURATION
     struct MarsBandParameters { std::atomic<float>* parts[12] {}; };   // in marsBandParts' order
     std::array<MarsBandParameters, effects::Mars::maxBands> marsBandParameters {};
     effects::Presence presence;

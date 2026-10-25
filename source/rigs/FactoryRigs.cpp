@@ -21,7 +21,6 @@ namespace
 
     // Choices, by their index in each list (see the effects' typeNames).
     constexpr float classicComp = 0, daybreakComp = 1, revival = 2;                     // DYNAMICS' TYPE
-    constexpr float screamer = 1;                                                        // SATURATION's MODEL
     constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
                     harmonicTremolo = 8, autoPan = 9;                                    // MODULATION's TYPE
     constexpr float digitalDelay = 0, analogDelay = 1, tapeDelay = 2, reverseDelay = 4, shimmer = 6;   // DELAY's TYPE
@@ -31,9 +30,9 @@ namespace
                     reverse = 7, chamber = 8;                                            // REVERB's TYPE
     constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
     constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
-    constexpr float mars = 4;                                                            // SATURATION's MARS model
-    // MARS's styles (index into effects::Mars::styleNames).
-    constexpr float cleanTubeStyle = 0, warmTapeStyle = 5, britishAmpStyle = 12, destroyStyle = 20;
+    // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
+    constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, warmTapeStyle = 5,
+                    britishAmpStyle = 12, crunchyAmpStyle = 14, destroyStyle = 20;
 }
 
 // The factory rigs, all for the voice (since 0.12.0; the guitar rigs PR7-V
@@ -101,15 +100,18 @@ std::vector<Rig> makeFactoryRigs()
         make ("Tape Warmth", A, 7, "Studio,Saturation,Mars", {
             { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
             { deessOn, 1 }, { deessAmount, 6 },
-            { driveOn, 1 }, { driveModel, mars }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", 1.5f },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", 1.5f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
 
         // ---- B: rock and grit ----------------------------------------------
         // A rock lead: a little Screamer edge, a tape slap and a plate.
         make ("Rock Lead", B, 1, "Rock,Drive,Delay", {
+            { rigLevel, -6 },   // even with the other rigs
             { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
             { deessOn, 1 }, { deessAmount, 6 },
-            { driveOn, 1 }, { driveModel, screamer }, { driveGain, 2.5f }, { driveTone, 6 }, { driveLevel, -4 },
+            // Edge on the mids only (the lows kept clean), as a TS-style boost does.
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 300 }, { "mb1Style", cleanTubeStyle }, { "mb1Drive", 0.1f },
+            { "mb2Style", saturatedTubeStyle }, { "mb2Drive", 0.45f }, { "mb2Mid", 2 }, { "mb2Treble", 1 },
             { eqOn, 1 }, { "eq1k", 2 },
             { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 120 }, { delayFeedback, 0.15f },
             { delayMix, 0.18f }, { delayAnalog, warm },
@@ -118,14 +120,14 @@ std::vector<Rig> makeFactoryRigs()
         // Shouted and driven, mids pushed forward, a tight room.
         make ("Grit Shout", B, 2, "Rock,Drive", {
             { compOn, 1 }, { compType, daybreakComp }, { compAmount, 7 }, { compDetail, 4 },
-            { driveOn, 1 }, { driveGain, 5 }, { driveTone, 5 }, { driveLevel, -1 },
+            { driveOn, 1 }, { "mb1Style", britishAmpStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 2 }, { "mb1Mix", 0.85f },
             { eqOn, 1 }, { "eq125", -4 }, { "eq1k", 3 }, { "eq2k", 2 }, { "eq8k", -2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.12f } }),
 
         // A bullhorn with a dirty slap: garage, punk and breakdowns.
         make ("Garage Megaphone", B, 3, "Rock,Lo-Fi,Drive", {
             { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 },
-            { driveOn, 1 }, { driveGain, 3 }, { driveLevel, -4 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.5f },
             { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 2 },
             { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.2f },
             { delayMix, 0.2f }, { delayAnalog, grit } }),
@@ -134,7 +136,7 @@ std::vector<Rig> makeFactoryRigs()
         make ("Gang Vocal", B, 4, "Rock,Doubler", {
             { rigLevel, 2 },   // even with the other rigs
             { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
-            { driveOn, 1 }, { driveGain, 2 }, { driveLevel, -3 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.35f },
             { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
             { "dv1Drift", 0.75f }, { "dv2Drift", 0.75f }, { "dv3Drift", 0.8f }, { "dv4Drift", 0.8f },
             { doublerOutput, -4 },
@@ -157,7 +159,7 @@ std::vector<Rig> makeFactoryRigs()
             { rigLevel, -6 },   // even with the other rigs
             { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
             { deessOn, 1 }, { deessAmount, 7 },
-            { driveOn, 1 }, { driveModel, mars }, { marsBands, 2 }, { marsCross1, 250 }, { marsCross2, 3000 },
+            { driveOn, 1 }, { marsBands, 2 }, { marsCross1, 250 }, { marsCross2, 3000 },
             { "mb1Style", cleanTubeStyle }, { "mb1Drive", 0.2f },
             { "mb2Style", britishAmpStyle }, { "mb2Drive", 0.55f }, { "mb2Dynamics", 0.3f },
             { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
@@ -386,7 +388,7 @@ std::vector<Rig> makeFactoryRigs()
         // (its lows left alone), with a slap behind it.
         make ("Broken Transmission", E, 15, "Lo-Fi,Saturation,Mars,Experimental", {
             { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
-            { driveOn, 1 }, { driveModel, mars }, { marsBands, 1 }, { marsCross1, 900 },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 900 },
             { "mb1On", 0 },
             { "mb2Style", destroyStyle }, { "mb2Drive", 0.55f }, { "mb2Mix", 0.7f }, { "mb2Feedback", 0.3f }, { "mb2FbFreq", 2200 },
             { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 140 }, { delayFeedback, 0.25f },

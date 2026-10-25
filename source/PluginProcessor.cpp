@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 32;
+    constexpr int parameterVersion = 36;
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -91,7 +91,6 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     compGate.prepare (sampleRate, preparedBlockSize);
     filterPitch.prepare (sampleRate, preparedBlockSize);
     deEsser.prepare (sampleRate, preparedBlockSize);
-    drive.prepare (sampleRate, preparedBlockSize);
     mars.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
     lowCut.prepare (sampleRate, preparedBlockSize);
@@ -304,14 +303,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
-    // SATURATION: the pedal models, or MARS. Each fades itself in or out, so
-    // changing MODEL doesn't click.
-    const auto driveModel = (effects::Drive::Model) (int) param (ParamIDs::driveModel);
-    const auto marsPicked = driveModel == effects::Drive::Model::mars;
-    drive.process (monoBlock, { isOn (ParamIDs::driveOn) && ! marsPicked, driveModel,
-                                param (ParamIDs::driveGain), param (ParamIDs::driveTone), param (ParamIDs::driveLevel) });
+    // SATURATION: MARS.
     effects::Mars::Settings marsSettings;
-    marsSettings.on = isOn (ParamIDs::driveOn) && marsPicked;
+    marsSettings.on = isOn (ParamIDs::driveOn);
     marsSettings.numBands = (int) param (ParamIDs::marsBands) + 1;
     marsSettings.crossoverHz = { param (ParamIDs::marsCross1), param (ParamIDs::marsCross2), param (ParamIDs::marsCross3) };
     marsSettings.slope = (effects::Mars::Slope) (int) param (ParamIDs::marsSlope);
@@ -827,7 +821,7 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
         parameter.setProperty ("value", value, nullptr);
         state.appendChild (parameter, nullptr);
     };
-    addIfMissing (ParamIDs::driveModel, (int) effects::Drive::Model::classic);    // before the drive had a MODEL
+    addIfMissing (ParamIDs::driveModel, 0);   // before the drive had a MODEL: the original (Classic), for convertOldDrive
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
 
     const auto get = [&state] (const juce::String& id) -> std::optional<float>
@@ -856,6 +850,9 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     // ...and 0.7.0's DOUBLER, before DRIFT and its stronger start.
     else if (savedWith < 32)
         keepDoublerAsSaved (get, set);
+    // Saved with a pedal drive model: now MARS, set up to sound close to it.
+    if (savedWith < 36)
+        convertOldDrive (get, set);
     parameters.replaceState (state);
 
     // Restoring the project changed parameters, which marked the rig as

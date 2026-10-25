@@ -4,10 +4,10 @@
 
 #include "dsp/effects/Mars.h"
 
-// SATURATION's panel while its MODEL is MARS (the multi-band saturator,
-// inspired by FabFilter Saturn 2). Two pages:
+// SATURATION's panel: MARS, the multi-band saturator inspired by
+// FabFilter Saturn 2. Two pages:
 //
-//   BANDS   left: ON, MODEL, how many BANDS, and the band display: the
+//   BANDS   left: ON, how many BANDS, and the band display: the
 //           frequencies left to right, each band a column. Click a band to
 //           pick it; drag a crossover line to move it; drag up or down in a
 //           band for its DRIVE; double-click to split a band there (the new
@@ -81,7 +81,7 @@ private:
     float dragStartDrive = 0.0f;
 
     Switch on, bandOn;
-    Choice model, bands, style, quality, slope;
+    Choice bands, style, quality, slope;
     Knob drive, dynamics, feedback, feedbackFreq, mix, bass, mid, treble, presence, level;
     Knob input, output, globalMix, cross1, cross2, cross3;
     std::array<juce::TextButton, 2> pages;

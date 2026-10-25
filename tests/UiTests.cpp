@@ -145,15 +145,20 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: ten EffectPanels, with the
-    // graphic EQ's own panel as block 5 (after SATURATION) and DOUBLER's as 7.
+    // The knob panels in signal-chain order: nine EffectPanels, with
+    // SATURATION's own (MARS) as block 4, the graphic EQ's as 5 and
+    // DOUBLER's as 7.
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 10);
+    REQUIRE (effectPanels.size() == 9);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
+    std::vector<MarsPanel*> marsPanels;
+    findAll (*editor, marsPanels);
+    REQUIRE (marsPanels.size() == 1);
+    panels.insert (panels.begin() + 4, marsPanels[0]);
     constexpr int eqIndex = 5;
     panels.insert (panels.begin() + eqIndex, eqPanels[0]);
     std::vector<DoublerPanel*> doublerPanels;
@@ -250,7 +255,7 @@ TEST_CASE ("BYPASS passes the clean voice, on both channels", "[ui][bypass]")
 
     // Make the processed sound very different from the input...
     set (processor, ParamIDs::driveOn, 1.0f);
-    set (processor, ParamIDs::driveGain, 10.0f);
+    set (processor, ParamIDs::lofiAmount, 10.0f);
     set (processor, ParamIDs::inputGain, 12.0f);
     set (processor, ParamIDs::bypass, 1.0f);
 

@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.14.0
+
+- **SATURATION is MARS.** The four guitar pedal models PR7-V inherited from PR7-G (Classic, Screamer, Muff Fuzz and Face Fuzz) are gone, and with them the MODEL menu: SATURATION now always opens MARS.
+- **Your rigs and projects still load.** Any that used one of the old pedals is set up in MARS to sound close to it. It's a different engine, so close rather than identical:
+  - **Screamer** becomes two bands: below 720 Hz left clean, above it Saturated Tube with a mid push. That's the Tube Screamer's trick of keeping the bass clean while driving the mids.
+  - **Muff Fuzz** becomes American Amp with the mids scooped; **Face Fuzz** becomes Broken Tube; **Classic** becomes Saturated Tube.
+  - The old DRIVE, TONE and LEVEL carry over to the band's DRIVE, TREBLE and LEVEL.
+  - If the drive was off and never touched, MARS starts as normal.
+- **The four factory rigs that used the old pedals** now use MARS, set up for a voice: **Rock Lead** (edge on the mids only, the lows clean), **Grit Shout** (British Amp with extra presence), **Garage Megaphone** (Crunchy Amp) and **Gang Vocal** (Warm Tube). Their levels are balanced with the other rigs.
+
 ## 0.13.0
 
 - **MARS: a multi-band saturator for SATURATION.** Pick MARS as SATURATION's MODEL. Inspired by FabFilter Saturn 2: our own design, following how its manual describes it.

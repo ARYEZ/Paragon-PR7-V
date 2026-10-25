@@ -28,8 +28,6 @@ MarsPanel::MarsPanel (juce::AudioProcessorValueTreeState& state, std::function<f
 {
     setUp (on, "ON", "SATURATION on or off");
     on.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, ParamIDs::driveOn, on.button);
-    setUp (model, "MODEL", parameters.getParameter (ParamIDs::driveModel)->getAllValueStrings(), "The saturation: a pedal model, or MARS");
-    model.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::driveModel, model.box);
     setUp (bands, "BANDS", { "1", "2", "3", "4" }, "How many frequency bands, each saturated its own way");
     bands.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::marsBands, bands.box);
 
@@ -207,7 +205,7 @@ void MarsPanel::showPage (int newPage)
     page = juce::jlimit (0, 1, newPage);
     pages[(size_t) page].setToggleState (true, juce::dontSendNotification);
     const auto onBands = page == 0;
-    for (auto* control : std::initializer_list<juce::Component*> { &on.label, &on.button, &model.label, &model.box, &bands.label, &bands.box,
+    for (auto* control : std::initializer_list<juce::Component*> { &on.label, &on.button, &bands.label, &bands.box,
                                                                    &bandOn.label, &bandOn.button, &style.label, &style.box })
         control->setVisible (onBands);
     for (auto* knob : { &drive, &dynamics, &feedback, &feedbackFreq, &mix, &bass, &mid, &treble, &presence, &level })
@@ -372,14 +370,12 @@ void MarsPanel::resized()
 
     if (page == 0)
     {
-        // Left: ON, MODEL, BANDS, then the display.
+        // Left: ON, BANDS, then the display.
         auto left = area.removeFromLeft (juce::roundToInt ((float) area.getWidth() * 0.42f));
         auto top = left.removeFromTop (40);
         place (on.label, on.button, top.removeFromLeft (34), 22);
-        top.removeFromLeft (6);
-        place (model.label, model.box, top.removeFromLeft (top.getWidth() - 66), 24);
-        top.removeFromLeft (6);
-        place (bands.label, bands.box, top, 24);
+        top.removeFromLeft (10);
+        place (bands.label, bands.box, top.removeFromLeft (70), 24);
         left.removeFromTop (6);
         display = left.toFloat();
 

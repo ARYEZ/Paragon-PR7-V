@@ -52,10 +52,7 @@ descriptions below still talk about guitar.
   - **2 Saturation:** **MARS**, a multi-band saturator inspired by FabFilter Saturn 2: up to four frequency bands,
     each with its own STYLE (21: tubes, tapes, transformers, amps and effects like Smudge, Breakdown and Destroy), DRIVE
     (its level kept even), DYNAMICS, FEEDBACK, a four-band TONE, MIX and LEVEL; click and drag the bands on its display.
-    And four pedal models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
-    **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
-    mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,
-    level; 8x oversampled to avoid harsh aliasing.
+    (The guitar pedal models PR7-G had went in 0.14.0; rigs and projects that used them load as MARS, set up close.)
   - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
     truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
     take sung alongside rather than a chorus. Its panel is a table, a row per voice: **GAIN**, **PAN**, **DELAY**

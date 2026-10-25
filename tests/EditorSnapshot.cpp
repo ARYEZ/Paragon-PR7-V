@@ -66,7 +66,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         processor.saveCurrentRigAs ("Cyber Drive");
         processor.saveCurrentRigAs ("Sunday Worship Clean");
         processor.loadRig (*processor.getRigLibrary().find (rigFolder.getChildFile (juce::String ("Cyber Drive") + Rig::fileExtension)));
-        processor.getParameters().getParameter ("driveGain")->setValueNotifyingHost (0.8f);   // shows the * marker
+        processor.getParameters().getParameter ("lofiAmount")->setValueNotifyingHost (0.8f);   // shows the * marker
     }
 
     // PARAGON_SNAPSHOT_TUNER=1: the tuner on, hearing an A string 4 cents

@@ -119,21 +119,21 @@ TEST_CASE ("Undo history steps back and forward and forgets redo after a new edi
 TEST_CASE ("Undo and redo take back whole knob moves", "[undo]")
 {
     TestRig rig;
-    rig.turn (ParamIDs::driveGain, 8.0f);
+    rig.turn (ParamIDs::lofiAmount, 8.0f);
     rig.turn (ParamIDs::delayMix, 0.6f);
     REQUIRE (rig.processor.canUndo());
 
     rig.processor.undo();
     CHECK_THAT (rig.value (ParamIDs::delayMix), WithinAbs (0.25, 1.0e-4));   // back to the default
-    CHECK_THAT (rig.value (ParamIDs::driveGain), WithinAbs (8.0, 1.0e-4));   // untouched
+    CHECK_THAT (rig.value (ParamIDs::lofiAmount), WithinAbs (8.0, 1.0e-4));   // untouched
 
     rig.processor.undo();
-    CHECK_THAT (rig.value (ParamIDs::driveGain), WithinAbs (5.0, 1.0e-4));
+    CHECK_THAT (rig.value (ParamIDs::lofiAmount), WithinAbs (5.0, 1.0e-4));
     CHECK_FALSE (rig.processor.canUndo());
 
     rig.processor.redo();
     rig.processor.redo();
-    CHECK_THAT (rig.value (ParamIDs::driveGain), WithinAbs (8.0, 1.0e-4));
+    CHECK_THAT (rig.value (ParamIDs::lofiAmount), WithinAbs (8.0, 1.0e-4));
     CHECK_THAT (rig.value (ParamIDs::delayMix), WithinAbs (0.6, 1.0e-4));
     CHECK_FALSE (rig.processor.canRedo());
 }
@@ -141,12 +141,12 @@ TEST_CASE ("Undo and redo take back whole knob moves", "[undo]")
 TEST_CASE ("Undo doesn't take back the global knobs or the pedal position", "[undo]")
 {
     TestRig rig;
-    rig.turn (ParamIDs::driveGain, 7.0f);
+    rig.turn (ParamIDs::lofiAmount, 7.0f);
     rig.turn (ParamIDs::outputGain, -6.0f);
     rig.turn (ParamIDs::expression, 0.3f);
 
     rig.processor.undo();
-    CHECK_THAT (rig.value (ParamIDs::driveGain), WithinAbs (5.0, 1.0e-4));
+    CHECK_THAT (rig.value (ParamIDs::lofiAmount), WithinAbs (5.0, 1.0e-4));
     CHECK_THAT (rig.value (ParamIDs::outputGain), WithinAbs (-6.0, 1.0e-4));
     CHECK_THAT (rig.value (ParamIDs::expression), WithinAbs (0.3, 1.0e-3));
 }

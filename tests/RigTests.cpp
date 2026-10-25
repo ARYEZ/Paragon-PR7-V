@@ -59,7 +59,7 @@ TEST_CASE ("A rig survives being written to a file and read back", "[rigs]")
     rig.number = 17;
     rig.favourite = true;
     rig.tags = { "Rock", "High Gain" };
-    rig.parameters = { { "driveGain", 6.5f }, { "delayTime", 420.0f } };
+    rig.parameters = { { "lofiAmount", 6.5f }, { "delayTime", 420.0f } };
 
     const auto restored = Rig::fromXml (*juce::XmlDocument::parse (rig.toXml()->toString()));
     REQUIRE (restored.has_value());
@@ -97,7 +97,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 32);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 36);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -289,14 +289,14 @@ TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs
 {
     RigRig r;
     r.set (ParamIDs::driveOn, 1.0f);
-    r.set (ParamIDs::driveGain, 7.5f);
+    r.set (ParamIDs::lofiAmount, 7.5f);
     r.set (ParamIDs::delayTime, 640.0f);
     r.set (ParamIDs::rigLevel, -3.0f);
     REQUIRE (r.processor.saveCurrentRigAs ("My Sound"));
 
     // Change everything, including the global input and output knobs.
     r.set (ParamIDs::driveOn, 0.0f);
-    r.set (ParamIDs::driveGain, 1.0f);
+    r.set (ParamIDs::lofiAmount, 1.0f);
     r.set (ParamIDs::delayTime, 100.0f);
     r.set (ParamIDs::rigLevel, 0.0f);
     r.set (ParamIDs::inputGain, 5.0f);
@@ -305,7 +305,7 @@ TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs
     r.processor.loadRig (r.entryNamed ("My Sound"));
 
     CHECK (r.get (ParamIDs::driveOn) > 0.5f);
-    CHECK_THAT (r.get (ParamIDs::driveGain), WithinAbs (7.5, 0.01));
+    CHECK_THAT (r.get (ParamIDs::lofiAmount), WithinAbs (7.5, 0.01));
     CHECK_THAT (r.get (ParamIDs::delayTime), WithinAbs (640.0, 0.5));
     CHECK_THAT (r.get (ParamIDs::rigLevel), WithinAbs (-3.0, 0.01));
     // Global knobs are left alone.
@@ -339,7 +339,7 @@ TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]
 
     SECTION ("Turning a knob marks it modified")
     {
-        r.set (ParamIDs::driveGain, 9.0f);
+        r.set (ParamIDs::lofiAmount, 9.0f);
         CHECK (r.processor.isRigModified());
     }
 
@@ -353,10 +353,10 @@ TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]
 
     SECTION ("Saving clears it")
     {
-        r.set (ParamIDs::driveGain, 9.0f);
+        r.set (ParamIDs::lofiAmount, 9.0f);
         REQUIRE (r.processor.saveCurrentRigAs ("Saved"));
         CHECK_FALSE (r.processor.isRigModified());
-        r.set (ParamIDs::driveGain, 2.0f);
+        r.set (ParamIDs::lofiAmount, 2.0f);
         CHECK (r.processor.isRigModified());
         REQUIRE (r.processor.saveCurrentRig());   // a user rig now, so plain save works
         CHECK_FALSE (r.processor.isRigModified());
@@ -386,13 +386,13 @@ TEST_CASE ("< and > step through the rigs in order", "[rigs]")
 TEST_CASE ("Deleting the loaded rig keeps the sound, now unsaved", "[rigs]")
 {
     RigRig r;
-    r.set (ParamIDs::driveGain, 8.0f);
+    r.set (ParamIDs::lofiAmount, 8.0f);
     REQUIRE (r.processor.saveCurrentRigAs ("Temporary"));
     REQUIRE (r.processor.deleteRig (r.entryNamed ("Temporary")));
 
     CHECK_FALSE (r.processor.getCurrentRig().isUserRig());
     CHECK (r.processor.isRigModified());
-    CHECK_THAT (r.get (ParamIDs::driveGain), WithinAbs (8.0, 0.01));
+    CHECK_THAT (r.get (ParamIDs::lofiAmount), WithinAbs (8.0, 0.01));
 }
 
 TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
@@ -401,9 +401,9 @@ TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
     juce::File rigFile;
     {
         RigRig r;
-        r.set (ParamIDs::driveGain, 8.0f);
+        r.set (ParamIDs::lofiAmount, 8.0f);
         REQUIRE (r.processor.saveCurrentRigAs ("Project Rig"));
-        r.set (ParamIDs::driveGain, 3.0f);   // tweaked after saving
+        r.set (ParamIDs::lofiAmount, 3.0f);   // tweaked after saving
         rigFile = r.processor.getCurrentRig().file;
         r.processor.getStateInformation (saved);
     }
@@ -413,7 +413,7 @@ TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
     CHECK (restored.getCurrentRig().name == "Project Rig");
     CHECK (restored.getCurrentRig().file == rigFile);
     CHECK (restored.isRigModified());   // the tweak is remembered as unsaved
-    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::driveGain)->load(), WithinAbs (3.0, 0.01));
+    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::lofiAmount)->load(), WithinAbs (3.0, 0.01));
 }
 
 TEST_CASE ("Each rig's RIG LEVEL adds to the master output", "[rigs]")
@@ -497,4 +497,23 @@ TEST_CASE ("Rigs saved with 0.7.0's DOUBLER keep their sound: no DRIFT, its old 
     const auto reloaded = Rig::fromXml (*juce::XmlDocument::parse (current.toXml()->toString()));
     REQUIRE (reloaded.has_value());
     CHECK (reloaded->parameters.count (ParamIDs::doublerVoice (0, "Drift")) == 0);
+}
+
+TEST_CASE ("Rigs saved with a pedal drive model load as MARS, the old knobs gone", "[rigs][mars]")
+{
+    // As 0.13.0 wrote it: a Face Fuzz with its DRIVE, TONE and LEVEL.
+    const auto old = Rig::fromXml (*juce::XmlDocument::parse (
+        "<ParagonRig version=\"1\" parameterVersion=\"35\" name=\"Fuzzy\" bank=\"B\" number=\"20\">"
+        "  <Param id=\"driveOn\" value=\"1\"/><Param id=\"driveModel\" value=\"3\"/>"
+        "  <Param id=\"driveGain\" value=\"10\"/><Param id=\"driveTone\" value=\"2\"/><Param id=\"driveLevel\" value=\"-3\"/>"
+        "</ParagonRig>"));
+    REQUIRE (old.has_value());
+    const auto& p = old->parameters;
+    CHECK (juce::roundToInt (p.at (ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::brokenTube);
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Drive")), WithinAbs (0.85, 0.01));
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Treble")), WithinAbs (-6.0, 0.01));
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Level")), WithinAbs (-3.0, 0.01));
+    CHECK (p.at (ParamIDs::driveOn) > 0.5f);
+    for (const auto* gone : { "driveModel", "driveGain", "driveTone", "driveLevel" })
+        CHECK (p.count (gone) == 0);
 }

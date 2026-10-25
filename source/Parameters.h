@@ -23,7 +23,10 @@ namespace ParamIDs
     inline constexpr auto compLevel      = "compLevel";
     inline constexpr auto gateThreshold  = "gateThreshold";
 
-    inline constexpr auto driveOn        = "driveOn";
+    inline constexpr auto driveOn        = "driveOn";   // SATURATION (MARS) on
+    // The pedal drive's DRIVE, TONE and LEVEL: no longer parameters since
+    // 0.14.0, when MARS replaced the pedal models. Read from older rigs and
+    // projects only, which convertOldDrive turns into MARS. Never reuse these IDs.
     inline constexpr auto driveGain      = "driveGain";
     inline constexpr auto driveTone      = "driveTone";
     inline constexpr auto driveLevel     = "driveLevel";
@@ -70,8 +73,9 @@ namespace ParamIDs
     // Modulation tempo sync: Off, or a note length at the tapped or host tempo.
     inline constexpr auto modSync = "modSync";
 
-    // Version 10: the drive's model (Tube Screamer or the original), and
-    // the FILTER / PITCH block: auto-wah and pitch shifter.
+    // Version 10: the drive's model (Classic, Screamer, Muff, Face, and MARS
+    // from 0.13.0; legacy since 0.14.0, like driveGain), and the FILTER /
+    // PITCH block: auto-wah and pitch shifter.
     inline constexpr auto driveModel    = "driveModel";
     inline constexpr auto fpOn          = "fpOn";
     inline constexpr auto fpType        = "fpType";
@@ -272,6 +276,14 @@ void moveOldDoublerSettings (const std::function<std::optional<float> (const cha
 // Settings saved with 0.7.0's or 0.8.0's DOUBLER (before its DRIFT and
 // stronger starting settings in 0.9.0): no DRIFT, and any voice setting not
 // saved keeps the value it started with then, so they sound as they did.
+// Settings saved before 0.14.0 with one of the pedal drive models (Classic,
+// Screamer, Muff Fuzz, Face Fuzz): sets MARS up to sound close to it, its
+// DRIVE, TONE and LEVEL carried over (a different engine: close, not the
+// same). Nothing changes if MARS was already picked, or if the drive was
+// off and never touched.
+void convertOldDrive (const std::function<std::optional<float> (const juce::String&)>& get,
+                      const std::function<void (const juce::String&, float)>& set);
+
 void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
                          const std::function<void (const juce::String&, float)>& set);
 

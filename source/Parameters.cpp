@@ -3,7 +3,6 @@
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
-#include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
@@ -110,10 +109,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::gateThreshold, "Gate Threshold", { effects::CompGate::gateOffDb, -20.0f, 1.0f },
                            effects::CompGate::gateOffDb, v3, asGate));
 
-    layout.add (makeSwitch (ParamIDs::driveOn, "Drive On", v3, false));
-    layout.add (makeFloat (ParamIDs::driveGain, "Drive", { 0.0f, 10.0f, 0.1f }, 5.0f, v3, asKnob));
-    layout.add (makeFloat (ParamIDs::driveTone, "Drive Tone", { 0.0f, 10.0f, 0.1f }, 5.0f, v3, asKnob));
-    layout.add (makeFloat (ParamIDs::driveLevel, "Drive Level", { -24.0f, 12.0f, 0.1f }, 0.0f, v3, asDb));
+    layout.add (makeSwitch (ParamIDs::driveOn, "Drive On", v3, false));   // SATURATION: MARS's settings are version 35
 
     layout.add (makeSwitch (ParamIDs::modOn, "Mod On", v3, false));
     layout.add (makeChoice (ParamIDs::modType, "Mod Type", v3, effects::Modulation::typeNames, 0));
@@ -171,12 +167,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // added to the end of Mod Type's list, so saved choices keep their meaning.)
     layout.add (makeChoice (ParamIDs::modSync, "Mod Sync", 9, effects::Delay::syncNames, 0));
 
-    // Added in plugin version 10. The drive defaults to the Tube Screamer
-    // model; projects and rigs saved before it existed are given the
-    // original model when they load (see ParagonX1AudioProcessor::setStateInformation
-    // and Rig::fromXml), so they sound as they did.
+    // Added in plugin version 10 (its drive MODEL went in 0.14.0, MARS replacing the pedals).
     constexpr int v10 = 10;
-    layout.add (makeChoice (ParamIDs::driveModel, "Drive Model", v10, effects::Drive::modelNames, (int) effects::Drive::Model::screamer));
     layout.add (makeSwitch (ParamIDs::fpOn, "Filter/Pitch On", v10, false));
     layout.add (makeChoice (ParamIDs::fpType, "Filter/Pitch Type", v10, effects::FilterPitch::typeNames, 0));
     layout.add (makeFloat (ParamIDs::fpSensitivity, "Auto-Wah Sensitivity", { 0.0f, 10.0f, 0.1f }, 5.0f, v10, asKnob));
@@ -544,3 +536,63 @@ void moveOldDoublerSettings (const std::function<std::optional<float> (const cha
     set (ParamIDs::modOn, 0.0f);
     set (ParamIDs::modType, (float) effects::Modulation::Type::chorus);
 }
+
+void convertOldDrive (const std::function<std::optional<float> (const juce::String&)>& get,
+                      const std::function<void (const juce::String&, float)>& set)
+{
+    // The old models, by their saved number: Classic, Screamer, Muff, Face, and MARS.
+    constexpr int classic = 0, screamer = 1, muff = 2, face = 3, mars = 4;
+    const auto savedModel = get (ParamIDs::driveModel);
+    const auto model = savedModel.has_value() ? juce::roundToInt (*savedModel) : screamer;   // the old default
+    if (model == mars)
+        return;
+    const auto gain = get (ParamIDs::driveGain).value_or (5.0f);
+    const auto tone = get (ParamIDs::driveTone).value_or (5.0f);
+    const auto level = get (ParamIDs::driveLevel).value_or (0.0f);
+    const auto wasOn = get (ParamIDs::driveOn).value_or (0.0f) > 0.5f;
+    const auto touched = model != screamer || std::abs (gain - 5.0f) > 0.01f || std::abs (tone - 5.0f) > 0.01f || std::abs (level) > 0.01f;
+    if (! wasOn && ! touched)
+        return;   // never used: MARS as it starts
+
+    using Style = effects::Mars::Style;
+    const auto band = [&] (int index, const char* part, float value) { set (ParamIDs::marsBand (index, part), value); };
+    const auto drive = juce::jlimit (0.0f, 1.0f, 0.15f + 0.07f * gain);   // DRIVE 0-10 onto MARS's 0-100%
+    const auto treble = juce::jlimit (-12.0f, 12.0f, (tone - 5.0f) * 2.0f);   // TONE onto TREBLE
+    const auto bandLevel = juce::jlimit (effects::Mars::minLevelDb, 12.0f, level);
+    set (ParamIDs::marsBands, 0.0f);
+    switch (model)
+    {
+        case screamer:
+            // The TS trick: the bass stays clean, only the mids up are driven
+            // (its clipping path starts at about 720 Hz), with a mid push.
+            set (ParamIDs::marsBands, 1.0f);
+            set (ParamIDs::marsCross1, 720.0f);
+            band (0, "On", 0.0f);
+            band (0, "Level", bandLevel);
+            band (1, "Style", (float) Style::saturatedTube);
+            band (1, "Drive", drive);
+            band (1, "Mid", 3.0f);
+            band (1, "Treble", treble);
+            band (1, "Level", bandLevel);
+            return;
+        case muff:
+            // Long, smooth fuzz with the mids scooped.
+            band (0, "Style", (float) Style::americanAmp);
+            band (0, "Drive", juce::jmin (1.0f, drive + 0.15f));
+            band (0, "Mid", -4.0f);
+            break;
+        case face:
+            // A raspy, lopsided fuzz.
+            band (0, "Style", (float) Style::brokenTube);
+            band (0, "Drive", drive);
+            break;
+        case classic:
+        default:
+            band (0, "Style", (float) Style::saturatedTube);
+            band (0, "Drive", drive);
+            break;
+    }
+    band (0, "Treble", treble);
+    band (0, "Level", bandLevel);
+}
+
