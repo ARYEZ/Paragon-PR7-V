@@ -3694,3 +3694,157 @@ TEST_CASE ("HARMONY CORRECT NOTES: the voice tuned hard to the generated note", 
     CHECK (std::abs (cents (pitchOf (out), 220.0)) < 5.0);
     CHECK (rig.processor.getLatencySamples() > 0);   // like NATURAL and HARD, it runs 40 ms late
 }
+TEST_CASE ("AEON: the flanger follows the BF-2's circuit and specifications", "[effects][modulation]")
+{
+    using effects::Aeon;
+    const auto makeRig = [] (float manual, float depth, float res, float rateHz = 0.5f)
+    {
+        auto rig = std::make_unique<EffectRig>();
+        rig->set (ParamIDs::modOn, 1.0f);
+        rig->set (ParamIDs::modType, (float) effects::Modulation::Type::flanger);
+        rig->set (ParamIDs::modManual, manual);
+        rig->set (ParamIDs::modDepth, depth);
+        rig->set (ParamIDs::modRes, res);
+        rig->set (ParamIDs::modRate, rateHz);
+        return rig;
+    };
+
+    // With DEPTH at 0 the delay holds still: the response to a small click
+    // (after a second, so everything has settled), as gain in dB per band.
+    struct Band { double lowest, highest; };
+    const auto impulseResponse = [&] (float manual, float res)
+    {
+        auto rig = makeRig (manual, 0.0f, res);
+        rig->runMono (silence (1.0));
+        return rig->runMono (impulse (1.0, 0.01f));
+    };
+    const auto spectrum = [] (const std::vector<float>& ir)
+    {
+        constexpr int order = 17;
+        juce::dsp::FFT fft (order);
+        std::vector<float> data ((size_t) (2 << order), 0.0f);
+        for (size_t i = 0; i < std::min (ir.size(), (size_t) (1 << order)); ++i)
+            data[i] = ir[i] / 0.01f;
+        fft.performFrequencyOnlyForwardTransform (data.data());
+        return data;   // bin i is i * sampleRate / 2^17 Hz
+    };
+    const auto bandExtremes = [] (const std::vector<float>& magnitudes, Band band)
+    {
+        const auto binHz = sampleRate / (double) (1 << 17);
+        float highest = -1000.0f, lowest = 1000.0f;
+        for (auto i = (size_t) (band.lowest / binHz); i < (size_t) (band.highest / binHz); ++i)
+        {
+            highest = std::max (highest, dB (magnitudes[i] + 1.0e-9f));
+            lowest = std::min (lowest, dB (magnitudes[i] + 1.0e-9f));
+        }
+        return std::make_pair (lowest, highest);
+    };
+
+    SECTION ("MANUAL sets the delay across the pedal's specified 13 ms to 1 ms (DEPTH at 0)")
+    {
+        CHECK_THAT (Aeon::delayMsForControl (Aeon::manualVolts (0.0f), 0.0), WithinAbs (13.0, 0.01));
+        CHECK_THAT (Aeon::delayMsForControl (Aeon::manualVolts (10.0f), 0.0), WithinAbs (1.0, 0.01));
+
+        // The echo of a click lands there, plus about 0.15 ms through the circuit's filters.
+        const auto echoMs = [&] (float manual)
+        {
+            const auto ir = impulseResponse (manual, 0.0f);
+            size_t peak = 20;
+            for (size_t i = 20; i < ir.size(); ++i)
+                if (std::abs (ir[i]) > std::abs (ir[peak]))
+                    peak = i;
+            return 1000.0 * (double) peak / sampleRate;
+        };
+        CHECK_THAT (echoMs (0.0f), WithinAbs (13.15, 0.2));
+        CHECK_THAT (echoMs (5.0f), WithinAbs (3.6, 0.2));
+        CHECK_THAT (echoMs (10.0f), WithinAbs (1.15, 0.2));
+    }
+
+    SECTION ("Dry and wet mix in phase: deep notches between the peaks")
+    {
+        const auto magnitudes = spectrum (impulseResponse (5.0f, 0.0f));
+        const auto [notch, peak] = bandExtremes (magnitudes, { 2000.0, 6000.0 });
+        CHECK (notch < -30.0f);
+        CHECK_THAT (peak, WithinAbs (6.0, 1.5));   // dry and wet adding up: about twice the level
+    }
+
+    SECTION ("The low end keeps more of its level: the wet path lets little through below about 40 Hz")
+    {
+        const auto magnitudes = spectrum (impulseResponse (5.0f, 0.0f));
+        CHECK (bandExtremes (magnitudes, { 40.0, 150.0 }).first > -10.0f);
+    }
+
+    SECTION ("RES rings the peaks, most in the treble, and never howls")
+    {
+        const auto still = spectrum (impulseResponse (5.0f, 0.0f));
+        const auto ringing = spectrum (impulseResponse (5.0f, 10.0f));
+        CHECK (bandExtremes (ringing, { 600.0, 2000.0 }).second > bandExtremes (still, { 600.0, 2000.0 }).second + 3.0f);
+        CHECK (bandExtremes (ringing, { 6000.0, 12000.0 }).second > bandExtremes (still, { 6000.0, 12000.0 }).second + 15.0f);
+
+        // A click at full RES dies away rather than building up...
+        const auto ir = impulseResponse (5.0f, 10.0f);
+        CHECK (rms (ir, 0.9, 1.0) < 1.0e-4f * rms (ir, 0.0, 0.1));
+        // ...and loud playing stays loud playing: IC2b's diodes hold the BBD's input down.
+        auto rig = makeRig (10.0f, 1.0f, 10.0f, 3.0f);
+        auto loud = sine (110.0, 1.0f, 3.0);
+        for (size_t i = 0; i < loud.size(); ++i)
+            loud[i] += 0.8f * (float) std::sin (0.37 * (double) i);
+        const auto output = rig->runMono (loud);
+        REQUIRE (allFinite (output));
+        CHECK (*std::max_element (output.begin(), output.end()) < 3.0f);
+    }
+
+    SECTION ("Full DEPTH sweeps by the LFO alone: MANUAL does nothing, as the manual says")
+    {
+        const auto input = sine (700.0, 0.05f, 1.5);
+        const auto atZero = makeRig (0.0f, 1.0f, 3.0f)->runMono (input);
+        const auto atTen = makeRig (10.0f, 1.0f, 3.0f)->runMono (input);
+        CHECK (maxAbsDifference (atZero, atTen) < 1.0e-5f);
+        CHECK_THAT (Aeon::delayMsForControl (Aeon::lfoVolts (-1.0), 1.0), WithinAbs (9.1, 0.3));
+        CHECK_THAT (Aeon::delayMsForControl (Aeon::lfoVolts (1.0), 1.0), WithinAbs (1.2, 0.1));
+    }
+
+    // A steady 1 kHz tone through a full-depth sweep: its loudness rises
+    // and falls as the notches pass. Its envelope, in 10 ms steps.
+    const auto envelope = [&] (float rateHz, double seconds)
+    {
+        auto rig = makeRig (5.0f, 1.0f, 0.0f, rateHz);
+        const auto output = rig->runMono (sine (1000.0, 0.05f, seconds));
+        std::vector<float> levels;
+        for (double t = 1.0; t + 0.01 < seconds; t += 0.01)
+            levels.push_back (rms (output, t, t + 0.01));
+        return levels;
+    };
+
+    SECTION ("RATE: one sweep per cycle")
+    {
+        const auto levels = envelope (1.0f, 6.0);
+        float mean = 0.0f;
+        for (auto l : levels)
+            mean += l / (float) levels.size();
+        auto bestLag = 0;
+        double best = -1.0e9;
+        for (int lag = 70; lag <= 130; ++lag)   // 0.7 to 1.3 s
+        {
+            double sum = 0.0;
+            for (size_t i = 0; i + (size_t) lag < levels.size(); ++i)
+                sum += (levels[i] - mean) * (levels[i + (size_t) lag] - mean);
+            if (sum > best)
+            {
+                best = sum;
+                bestLag = lag;
+            }
+        }
+        CHECK (std::abs (bestLag - 100) <= 3);
+    }
+
+    SECTION ("Fast sweeps are narrower: C32 (22 uF) smooths the sweep")
+    {
+        const auto swing = [] (const std::vector<float>& levels)
+        {
+            const auto [lowest, highest] = std::minmax_element (levels.begin(), levels.end());
+            return dB (*highest / *lowest);
+        };
+        CHECK (swing (envelope (0.3f, 5.0)) > swing (envelope (8.0f, 5.0)) + 2.0f);
+    }
+}

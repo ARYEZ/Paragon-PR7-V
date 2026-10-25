@@ -31,7 +31,7 @@ descriptions below still talk about guitar.
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
-| V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.18.0) |
+| V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
 | V7 | Harmony: MIDI note input, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
