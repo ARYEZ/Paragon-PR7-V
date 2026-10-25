@@ -451,10 +451,14 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                               { ParamIDs::fpXpProgram, "PROGRAM", fpIs (effects::FilterPitch::Type::whammyWah) },
                               { ParamIDs::fpMix, "MIX" } } } });
     // SATURATION has MARS's own panel (panels[driveBlock] stays empty).
+    // AEON (the flanger) adds its pedal's MANUAL and RES.
+    const auto isAeon = [this] { return juce::roundToInt (rawValue (ParamIDs::modType)) == (int) effects::Modulation::Type::flanger; };
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
+                          { ParamIDs::modManual, "MANUAL", isAeon, true },
                           { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
                           { ParamIDs::modDepth, "DEPTH" },
+                          { ParamIDs::modRes, "RES", isAeon, true },
                           { ParamIDs::modMix, "MIX", [this] {
                               return effects::Modulation::usesMix ((effects::Modulation::Type) juce::roundToInt (rawValue (ParamIDs::modType))); } } } } });
     // DELAY's three pages (since 0.10.0, with the controls inspired by

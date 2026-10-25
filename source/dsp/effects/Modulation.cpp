@@ -13,7 +13,6 @@ namespace effects
             float centreMs, sweepMs, feedback;
         };
         constexpr DelaySweep chorusSweep { 14.0f, 6.0f, 0.0f };
-        constexpr DelaySweep flangerSweep { 3.0f, 2.5f, 0.6f };   // feedback gives the flanger its "jet" ring
 
         constexpr float maxDelayMs = 40.0f;
 
@@ -62,6 +61,7 @@ namespace effects
             for (auto& stage : channel)
                 stage = {};
         bypass.prepare (sampleRate, maxBlockSize);
+        aeon.prepare (sampleRate, maxBlockSize);
     }
 
     float Modulation::advanceLfo (float rateHz) noexcept
@@ -78,11 +78,21 @@ namespace effects
             depth.setTargetValue (settings.depth);
             mix.setTargetValue (settings.mix);
 
+            // Switched to AEON: start with its delay empty, not holding old echoes.
+            if (settings.type != lastType && settings.type == Type::flanger)
+                aeon.reset();
+            lastType = settings.type;
+
             switch (settings.type)
             {
                 case Type::chorus:
-                case Type::flanger:
                     processDelayBased (wet, settings);
+                    break;
+
+                case Type::flanger:
+                    aeon.process (wet, { settings.manual, settings.depth, settings.rateHz, settings.resonance });
+                    depth.skip ((int) wet.getNumSamples());
+                    mix.skip ((int) wet.getNumSamples());
                     break;
 
                 case Type::phaser:
@@ -110,7 +120,7 @@ namespace effects
 
     void Modulation::processDelayBased (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
     {
-        const auto& sweep = settings.type == Type::flanger ? flangerSweep : chorusSweep;
+        const auto& sweep = chorusSweep;
         const auto msToSamples = (float) sampleRate * 0.001f;
         const auto numChannels = (int) block.getNumChannels();
 

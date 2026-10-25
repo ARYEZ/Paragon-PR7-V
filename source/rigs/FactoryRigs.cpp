@@ -356,8 +356,9 @@ std::vector<Rig> makeFactoryRigs()
 
         // A jet flanger: the voice whooshing through it.
         make ("Jet Voice", E, 7, "Modulation,Experimental", {
+            { rigLevel, -3 },   // AEON adds dry and wet at full level: louder than the old flanger
             { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
-            { modOn, 1 }, { modType, flanger }, { modRate, 0.2f }, { modDepth, 0.7f }, { modMix, 0.5f },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.2f }, { modDepth, 0.7f }, { modManual, 5 }, { modRes, 6 },
             { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
 
         // The voice panning from side to side in time with the song.
@@ -399,8 +400,9 @@ std::vector<Rig> makeFactoryRigs()
         // A metallic, robotic edge: a fast flanger, crushed bits and a tight echo.
         // (Not a vocoder: our own take with what's here.)
         make ("Metallic Voice", E, 13, "Lo-Fi,Experimental", {
+            { rigLevel, -3 },   // AEON adds dry and wet at full level: louder than the old flanger
             { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
-            { modOn, 1 }, { modType, flanger }, { modRate, 0.1f }, { modDepth, 0.9f }, { modMix, 0.6f },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.1f }, { modDepth, 0.9f }, { modManual, 7 }, { modRes, 9 },
             { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 25 }, { delayFeedback, 0.6f },
             { delayMix, 0.3f },
             { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.6f } }),

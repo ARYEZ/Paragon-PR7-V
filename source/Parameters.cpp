@@ -562,6 +562,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // correction of the singer's own voice. Off to start: no delay.
     constexpr int v38 = 38;
     layout.add (makeChoice (ParamIDs::harmonyCorrect, "Harmony Correct", v38, effects::Harmony::correctNames, 0));
+
+    // Added in PR7-V 0.18.0: AEON's MANUAL and RES knobs (0 to 10), as on the
+    // pedal it's modelled on. AEON took the old flanger's place in the list.
+    constexpr int v39 = 39;
+    layout.add (makeFloat (ParamIDs::modManual, "AEON Manual", { 0.0f, 10.0f, 0.1f }, 5.0f, v39, asKnob));
+    layout.add (makeFloat (ParamIDs::modRes, "AEON Res", { 0.0f, 10.0f, 0.1f }, 5.0f, v39, asKnob));
     return layout;
 }
 

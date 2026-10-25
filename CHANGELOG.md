@@ -2,6 +2,19 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.18.0
+
+- **Everything in one build:** AEON, plus TUNE VOICE (0.17.0), MARS modulation, the vocal EQ presets and bank F (0.15.0 to 0.16.0).
+- **AEON replaces the generic flanger:** a flanger modelled on the Boss BF-2, built stage by stage from its schematic with the real component values. It's the same model as in PR7-B 0.11.0, and the first in a plan to model a specific pedal for each modulation effect.
+  - **The pedal's four knobs:** MANUAL (the delay time), DEPTH, RATE and RES (resonance). MIX is greyed out, because the pedal always mixes dry and wet 50/50, which makes the notches deep.
+  - **The delay:** a bucket-brigade chip (BBD) model, 13 ms down to 1 ms across MANUAL, the pedal's specified range. The old flanger only reached 0.5 to 5.5 ms, so AEON sweeps much lower and deeper. At full DEPTH, MANUAL does nothing, as the pedal's manual says.
+  - **The sweep:** a triangle LFO, from one cycle every 16 s to 10 per second. At fast RATE settings the sweep gets narrower, as on the pedal, where a capacitor smooths it.
+  - **RES:** rings the peaks hardest in the treble, the BF-2's metallic "zing", without howling.
+  - **Mono, like the pedal:** both sides get the same sound. The old flanger swept the left and right sides a quarter-cycle apart.
+  - **Your sound:** rigs and projects that used the old flanger now get AEON, with MANUAL and RES at 5. Expect it to be louder (up to about 6 dB on the comb's peaks), because dry and wet add at full level.
+  - **Two details are estimates,** because the schematic can't show them: how much signal the BBD chip and its output stage lose, and where the factory set the RES trimmer. Both are set so full RES rings hard without howling.
+- **Jet Voice (E7) and Metallic Voice (E13)** now use AEON: RES well up for the whoosh, nearly full with a short delay for the metallic edge.
+
 ## 0.17.0
 
 - **Pitch correction for your voice: TUNE VOICE (HARMONY stage 2).** Inspired by the CORRECT button in Waves Harmony. It's in the HARMONY panel's header (the PITCH stomp's panel) and tunes your own voice to the nearest note in the song's **KEY** and **SCALE**:
