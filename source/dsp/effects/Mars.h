@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EffectUtils.h"
+#include "MarsModulation.h"
 #include "PitchShifter.h"
 
 namespace effects
@@ -32,7 +33,10 @@ namespace effects
     // All of it runs oversampled (QUALITY: Off 1x, Good 4x, Superb 8x) with
     // IIR filters, so there's no latency. The SATURATION block is in the
     // mono part of the chain, so there are no pan or mid/side controls.
-    // Saturn 2's modulation (LFOs, envelopes, XY) is to come in a second stage.
+    //
+    // Stage 2: MODULATION (MarsModulation.h): XLFOs, envelope generators and
+    // followers, MIDI, XY pads and the expression pedal, moving the knobs
+    // through 16 slots.
     class Mars
     {
     public:
@@ -81,6 +85,7 @@ namespace effects
             float mix = 1.0f;
             Quality quality = Quality::good;
             std::array<Band, maxBands> bands;
+            MarsModulation::Settings modulation;
         };
 
         static constexpr float maxDriveDb = 36.0f;
@@ -88,7 +93,8 @@ namespace effects
 
         Mars();
         void prepare (double sampleRate, int maxBlockSize);
-        void process (juce::dsp::AudioBlock<float> monoBlock, const Settings& settings) noexcept;
+        void process (juce::dsp::AudioBlock<float> monoBlock, const Settings& settings,
+                      const MarsModulation::Context& context = {}) noexcept;
 
         // The STYLE's saturation curve with no memory (its static part): for
         // tests, and for the automatic level matching. `drive` 0 to 1.
@@ -100,6 +106,19 @@ namespace effects
         // less), and how hard it's driven (its peak into the saturation,
         // 0 to 1+), for the panel. Read from the message thread.
         float getBandDrive (int band) const noexcept { return bandDriveMeter[(size_t) juce::jlimit (0, maxBands - 1, band)].load(); }
+
+        // The modulation as it was at the end of the last block, for the
+        // panel: each source's output, how far each target is moved (a
+        // fraction of its range), where the XLFOs are, the EGs' levels and
+        // the trigger signals' levels (dB: 0 input, 1-4 bands).
+        float getSourceValue (int source) const noexcept { return shownSources[(size_t) juce::jlimit (0, MarsModulation::numSources - 1, source)].load(); }
+        float getTargetOffset (int target) const noexcept { return shownOffsets[(size_t) juce::jlimit (0, MarsModulation::numTargets - 1, target)].load(); }
+        float getLfoPosition (int lfo) const noexcept { return shownLfoPositions[(size_t) juce::jlimit (0, MarsModulation::numLfos - 1, lfo)].load(); }
+        float getEgLevel (int eg) const noexcept { return shownEgLevels[(size_t) juce::jlimit (0, MarsModulation::numEgs - 1, eg)].load(); }
+        float getTriggerLevelDb (int trigger) const noexcept { return shownTriggerDb[(size_t) juce::jlimit (0, 4, trigger)].load(); }
+
+        // How often the modulation moves the knobs, in samples at the plugin's rate.
+        int getTickLength() const noexcept { return tickLength; }
 
     private:
         // A state-variable filter in double precision: its low, band and
@@ -135,6 +154,33 @@ namespace effects
             double process (double x) noexcept;
         };
 
+        // A straight-line glide to a new value over a set number of samples.
+        // (Not juce::SmoothedValue: its length can't change without a jump,
+        // and MARS's glides are short while modulated, longer otherwise.)
+        struct Ramp
+        {
+            double current = 0.0, target = 0.0, step = 0.0;
+            int left = 0;
+            void set (double value, int steps) noexcept
+            {
+                if (juce::exactlyEqual (value, target))
+                    return;
+                target = value;
+                left = juce::jmax (1, steps);
+                step = (target - current) / left;
+            }
+            double next() noexcept
+            {
+                if (left > 0 && --left == 0)
+                    current = target;
+                else if (left > 0)
+                    current += step;
+                return current;
+            }
+            double getCurrentValue() const noexcept { return current; }
+            void jump() noexcept { current = target; left = 0; }
+        };
+
         struct BandState
         {
             Svf feedbackFilter;
@@ -151,7 +197,7 @@ namespace effects
             std::array<PitchShifter, 3> breakdownShifters;   // one per QUALITY's rate
             double holdValue = 0.0;
             int holdCount = 0;
-            juce::SmoothedValue<float> preGain, makeUp, mix, level;   // linear gains, smoothed
+            Ramp preGain, makeUp, mix, level;   // linear gains, smoothed
         };
 
         // One-pole filter coefficients at the working rate, worked out when it changes.
@@ -162,6 +208,9 @@ namespace effects
         };
 
         void setRate (int qualityIndex) noexcept;
+        // The knobs as MARS plays them now: as set, or moved by the modulation.
+        void setKnobs (const Settings&, bool modulated) noexcept;
+        void runSegment (juce::dsp::AudioBlock<float> block) noexcept;
         void resetBands() noexcept;
         double processBand (int band, double x, const Band& settings) noexcept;
         double saturate (BandState& state, Style style, double u, float drive) noexcept;
@@ -179,8 +228,24 @@ namespace effects
         std::array<float, maxBands - 1> splitShown { -1, -1, -1 };
         Slope slopeShown = Slope::db24;
         int bandsShown = -1;
-        juce::SmoothedValue<float> inputGain, outputGain, mix;
+        Ramp inputGain, outputGain, mix;
         juce::AudioBuffer<float> dryBuffer;
+
+        // The modulation, and the knobs it moves.
+        MarsModulation modulation;
+        int tickLength = 16, untilTick = 0;
+        bool wasModulated = false, knobsSet = false;   // knobsSet: setKnobs has run since prepare
+        int liveBands = 1;
+        std::array<Band, maxBands> live;
+        static constexpr int numKnobTargets = MarsModulation::firstLfoTarget;   // the bands' and the global knobs
+        std::array<juce::NormalisableRange<float>, numKnobTargets> knobRanges;
+        std::array<float, numKnobTargets> smoothedKnobs {};
+        std::array<float, maxBands> drivePeak {};
+        std::array<std::atomic<float>, MarsModulation::numSources> shownSources {};
+        std::array<std::atomic<float>, MarsModulation::numTargets> shownOffsets {};
+        std::array<std::atomic<float>, MarsModulation::numLfos> shownLfoPositions {};
+        std::array<std::atomic<float>, MarsModulation::numEgs> shownEgLevels {};
+        std::array<std::atomic<float>, 5> shownTriggerDb {};
         BypassFade bypass;
         juce::Random random;
 

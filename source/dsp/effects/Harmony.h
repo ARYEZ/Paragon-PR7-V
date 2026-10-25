@@ -31,6 +31,18 @@ namespace effects
     // latency). Each harmony voice comes out about two vocal pulses behind
     // it, the time its slices need: 8 ms on a high note to 25 ms on a low
     // one, like a second singer a few metres away.
+    //
+    // CORRECT (stage 2; Waves Harmony's CORRECT button on the source): the
+    // singer's own voice tuned to the nearest note in the KEY and SCALE, by
+    // the same slices. NATURAL glides to the note (about 60 ms, so vibrato
+    // and slides mostly survive); HARD jumps to it (about 3 ms: the robotic
+    // effect). It works whether HARMONY is on or not. Tuning the voice needs
+    // its slices, so while CORRECT is on the plugin runs `latency` samples
+    // late (the processor reports it, so a DAW lines the voice back up) and
+    // the voices come out at exactly that delay too, in time with the voice.
+    // The speeds and the hold between notes are our choices: the guide
+    // doesn't give them. Its NOTES state (tune to played or generated notes)
+    // waits for MIDI input and Generate Notes.
     class Harmony
     {
     public:
@@ -50,9 +62,17 @@ namespace effects
             float levelDb = 0.0f;
         };
 
+        // Saved by number: only ever add to the end.
+        enum class Correct { off, natural, hard };
+        static inline const juce::StringArray correctNames { "Off", "Natural", "Hard" };
+        static constexpr double correctLatencySeconds = 0.04;   // what CORRECT delays the plugin by
+        static constexpr double naturalSeconds = 0.06, hardSeconds = 0.003;
+
         struct Settings
         {
             bool on = false;
+            Correct correct = Correct::off;
+            int latency = 0;                    // samples the plugin is running late (CORRECT on), or 0
             int key = 0;                        // 0 = C
             Scales::Scale scale = Scales::Scale::major;
             float sourceDb = 0.0f;              // the singer's own voice
@@ -74,6 +94,10 @@ namespace effects
 
         // Each voice's pitch ratio right now (1 = the singer's pitch). For tests.
         float getRatio (int voice) const noexcept { return voices[(size_t) voice].ratio; }
+        // How far CORRECT is moving the singer's voice right now, in semitones. For tests and the panel.
+        float getCorrection() const noexcept { return correction.load(); }
+        // The note CORRECT is tuning to (a MIDI number), or -1. For the panel.
+        float getCorrectNote() const noexcept { return correctNote.load(); }
 
     private:
         static constexpr int bufferSize = 1 << 15;   // ~0.7 s at 48 kHz: room for the longest slices
@@ -90,7 +114,10 @@ namespace effects
         };
 
         void readPitch (const Settings& settings) noexcept;
-        void addSlice (VoiceState& voice, double centre) noexcept;
+        void resetVoices() noexcept;
+        void addSlice (VoiceState& voice, double centre, double delay) noexcept;
+        double sliceDelay (const VoiceState& voice, int fixedDelay) const noexcept;
+        float nextFrom (VoiceState& voice, int fixedDelay) noexcept;   // lays down slices, returns this sample
         double nearestMark (double target, double latest) const noexcept;
         float readInput (double position) const noexcept;
 
@@ -110,6 +137,11 @@ namespace effects
         double nextMark = 0.0;
 
         std::array<VoiceState, numVoices> voices;
+        VoiceState corrected;                        // the singer's voice, tuned (CORRECT)
+        int latencyInUse = 0;                        // the delay the last block ran at
+        int correctTarget = -1;                      // the note it's tuned to, held between readings
+        double correctSemitones = 0.0;               // the glide towards it
+        std::atomic<float> correction { 0.0f }, correctNote { -1.0f };
         float sourceGain = 1.0f;
         std::atomic<float> sungNote { -1.0f };
         BypassFade bypass;

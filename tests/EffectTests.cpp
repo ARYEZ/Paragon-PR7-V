@@ -2043,12 +2043,13 @@ TEST_CASE ("EQ presets: in range, named once each, and loudness-matched by LEVEL
             CHECK (std::abs (gain) <= effects::GraphicEq::maxGainDb);
         CHECK (std::abs (preset.levelDb) <= 12.0f);
 
-        // The curve's average power change over a guitar's range (80 Hz to
-        // 5 kHz, sampled every 1/24 octave), plus LEVEL, is
-        // close to nothing: switching presets changes the tone, not the volume.
+        // The curve's average power change over its range (a voice's, 100 Hz
+        // to 8 kHz; a guitar's, 80 Hz to 5 kHz; sampled every 1/24 octave),
+        // plus LEVEL, is close to nothing: switching presets changes the tone, not the volume.
         auto power = 0.0;
         auto count = 0;
-        for (auto frequency = 80.0f; frequency <= 5000.0f; frequency *= std::pow (2.0f, 1.0f / 24.0f), ++count)
+        const auto lowest = preset.vocal ? 100.0f : 80.0f, highest = preset.vocal ? 8000.0f : 5000.0f;
+        for (auto frequency = lowest; frequency <= highest; frequency *= std::pow (2.0f, 1.0f / 24.0f), ++count)
             power += std::pow (10.0, effects::GraphicEq::responseDb (preset.gainsDb, frequency) / 10.0);
         const auto changeDb = 10.0 * std::log10 (power / count) + preset.levelDb;
         CHECK (std::abs (changeDb) <= 0.5);
@@ -3151,5 +3152,383 @@ TEST_CASE ("DOUBLER: the direct voice, and the shelves on the doubles", "[effect
         EffectRig rig;
         rig.set (ParamIDs::doublerOutput, -12.0f);   // set up, but off
         CHECK (maxAbsDifference (note, rig.run (note)[0]) < 1.0e-6f);
+    }
+}
+
+//==============================================================================
+// MARS stage 2: the modulation, heard through the whole plugin.
+namespace
+{
+    using Mod = effects::MarsModulation;
+
+    struct ModulatedMarsRig : MarsRig
+    {
+        ModulatedMarsRig()
+        {
+            // A clean band, so what changes is the modulation, not the saturation.
+            band (0, "Style", (float) effects::Mars::Style::cleanTube);
+            band (0, "Drive", 0.0f);
+        }
+        void slot (int index, int source, int target, float amount)
+        {
+            set (ParamIDs::marsSlot (index, "Source").toRawUTF8(), (float) source);
+            set (ParamIDs::marsSlot (index, "Target").toRawUTF8(), (float) target);
+            set (ParamIDs::marsSlot (index, "Amount").toRawUTF8(), amount);
+        }
+        void lfo (int index, const char* part, float value) { set (ParamIDs::marsLfo (index, part).toRawUTF8(), value); }
+    };
+
+    // The level every 10 ms, in dB, from `fromSeconds` on.
+    std::vector<float> envelopeDb (const std::vector<float>& samples, double fromSeconds)
+    {
+        std::vector<float> levels;
+        const auto window = (size_t) (0.01 * sampleRate);
+        for (auto start = (size_t) (fromSeconds * sampleRate); start + window <= samples.size(); start += window)
+        {
+            double sum = 0.0;
+            for (size_t i = start; i < start + window; ++i)
+                sum += samples[i] * samples[i];
+            levels.push_back (dB ((float) std::sqrt (sum / (double) window) + 1.0e-9f));
+        }
+        return levels;
+    }
+
+    // How many times a level wobbles up through its middle.
+    int wobbles (const std::vector<float>& levels)
+    {
+        const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+        const auto middle = 0.5f * (*low + *high);
+        int count = 0;
+        for (size_t i = 1; i < levels.size(); ++i)
+            count += levels[i - 1] < middle && levels[i] >= middle;
+        return count;
+    }
+}
+
+TEST_CASE ("MARS modulation: an XLFO on a band's LEVEL makes it pulse at RATE", "[effects][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.lfo (0, "Rate", 4.0f);
+    rig.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.5f);
+    const auto output = rig.runMono (sine (440.0, 0.1f, 2.3));
+    REQUIRE (allFinite (output));
+    const auto levels = envelopeDb (output, 0.3);
+    const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+    CAPTURE (*low, *high);
+    // LEVEL's knob runs -36 to +12 dB; at 0 dB, +-50% swings it from -24 dB up to +12.
+    CHECK_THAT (*high - *low, WithinAbs (36.0, 3.0));
+    CHECK (wobbles (levels) == 8);   // 4 a second for 2 seconds
+}
+
+TEST_CASE ("MARS modulation: a synced XLFO follows the DAW's tempo", "[effects][mars][modulation]")
+{
+    const auto wobblesAt = [] (double bpm)
+    {
+        ModulatedMarsRig rig;
+        rig.playHead.bpm = bpm;
+        rig.lfo (0, "Sync", (float) Mod::syncNames.indexOf ("1/4"));
+        rig.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.5f);
+        return wobbles (envelopeDb (rig.runMono (sine (440.0, 0.1f, 4.3)), 0.3));
+    };
+    CHECK (wobblesAt (120.0) == 8);   // a cycle a beat: 2 a second
+    CHECK (wobblesAt (90.0) == 6);
+}
+
+TEST_CASE ("MARS modulation: empty slots change nothing", "[effects][mars][modulation]")
+{
+    const auto input = sine (440.0, 0.3f, 0.5);
+    ModulatedMarsRig plain;
+    const auto reference = plain.runMono (input);
+    ModulatedMarsRig noSource, noAmount;
+    noSource.slot (0, Mod::none, Mod::bandTarget (0, Mod::level), 1.0f);
+    noAmount.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.0f);
+    CHECK (maxAbsDifference (reference, noSource.runMono (input)) == 0.0f);
+    CHECK (maxAbsDifference (reference, noAmount.runMono (input)) == 0.0f);
+}
+
+TEST_CASE ("MARS modulation: busy from the first moment, the knobs start where they're set", "[effects][mars][modulation]")
+{
+    // A slot that moves LEVEL by at most half a dB: the start must sound like
+    // the unmodulated band, not glide up from every knob at 0 (as 0.15.0 did
+    // at first, which also made a hair-off-0% slot audible on macOS).
+    const auto input = sine (440.0, 0.3f, 0.1);
+    ModulatedMarsRig plain;
+    plain.band (0, "Mix", 0.8f);
+    const auto reference = plain.runMono (input);
+    ModulatedMarsRig busy;
+    busy.band (0, "Mix", 0.8f);
+    busy.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.01f);
+    CHECK (maxAbsDifference (reference, busy.runMono (input)) < 0.02f);
+}
+
+TEST_CASE ("MARS modulation: an envelope follower on DRIVE saturates the loud parts harder", "[effects][mars][modulation]")
+{
+    // The third harmonic against the note, in dB.
+    const auto grit = [] (bool followed, float amplitude)
+    {
+        ModulatedMarsRig rig;
+        rig.band (0, "Style", (float) effects::Mars::Style::saturatedTube);
+        if (followed)
+            rig.slot (0, Mod::ef1, Mod::bandTarget (0, Mod::drive), 1.0f);
+        const auto output = rig.runMono (sine (330.0, amplitude, 0.8));
+        return dB (levelAt (output, 990.0, 0.4) / levelAt (output, 330.0, 0.4));
+    };
+    CHECK (grit (true, 0.5f) > grit (false, 0.5f) + 10.0f);
+    CHECK (grit (true, 0.5f) > grit (true, 0.02f) + 6.0f);
+}
+
+TEST_CASE ("MARS modulation: the expression pedal as a source", "[effects][mars][modulation]")
+{
+    const auto levelWithPedal = [] (float position)
+    {
+        ModulatedMarsRig rig;
+        rig.set (ParamIDs::expression, position);
+        rig.slot (0, Mod::pedal, Mod::globalTarget (Mod::output), 0.5f);
+        return rms (rig.runMono (sine (440.0, 0.01f, 0.5)), 0.3);
+    };
+    // OUTPUT's knob runs -24 to +24 dB: half of that range is 24 dB.
+    CHECK_THAT (dB (levelWithPedal (1.0f) / levelWithPedal (0.0f)), WithinAbs (24.0, 1.0));
+}
+
+TEST_CASE ("MARS modulation: MIDI from the DAW (the mod wheel) turns a band down", "[effects][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.slot (0, Mod::midi1, Mod::bandTarget (0, Mod::level), -1.0f);   // MIDI 1 starts on the mod wheel
+    const auto input = sine (440.0, 0.1f, 1.0);
+    std::vector<float> output;
+    juce::AudioBuffer<float> buffer (2, blockSize);
+    for (size_t start = 0; start + blockSize <= input.size(); start += blockSize)
+    {
+        juce::MidiBuffer midi;
+        if (start == (size_t) (0.5 * sampleRate) / blockSize * blockSize)
+            midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, 127), 0);
+        buffer.clear();
+        std::copy (input.begin() + (long) start, input.begin() + (long) start + blockSize, buffer.getWritePointer (0));
+        rig.processor.processBlock (buffer, midi);
+        output.insert (output.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + blockSize);
+    }
+    CHECK (rms (output, 0.3, 0.49) > 0.05f);
+    CHECK (rms (output, 0.6) < 1.0e-4f);   // the wheel all the way up: the band all the way down (off)
+}
+
+TEST_CASE ("MARS modulation: a swept crossover moves where the bands split", "[effects][mars][modulation]")
+{
+    // Two bands, the top one off: MARS passes only what's below the
+    // crossover. Sweeping the crossover makes a 1 kHz tone come and go.
+    ModulatedMarsRig rig;
+    rig.set (ParamIDs::marsBands, 1.0f);
+    rig.band (1, "Level", effects::Mars::minLevelDb);
+    rig.set (ParamIDs::marsCross1, 1000.0f);
+    rig.lfo (0, "Rate", 2.0f);
+    rig.slot (0, Mod::lfo1, Mod::globalTarget (Mod::crossover1), 0.3f);
+    const auto output = rig.runMono (sine (1000.0, 0.1f, 2.3));
+    REQUIRE (allFinite (output));
+    const auto levels = envelopeDb (output, 0.3);
+    const auto [low, high] = std::minmax_element (levels.begin(), levels.end());
+    CHECK (*high > -24.0f);   // the tone all through (a 0.1 sine is -23 dB)
+    CHECK (*low < *high - 20.0f);
+    CHECK (wobbles (levels) == 4);
+}
+
+TEST_CASE ("MARS with all 16 slots busy still runs comfortably faster than real time", "[effects][performance][mars][modulation]")
+{
+    ModulatedMarsRig rig;
+    rig.set (ParamIDs::marsBands, 3.0f);
+    for (int b = 0; b < 4; ++b)
+    {
+        rig.band (b, "Style", (float) effects::Mars::Style::screamingAmp);
+        rig.band (b, "Drive", 0.6f);
+    }
+    // Every slot moving something that costs: drive, tone, crossovers.
+    const int targets[] = { Mod::bandTarget (0, Mod::drive), Mod::bandTarget (1, Mod::bass), Mod::bandTarget (2, Mod::treble),
+                            Mod::bandTarget (3, Mod::presence), Mod::globalTarget (Mod::crossover1), Mod::globalTarget (Mod::crossover2),
+                            Mod::globalTarget (Mod::crossover3), Mod::bandTarget (0, Mod::feedbackFreq) };
+    for (int s = 0; s < Mod::numSlots; ++s)
+        rig.slot (s, s % 2 == 0 ? Mod::lfo1 : Mod::ef1, targets[s % 8], 0.2f);
+    const auto input = sine (220.0, 0.3f, 4.0);
+    const auto startMs = juce::Time::getMillisecondCounterHiRes();
+    const auto output = rig.runMono (input);
+    const auto fraction = (juce::Time::getMillisecondCounterHiRes() - startMs) / 1000.0 / 4.0;
+    WARN ("MARS, 4 bands, 16 slots: " << juce::String (fraction * 100.0, 1) << "% of one core");
+    CHECK (allFinite (output));
+    CHECK (fraction < 0.3);
+}
+
+
+//==============================================================================
+// HARMONY stage 2: CORRECT, pitch correction of the singer's own voice.
+namespace
+{
+    struct CorrectRig : EffectRig
+    {
+        explicit CorrectRig (effects::Harmony::Correct mode, int key = 0, Scales::Scale scale = Scales::Scale::major)
+        {
+            set (ParamIDs::harmonyCorrect, (float) mode);
+            set (ParamIDs::harmonyKey, (float) key);
+            set (ParamIDs::harmonyScale, (float) scale);
+            processor.updateLatency();   // the timer's job in a DAW
+        }
+    };
+
+    double cents (double hz, double reference) { return 1200.0 * std::log2 (hz / reference); }
+
+    // When a signal first gets loud (seconds), or -1.
+    double onsetOf (const std::vector<float>& samples, float threshold = 0.01f)
+    {
+        for (size_t i = 0; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > threshold)
+                return (double) i / sampleRate;
+        return -1.0;
+    }
+}
+
+TEST_CASE ("HARMONY CORRECT: your voice tuned to the nearest note in the key", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    const auto A3 = 220.0, D4 = 293.665;
+    const auto flatA = A3 * std::pow (2.0, -30.0 / 1200.0);
+
+    SECTION ("A singer 30 cents flat on an A comes out on the A, NATURAL or HARD; OFF leaves them flat")
+    {
+        for (const auto mode : { Correct::natural, Correct::hard })
+        {
+            CorrectRig rig (mode);
+            const auto out = pitchOf (rig.runMono (sungVowel (flatA, 1.0)));
+            CAPTURE ((int) mode, out);
+            CHECK (std::abs (cents (out, A3)) < 5.0);
+        }
+        CorrectRig off (Correct::off);
+        CHECK (std::abs (cents (pitchOf (off.runMono (sungVowel (flatA, 1.0))), flatA)) < 3.0);
+    }
+
+    SECTION ("A note outside the key goes to the nearest one in it: C# (a little sharp) in C major becomes D")
+    {
+        CorrectRig rig (Correct::hard);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 10.0 / 1200.0), 1.0)));
+        CAPTURE (out);
+        CHECK (std::abs (cents (out, D4)) < 5.0);
+    }
+
+    SECTION ("The KEY decides: the same C# in A major is in the key, so it's only pulled to C# itself")
+    {
+        CorrectRig rig (Correct::hard, 9 /* A */);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 25.0 / 1200.0), 1.0)));
+        CAPTURE (out);
+        CHECK (std::abs (cents (out, 277.183)) < 5.0);
+    }
+
+    SECTION ("SCALE Chromatic (no key needed): every note counts, so C# is only pulled onto C# itself")
+    {
+        CorrectRig rig (Correct::hard, 0, Scales::Scale::chromatic);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 25.0 / 1200.0), 1.0)));
+        CHECK (std::abs (cents (out, 277.183)) < 5.0);
+    }
+
+    SECTION ("The voice keeps its vowel: the resonance stays where it was")
+    {
+        // A strong resonance at 800 Hz: after a 40-cent correction, the
+        // overtones near it are still the loudest (as they would be if the
+        // formants moved too, but 40 cents moves them only 2%: so check the
+        // level around 800 Hz holds rather than dropping).
+        CorrectRig rig (Correct::hard);
+        const auto out = rig.runMono (sungVowel (flatA, 1.0, 800.0));
+        const auto in = sungVowel (flatA, 1.0, 800.0);
+        const auto bandLevel = [] (const std::vector<float>& s, double fundamental)
+        {
+            auto sum = 0.0f;
+            for (int h = 3; h <= 4; ++h)   // the overtones either side of 800 Hz
+                sum += levelAt (s, h * fundamental, 0.5);
+            return sum;
+        };
+        CHECK_THAT (dB (bandLevel (out, A3) / bandLevel (in, flatA)), WithinAbs (0.0, 2.0));
+    }
+}
+
+TEST_CASE ("HARMONY CORRECT: NATURAL glides to the note, HARD jumps", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    // How long the correction takes from first moving to 90% of the way (seconds).
+    const auto settleTime = [] (Correct mode)
+    {
+        effects::Harmony harmony;
+        harmony.prepare (sampleRate, blockSize);
+        effects::Harmony::Settings settings;
+        settings.correct = mode;
+        settings.latency = (int) (effects::Harmony::correctLatencySeconds * sampleRate);
+        const auto voice = sungVowel (220.0 * std::pow (2.0, -40.0 / 1200.0), 1.0);
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        std::vector<float> trace;
+        for (size_t start = 0; start + blockSize <= voice.size(); start += blockSize)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.copyFrom (ch, 0, voice.data() + start, blockSize);
+            juce::dsp::AudioBlock<float> block (buffer);
+            harmony.process (block, voice.data() + start, settings);
+            trace.push_back (harmony.getCorrection());
+        }
+        const auto final = trace.back();
+        int first = -1, reached = -1;
+        for (int i = 0; i < (int) trace.size(); ++i)
+        {
+            if (first < 0 && std::abs (trace[(size_t) i]) > 0.01f)
+                first = i;
+            if (reached < 0 && std::abs (trace[(size_t) i]) >= 0.9f * std::abs (final))
+                reached = i;
+        }
+        CAPTURE (final, first, reached);
+        CHECK_THAT (final, WithinAbs (0.4, 0.03));   // 40 cents up, onto the A
+        return (reached - first) * blockSize / sampleRate;
+    };
+    const auto hard = settleTime (Correct::hard), natural = settleTime (Correct::natural);
+    CAPTURE (hard, natural);
+    CHECK (hard < 0.02);
+    CHECK (natural > 0.08);
+    CHECK (natural < 0.3);
+}
+
+TEST_CASE ("HARMONY CORRECT: the plugin runs 40 ms late only while it's on, and says so", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    std::vector<float> input ((size_t) (0.2 * sampleRate), 0.0f);
+    const auto note = sungVowel (220.0, 0.5);
+    input.insert (input.end(), note.begin(), note.end());
+
+    CorrectRig off (Correct::off);
+    CHECK (off.processor.getLatencySamples() == 0);
+    CHECK_THAT (onsetOf (off.runMono (input)), WithinAbs (0.2, 0.002));
+
+    CorrectRig on (Correct::natural);
+    CHECK (on.processor.getLatencySamples() == juce::roundToInt (0.04 * sampleRate));
+    // Within one vocal pulse (4.5 ms at 220 Hz) of the 40 ms it reports.
+    CHECK_THAT (onsetOf (on.runMono (input)), WithinAbs (0.24, 0.006));
+
+    // Switched back off: no delay again.
+    on.set (ParamIDs::harmonyCorrect, (float) Correct::off);
+    on.processor.updateLatency();
+    CHECK (on.processor.getLatencySamples() == 0);
+}
+
+TEST_CASE ("HARMONY CORRECT: works with HARMONY off, and harmonies stay in tune with it", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    const auto flatA = 220.0 * std::pow (2.0, -30.0 / 1200.0);
+
+    SECTION ("HARMONY off: only your voice, tuned, at full level")
+    {
+        CorrectRig rig (Correct::natural);
+        rig.set (ParamIDs::harmonyOn, 0.0f);
+        const auto input = sungVowel (flatA, 1.0);
+        const auto out = rig.runMono (input);
+        CHECK (std::abs (cents (pitchOf (out), 220.0)) < 5.0);
+        CHECK_THAT (dB (rms (out, 0.5) / rms (input, 0.5)), WithinAbs (0.0, 1.0));
+    }
+
+    SECTION ("HARMONY on: a fifth above the tuned voice, in tune, in time with it")
+    {
+        HarmonyRig rig (7.0f);
+        rig.set (ParamIDs::harmonyCorrect, (float) Correct::natural);
+        rig.processor.updateLatency();
+        const auto out = rig.runMono (sungVowel (flatA, 1.0));
+        CHECK (std::abs (cents (pitchOf (out), 329.628)) < 5.0);
     }
 }

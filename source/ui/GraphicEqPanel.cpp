@@ -47,8 +47,14 @@ GraphicEqPanel::GraphicEqPanel (juce::AudioProcessorValueTreeState& state)
     onButton.onStateChange = [this] { repaint(); };
     addAndMakeVisible (onButton);
 
+    // Grouped: the vocal curves, then PR7-G's instrument ones (headings
+    // aren't items, so an item's index is still its place in EqPresets::all).
     for (size_t i = 0; i < EqPresets::all.size(); ++i)
+    {
+        if (i == 0 || EqPresets::all[i].vocal != EqPresets::all[i - 1].vocal)
+            presets.addSectionHeading (EqPresets::all[i].vocal ? "VOCAL" : "INSTRUMENT");
         presets.addItem (EqPresets::all[i].name, (int) i + 1);
+    }
     presets.setTextWhenNothingSelected ("PRESETS");
     presets.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
     presets.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);

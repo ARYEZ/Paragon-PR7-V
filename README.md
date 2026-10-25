@@ -30,7 +30,8 @@ descriptions below still talk about guitar.
 | V2 | Master limiter by OUTPUT | ✅ Done |
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
-| V5 | Harmony: CORRECT (pitch correction), Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
+| V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
+| V6 | Harmony: Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -52,6 +53,9 @@ descriptions below still talk about guitar.
   - **2 Saturation:** **MARS**, a multi-band saturator inspired by FabFilter Saturn 2: up to four frequency bands,
     each with its own STYLE (21: tubes, tapes, transformers, amps and effects like Smudge, Breakdown and Destroy), DRIVE
     (its level kept even), DYNAMICS, FEEDBACK, a four-band TONE, MIX and LEVEL; click and drag the bands on its display.
+    Since 0.15.0 its knobs can move on their own (**MOD** and **SLOTS** pages): two step LFOs (XLFO), two envelope
+    generators, two envelope followers, two MIDI sources, two XY pads and the expression pedal, connected through 16
+    slots. Right-click a knob to modulate it.
     (The guitar pedal models PR7-G had went in 0.14.0; rigs and projects that used them load as MARS, set up close.)
   - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
     truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
@@ -77,6 +81,11 @@ descriptions below still talk about guitar.
       singer; 0%: they move with the pitch, like a sped-up tape). It starts with a third above on the left and a fifth
       above on the right. The harmonies come out a few milliseconds after you (two vocal pulses: about 8 ms on a high
       note to 25 ms on a low one); your own voice isn't delayed.
+      **TUNE VOICE** (top right; Waves Harmony calls it CORRECT) tunes your own voice to the nearest note in the KEY and
+      SCALE (SCALE **Chromatic**: the nearest semitone, for any song): **Natural** glides to the note so vibrato and slides
+      survive, **Hard** jumps to it (the robotic sound). It works with HARMONY off too, and SINGING shows the note it's
+      tuning to. While it's on, the whole plugin runs 40 ms late, which it tells your DAW so the vocal is lined back up
+      on playback; singing live through it you'll hear yourself 40 ms late. Off, there's no delay at all.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).
@@ -114,7 +123,7 @@ descriptions below still talk about guitar.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-D), tags and favourites rigs. The factory rigs are for the voice, in five banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi).
+  (banks A-F), tags and favourites rigs. The factory rigs are for the voice, in six banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop).
   INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.

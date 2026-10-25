@@ -432,6 +432,8 @@ TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; mov
 
     const auto value = [&] (const juce::String& id) { return state.getRawParameterValue (id)->load(); };
     const auto& scoop = EqPresets::all[0];
+    CHECK (scoop.vocal);   // the vocal presets come first
+    CHECK (std::count_if (EqPresets::all.begin(), EqPresets::all.end(), [] (const auto& preset) { return preset.vocal; }) == 13);
     menu->setSelectedItemIndex (0, juce::sendNotificationSync);
 
     for (int band = 0; band < effects::GraphicEq::numBands; ++band)
@@ -442,7 +444,7 @@ TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; mov
 
     // Nudge 1 kHz: it's no longer the preset, so the menu says PRESETS again.
     auto* band = state.getParameter (ParamIDs::eqBands[4]);
-    band->setValueNotifyingHost (band->convertTo0to1 (0.0f));
+    band->setValueNotifyingHost (band->convertTo0to1 (scoop.gainsDb[4] + 2.0f));
     CHECK (menu->getSelectedItemIndex() == -1);
 }
 
@@ -581,3 +583,71 @@ TEST_CASE ("MARS's display: double-click splits a band (the new one copies it), 
     CHECK_THAT (panel.frequencyAt (panel.xFor (2500.0f)), Catch::Matchers::WithinRel (2500.0f, 0.001f));
 }
 
+
+TEST_CASE ("MARS's modulation pages: slots from the knobs, the target list, XLFO steps", "[ui][mars][modulation]")
+{
+    using Mod = effects::MarsModulation;
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    const auto value = [&] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    MarsPanel panel (parameters, [] (int) { return 0.0f; }, &processor.getMars());
+    panel.setBounds (0, 0, 672, 254);
+
+    SECTION ("Four pages; MOD shows the sources, SLOTS the slots")
+    {
+        panel.showPage (2);
+        CHECK (panel.getSourcesView().isVisible());
+        CHECK_FALSE (panel.getSlotsView().isVisible());
+        panel.showPage (3);
+        CHECK (panel.getSlotsView().isVisible());
+        CHECK_FALSE (panel.getSourcesView().isVisible());
+        for (int tab = 0; tab < MarsSourcesView::numTabs; ++tab)
+            panel.getSourcesView().selectTab (tab);   // every tab lays out
+    }
+
+    SECTION ("Modulating a knob takes the first free slot at +50%; a full set says so")
+    {
+        const auto drive = Mod::bandTarget (0, Mod::drive);
+        CHECK (MarsModUi::addSlot (parameters, Mod::lfo1, drive, 0.5f) == 0);
+        CHECK (MarsModUi::addSlot (parameters, Mod::ef1, drive, 0.5f) == 1);
+        CHECK (juce::roundToInt (value (ParamIDs::marsSlot (1, "Source"))) == Mod::ef1);
+        CHECK (juce::roundToInt (value (ParamIDs::marsSlot (1, "Target"))) == drive);
+        CHECK_THAT (value (ParamIDs::marsSlot (1, "Amount")), Catch::Matchers::WithinAbs (0.5, 0.01));
+        CHECK (MarsModUi::slotsOn (parameters, drive).size() == 2);
+        CHECK (MarsModUi::targetColour (parameters, drive) == MarsModUi::mixedColour);   // two kinds of source
+        MarsModUi::clearSlot (parameters, 0);
+        CHECK (MarsModUi::slotsOn (parameters, drive).size() == 1);
+        CHECK (MarsModUi::targetColour (parameters, drive) == MarsModUi::sourceColour (Mod::ef1));
+        CHECK (MarsModUi::addSlot (parameters, Mod::xy1x, drive, 0.5f) == 0);   // the freed slot again
+        for (int s = 2; s < Mod::numSlots; ++s)
+            MarsModUi::addSlot (parameters, Mod::lfo2, Mod::globalTarget (Mod::output), 0.1f);
+        CHECK (MarsModUi::addSlot (parameters, Mod::lfo2, drive, 0.5f) == -1);
+    }
+
+    SECTION ("The grouped target list keeps the parameter's order")
+    {
+        juce::ComboBox box;
+        MarsSlotsView::fillTargets (box);
+        REQUIRE (box.getNumItems() == Mod::numTargets);
+        for (int target = 1; target < Mod::numTargets; ++target)
+            CHECK (box.getItemText (target) == Mod::targetName (target));
+    }
+
+    SECTION ("XLFO steps: + copies the picked step after it, - removes it")
+    {
+        auto& sources = panel.getSourcesView();
+        sources.selectTab (1);   // XLFO 2
+        const auto step = [&] (int s, const char* part) { return value (ParamIDs::marsStep (1, s, part)); };
+        sources.selectStep (0);
+        sources.addStep();   // 1, 1, -1
+        CHECK (juce::roundToInt (value (ParamIDs::marsLfo (1, "Steps"))) == 2);
+        CHECK_THAT (step (1, "Value"), Catch::Matchers::WithinAbs (1.0, 0.01));
+        CHECK_THAT (step (2, "Value"), Catch::Matchers::WithinAbs (-1.0, 0.01));
+        CHECK (sources.getSelectedStep() == 1);
+        sources.selectStep (0);
+        sources.removeStep();   // 1, -1
+        CHECK (juce::roundToInt (value (ParamIDs::marsLfo (1, "Steps"))) == 1);
+        CHECK_THAT (step (1, "Value"), Catch::Matchers::WithinAbs (-1.0, 0.01));
+        CHECK (juce::roundToInt (value (ParamIDs::marsLfo (0, "Steps"))) == 1);   // XLFO 1 untouched
+    }
+}

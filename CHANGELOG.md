@@ -2,6 +2,67 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.17.0
+
+- **Pitch correction for your voice: TUNE VOICE (HARMONY stage 2).** Inspired by the CORRECT button in Waves Harmony. It's in the HARMONY panel's header (the PITCH stomp's panel) and tunes your own voice to the nearest note in the song's **KEY** and **SCALE**:
+  - **Natural:** glides to the note, so vibrato, slides and expression mostly survive. A gentle tidy-up.
+  - **Hard:** jumps straight to the note, turning slides into steps: the robotic tuned-vocal sound.
+  - **Off:** as before.
+- **Set the key first.** A note outside the KEY and SCALE goes to the nearest one inside it. If you don't know the key, choose SCALE **Chromatic**: every note counts, and the voice just goes to the nearest semitone.
+- **It works with HARMONY off too,** so you can use it purely to tune your voice. With HARMONY on, the harmony voices stay in time with your tuned voice.
+- **SINGING** now also shows the note it's tuning you to.
+- **Your vowels stay yours:** it moves the pitch, not the voice's character.
+- **The trade-off: a 40 ms delay while it's on.** Tuning needs a moment of your voice to work with. PR7-V tells your DAW, which lines the vocal back up on playback. Singing live through it, you'll hear yourself 40 ms late. With TUNE VOICE off there's no delay at all, as before.
+- **Two new factory rigs:** **Tuned Lead** (A08, Natural) and **Hard Tune** (E21, the robotic sound).
+- **Our design where the guide doesn't say:** the glide speeds (Natural about 60 ms, Hard about 3 ms) and how a note is held so a voice right between two notes doesn't flicker. Waves' NOTES mode (tuning to played or generated notes) comes with MIDI input and Generate Notes in a later stage.
+
+## 0.16.0
+
+- **A new bank of factory rigs, F: signature styles.** Sixteen rigs for the vocal sounds of genres and eras, named for the style rather than any artist:
+  - **Pop-Punk Lead** (squeezed, bright, double-tracked tight), **Pop-Punk Chorus** (four takes wide, a third above tucked in) and **Pop-Rock Ballad** (warm and close, a long plate, a dotted-eighth echo).
+  - **Ethereal Metalcore Clean** (airy, on a wide ping-pong echo and a big hall that ducks out of the way), **Metalcore Scream** (two bands of MARS that tear up harder the louder you scream) and **Haunted Clean** (a ghostly octave above, glitch texture, a cathedral).
+  - **Prog Tenor Stack** (harmonies a third and a fifth above, doubled, a dual echo), **Prog Scream** (mid-forward, an octave-down take underneath) and **Soaring Prog Chorus** (four takes, an octave-up harmony, wide echoes, a long hall).
+  - **Grunge Double**, **Emo Anthem**, **Nu-Metal Shout**, **Deathcore Growl** (an octave-down take at full weight beneath), **Whisper Pop**, **Bedroom Indie** and **Synth-Pop 80s**.
+- **The harmony rigs follow your song's key.** Set KEY and SCALE in the PITCH panel; a rig change keeps them.
+- **They're our reading of each style** (doubling, compression, delays, saturation, as such records are commonly made), not anyone's actual settings. Like all the factory rigs, their levels are balanced against each other.
+
+## 0.15.1
+
+- **Vocal presets for the GRAPHIC EQ.** The PRESETS menu now starts with a **VOCAL** group of 13 curves for a voice:
+  - **Vocal Clarity:** rumble out, a little mud cut, presence and air. A good first try.
+  - **Air & Shine:** a lift at the very top for a breathy pop sheen.
+  - **Presence Push:** upper mids forward, to cut through a busy band.
+  - **Boxy Cut:** takes out the cardboard-box sound of a small room or a close mic.
+  - **Nasal Fix:** a dip around 1 kHz, where a voice can sound honky.
+  - **Harsh Tamer:** softens a hard, piercing top (and some sibilance).
+  - **Warm & Close:** chest and warmth up, the top softened.
+  - **Deep Voice** and **Bright Voice:** starting points for lower and higher voices.
+  - **Rap Upfront:** punchy and forward, consonants pushed.
+  - **Spoken Word:** for podcasts and voice-overs: clear, never boomy or harsh.
+  - **Backing Vocals:** thinner and softer, so harmonies sit behind the lead.
+  - **Telephone:** only the middle of the voice, like a phone line.
+- **Matched in loudness:** each preset's LEVEL makes up for what its curve adds or takes away over a voice's range (100 Hz to 8 kHz), so switching presets compares tone, not volume.
+- **Where they come from:** our own curves, from the moves engineers commonly make on vocals, not copies of any product's presets. They're starting points: every voice and mic is different, so tweak the faders to taste.
+- **The guitar curves from PR7-G** are still there, under **INSTRUMENT**.
+
+## 0.15.0
+
+- **MARS can move by itself: modulation (stage 2), inspired by FabFilter Saturn 2's.** Almost every MARS knob can be moved by a modulation source as you sing. Two new pages: **MOD** (the sources) and **SLOTS** (what moves what).
+- **The sources:**
+  - **XLFO 1 and 2:** step LFOs. 1 to 16 steps, each with its own value, GLIDE, CURVE (Linear, Sqr, Sqrt, Sine) and RANDOM. RATE in Hz, or SYNC to the song (16 bars to 1/64, with OFFSET x0.5 to x2; locked to the bar while the song plays). Also BALANCE (one half of the wave quicker than the other), GLIDE for all steps, PHASE, and a MIDI note can restart it (Retrigger or Legato). Edit the steps on the display: click one to pick it, drag it up or down, + and - to add (a copy) or remove one, and drag the triangle for PHASE. They start as a smooth wave.
+  - **EG 1 and 2:** envelope generators (DELAY, ATTACK, DECAY, SUSTAIN, HOLD, RELEASE, each curve bendable), set off by your voice going over THRESHOLD, by one band, or by MIDI notes. RANGE centred makes it swing both ways around the sustain. Drag the points and curve dots on the display.
+  - **EF 1 and 2:** envelope followers, following how loud your voice (or a band) is, with ATTACK, RELEASE and GAIN. TRANSIENT mode reacts only to attacks, such as word starts and consonants.
+  - **MIDI 1 and 2:** velocity, pitch bend, mod wheel, aftertouch or any controller from your DAW, through a RESPONSE curve.
+  - **XY 1 and 2:** a pad to move by hand (or automate), or a single SLIDER.
+  - **The expression pedal** as a source too, whatever the pedal is assigned to. This one is our addition.
+- **16 slots,** each a SOURCE, a TARGET and an AMOUNT (-100% to +100%). Targets are every band's DRIVE, DYNAMICS, FEEDBACK, FB FREQ, BASS, MID, TREBLE, PRESENCE, MIX and LEVEL; the CROSSOVERS, INPUT, OUTPUT and MIX; the XLFOs', EGs' and EFs' own settings; and other slots' amounts (for example, an XY pad that sets how much an XLFO does).
+- **Right-click any of those knobs** to modulate it with a source; it takes the next free slot at +50%. The same menu removes a slot. Saturn 2 lets you drag a source onto a knob instead.
+- **A modulated knob shows it:** a thin ring in the source's colour (yellow when more than one kind moves it), with a bright arc to where the knob is right now. The band display's drive bars and crossovers move too.
+- **Our design, where the manual doesn't say:** the curves, how the followers read level (-48 dB to 0 dB), what TRANSIENT listens for, and the fixed number of sources (Saturn adds as many as you like). Not built: XLFO Snap (Saturn's arpeggiator), renaming sources, the external side-chain trigger, and dragging sources onto knobs.
+- **Five new factory rigs** (bank E): **Breathing Tape** (louder singing pushes the tape harder), **Throb** (a saturated tube pulsing in eighth notes), **Sweeping Radio** (a slow tempo sweep of MARS's crossover), **Pedal Grit** (the expression pedal turns the grit up) and **Stutter Steps** (an eight-step rhythmic gate).
+- **MARS starts where its knobs are set.** When the plugin loaded, MARS's levels used to fade up from silence over the first 50 ms, and with a slot in use its knobs glided up from zero. Now they start at their settings.
+- **CPU:** the modulation moves the knobs about 3000 times a second. With all 16 slots busy on four heavy bands, MARS used about 7% of one core in our tests. Without modulation it runs exactly as before.
+
 ## 0.14.1
 
 - **No more screws on the face plate, and no MIN light.** The four screw heads in its corners and the MIN light beside the expression pedal are gone, for a cleaner front (released on its own as 0.9.1, and now joined with everything since). The dock's EXPRESSION ASSIGN screen still shows where the pedal sits.
