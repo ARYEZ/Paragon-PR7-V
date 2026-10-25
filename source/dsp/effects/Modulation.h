@@ -1,12 +1,15 @@
 #pragma once
 
+#include "Aeon.h"
 #include "EffectUtils.h"
 
 namespace effects
 {
     // Stomp 5: the modulation block, after the DOUBLER. Ten types:
     //
-    //   chorus, flanger, phaser, tremolo         the originals (unchanged)
+    //   chorus, phaser, tremolo                  the originals (unchanged)
+    //   flanger        AEON, modelled on the Boss BF-2 (see Aeon.h; PR7-V 0.15.0,
+    //                  replacing the original generic flanger)
     //   dimension      Roland Dimension D / Boss CE-1 style dual chorus
     //   uniVibe        Shin-ei Uni-Vibe: four uneven phase stages, lamp LFO
     //   rotary         Leslie speaker: horn and drum rotors, Doppler, stereo mics
@@ -17,7 +20,7 @@ namespace effects
     // (Until 0.3.0 there was an eleventh, Doubler, now the DOUBLER stomp: see
     // Doubler.h. Settings saved with it are moved there when they load.)
     //
-    // Chorus and flanger are built here rather than using juce::dsp::Chorus,
+    // The chorus is built here rather than using juce::dsp::Chorus,
     // because JUCE's version moves both channels together. Running the right
     // channel's sweep a quarter-cycle behind the left is what makes a chorus
     // sound wide in stereo.
@@ -27,14 +30,15 @@ namespace effects
         // Saved by number in rigs and projects: only ever add to the end.
         // Number 10 was Doubler until 0.3.0 (see above).
         enum class Type { chorus, flanger, phaser, tremolo, dimension, uniVibe, rotary, vibrato, harmonicTremolo, autoPan };
-        static inline const juce::StringArray typeNames { "Chorus", "Flanger", "Phaser", "Tremolo", "Dimension Chorus", "Uni-Vibe",
+        static inline const juce::StringArray typeNames { "Chorus", "AEON", "Phaser", "Tremolo", "Dimension Chorus", "Uni-Vibe",
                                                           "Rotary", "Vibrato", "Harmonic Tremolo", "Auto-Pan" };
         static constexpr int oldDoublerType = 10;
 
         // Types for which MIX means something (the others are fully "wet" by nature).
         static bool usesMix (Type type) noexcept
         {
-            return type == Type::chorus || type == Type::flanger || type == Type::phaser || type == Type::dimension
+            // (AEON has none: the pedal mixes dry and wet 50/50.)
+            return type == Type::chorus || type == Type::phaser || type == Type::dimension
                 || type == Type::uniVibe || type == Type::rotary;
         }
 
@@ -45,6 +49,7 @@ namespace effects
             float rateHz = 0.8f;
             float depth = 0.5f;   // 0 to 1
             float mix = 0.5f;     // 0 to 1 (ignored where usesMix() is false)
+            float manual = 5.0f, resonance = 5.0f;   // AEON's MANUAL and RES, 0 to 10
         };
 
         Modulation();
@@ -69,6 +74,10 @@ namespace effects
         float feedbackSample[maxChannels] {};
         juce::SmoothedValue<float> depth, mix;
         BypassFade bypass;
+        Type lastType = Type::chorus;
+
+        // AEON, the flanger.
+        Aeon aeon;
 
         // Dimension: the darker tone of the bucket-brigade chips the originals used.
         float dimensionTone[maxChannels] {};

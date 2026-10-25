@@ -36,6 +36,9 @@ namespace ParamIDs
     inline constexpr auto modRate        = "modRate";
     inline constexpr auto modDepth       = "modDepth";
     inline constexpr auto modMix         = "modMix";
+    // AEON's (the flanger's) MANUAL and RES; it shares RATE and DEPTH.
+    inline constexpr auto modManual      = "modManual";
+    inline constexpr auto modRes         = "modRes";
 
     inline constexpr auto delayOn        = "delayOn";
     inline constexpr auto delayTime      = "delayTime";

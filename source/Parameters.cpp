@@ -461,6 +461,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (id ("Mix").toRawUTF8(), name + "Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v35, asPercent));
         layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Mars::minLevelDb, 12.0f, 0.1f }, 0.0f, v35, asMarsLevel));
     }
+
+    // Added in PR7-V 0.15.0: AEON's MANUAL and RES knobs (0 to 10), as on the
+    // pedal it's modelled on. AEON took the old flanger's place in the list.
+    constexpr int v36 = 36;
+    layout.add (makeFloat (ParamIDs::modManual, "AEON Manual", { 0.0f, 10.0f, 0.1f }, 5.0f, v36, asKnob));
+    layout.add (makeFloat (ParamIDs::modRes, "AEON Res", { 0.0f, 10.0f, 0.1f }, 5.0f, v36, asKnob));
     return layout;
 }
 
