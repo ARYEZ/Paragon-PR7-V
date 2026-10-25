@@ -2,6 +2,25 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.15.1
+
+- **Vocal presets for the GRAPHIC EQ.** The PRESETS menu now starts with a **VOCAL** group of 13 curves for a voice:
+  - **Vocal Clarity:** rumble out, a little mud cut, presence and air. A good first try.
+  - **Air & Shine:** a lift at the very top for a breathy pop sheen.
+  - **Presence Push:** upper mids forward, to cut through a busy band.
+  - **Boxy Cut:** takes out the cardboard-box sound of a small room or a close mic.
+  - **Nasal Fix:** a dip around 1 kHz, where a voice can sound honky.
+  - **Harsh Tamer:** softens a hard, piercing top (and some sibilance).
+  - **Warm & Close:** chest and warmth up, the top softened.
+  - **Deep Voice** and **Bright Voice:** starting points for lower and higher voices.
+  - **Rap Upfront:** punchy and forward, consonants pushed.
+  - **Spoken Word:** for podcasts and voice-overs: clear, never boomy or harsh.
+  - **Backing Vocals:** thinner and softer, so harmonies sit behind the lead.
+  - **Telephone:** only the middle of the voice, like a phone line.
+- **Matched in loudness:** each preset's LEVEL makes up for what its curve adds or takes away over a voice's range (100 Hz to 8 kHz), so switching presets compares tone, not volume.
+- **Where they come from:** our own curves, from the moves engineers commonly make on vocals, not copies of any product's presets. They're starting points: every voice and mic is different, so tweak the faders to taste.
+- **The guitar curves from PR7-G** are still there, under **INSTRUMENT**.
+
 ## 0.15.0
 
 - **MARS can move by itself: modulation (stage 2), inspired by FabFilter Saturn 2's.** Almost every MARS knob can be moved by a modulation source as you sing. Two new pages: **MOD** (the sources) and **SLOTS** (what moves what).

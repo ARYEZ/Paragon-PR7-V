@@ -2043,12 +2043,13 @@ TEST_CASE ("EQ presets: in range, named once each, and loudness-matched by LEVEL
             CHECK (std::abs (gain) <= effects::GraphicEq::maxGainDb);
         CHECK (std::abs (preset.levelDb) <= 12.0f);
 
-        // The curve's average power change over a guitar's range (80 Hz to
-        // 5 kHz, sampled every 1/24 octave), plus LEVEL, is
-        // close to nothing: switching presets changes the tone, not the volume.
+        // The curve's average power change over its range (a voice's, 100 Hz
+        // to 8 kHz; a guitar's, 80 Hz to 5 kHz; sampled every 1/24 octave),
+        // plus LEVEL, is close to nothing: switching presets changes the tone, not the volume.
         auto power = 0.0;
         auto count = 0;
-        for (auto frequency = 80.0f; frequency <= 5000.0f; frequency *= std::pow (2.0f, 1.0f / 24.0f), ++count)
+        const auto lowest = preset.vocal ? 100.0f : 80.0f, highest = preset.vocal ? 8000.0f : 5000.0f;
+        for (auto frequency = lowest; frequency <= highest; frequency *= std::pow (2.0f, 1.0f / 24.0f), ++count)
             power += std::pow (10.0, effects::GraphicEq::responseDb (preset.gainsDb, frequency) / 10.0);
         const auto changeDb = 10.0 * std::log10 (power / count) + preset.levelDb;
         CHECK (std::abs (changeDb) <= 0.5);
@@ -3352,3 +3353,4 @@ TEST_CASE ("MARS with all 16 slots busy still runs comfortably faster than real 
     CHECK (allFinite (output));
     CHECK (fraction < 0.3);
 }
+

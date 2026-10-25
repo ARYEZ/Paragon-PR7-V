@@ -432,6 +432,8 @@ TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; mov
 
     const auto value = [&] (const juce::String& id) { return state.getRawParameterValue (id)->load(); };
     const auto& scoop = EqPresets::all[0];
+    CHECK (scoop.vocal);   // the vocal presets come first
+    CHECK (std::count_if (EqPresets::all.begin(), EqPresets::all.end(), [] (const auto& preset) { return preset.vocal; }) == 13);
     menu->setSelectedItemIndex (0, juce::sendNotificationSync);
 
     for (int band = 0; band < effects::GraphicEq::numBands; ++band)
@@ -442,7 +444,7 @@ TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; mov
 
     // Nudge 1 kHz: it's no longer the preset, so the menu says PRESETS again.
     auto* band = state.getParameter (ParamIDs::eqBands[4]);
-    band->setValueNotifyingHost (band->convertTo0to1 (0.0f));
+    band->setValueNotifyingHost (band->convertTo0to1 (scoop.gainsDb[4] + 2.0f));
     CHECK (menu->getSelectedItemIndex() == -1);
 }
 
