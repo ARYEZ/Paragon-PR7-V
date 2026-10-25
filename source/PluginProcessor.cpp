@@ -327,6 +327,9 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     readMidiExpression (midi);
     marsMidi.read (midi);
+    harmonyMidi.read (midi);
+    for (size_t key = 0; key < shownMidiKeys.size(); ++key)
+        shownMidiKeys[key].store (harmonyMidi.velocity[key]);
 
     if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0)
         return;
@@ -502,6 +505,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     notes.formant = param (ParamIDs::harmonyNoteFormant);
     notes.attackMs = param (ParamIDs::harmonyNoteAttack);
     notes.releaseMs = param (ParamIDs::harmonyNoteRelease);
+    notes.midiMap = juce::roundToInt (param (ParamIDs::harmonyMidiMap));
+    harmonySettings.midi = &harmonyMidi;
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order

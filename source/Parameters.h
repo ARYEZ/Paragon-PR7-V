@@ -184,6 +184,7 @@ namespace ParamIDs
     inline constexpr auto harmonyNoteFormant    = "harmonyNoteFormant";    // semitones
     inline constexpr auto harmonyNoteAttack     = "harmonyNoteAttack";     // ms
     inline constexpr auto harmonyNoteRelease    = "harmonyNoteRelease";    // ms
+    inline constexpr auto harmonyMidiMap        = "harmonyMidiMap";        // version 41: MIDI notes As Played / Through Chord
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }

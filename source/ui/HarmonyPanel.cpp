@@ -136,6 +136,17 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     chord.setTooltip ("What each note becomes: the same intervals on every note, or a chord from it (kept in the KEY and SCALE)");
     addAndMakeVisible (chord);
     chordAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyChord, chord);
+    styleLabel (midiLabel, "MIDI");
+    addAndMakeVisible (midiLabel);
+    midiMap.addItemList (effects::Harmony::midiMapNames, 1);
+    midiMap.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
+    midiMap.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
+    midiMap.setColour (juce::ComboBox::textColourId, noteBlue);
+    midiMap.setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
+    midiMap.setTooltip ("Keys played on a MIDI keyboard (or a MIDI track sent to PR7-V) become note voices: As Played, exactly the keys; "
+                        "Through Chord, each key through the CHORD map, in the key");
+    addAndMakeVisible (midiMap);
+    midiMapAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyMidiMap, midiMap);
     const std::tuple<Knob*, const char*, const char*, const char*> noteKnobs[] = {
         { &minNote, "MIN NOTE", ParamIDs::harmonyMinNote, "The lowest note listened for: lower sounds don't make notes" },
         { &tolerance, "TOLERANCE", ParamIDs::harmonyTolerance, "How far (cents) your pitch must move for a new note. Off: only a silence starts one" },
@@ -203,6 +214,11 @@ void HarmonyPanel::selectVoice (int voice)
     repaint();
 }
 
+juce::Rectangle<float> HarmonyPanel::keyboardArea() const
+{
+    return graph.reduced (8.0f, 0.0f).removeFromBottom (14.0f).translated (0.0f, -4.0f);
+}
+
 void HarmonyPanel::showNotes (bool show)
 {
     notesShown = show;
@@ -229,6 +245,8 @@ void HarmonyPanel::showNotes (bool show)
     generate.button.setVisible (show);
     chordLabel.setVisible (show);
     chord.setVisible (show);
+    midiLabel.setVisible (show);
+    midiMap.setVisible (show);
     resized();
     repaint();
 }
@@ -422,7 +440,7 @@ void HarmonyPanel::resized()
     correctLabel.setBounds (header.removeFromRight (62));
 
     // Middle: the graph, and the picked voice's pan and level under it.
-    auto middle = area.removeFromLeft (212);
+    auto middle = area.removeFromLeft (notesShown ? 150 : 212);   // NOTES: a narrower graph, room for its controls
     area.removeFromLeft (10);
     readoutArea = middle.removeFromBottom (16).toFloat();
     graph = middle.toFloat();
@@ -445,11 +463,11 @@ void HarmonyPanel::resized()
     {
         // NOTES: what makes the notes, then how the note voices sound.
         auto top = right.removeFromTop (rowHeight);
-        const auto unit = (float) top.getWidth() / 6.0f;   // GENERATE 0.8, CHORD 1.7, the knobs 1.17 each
-        generate.label.setBounds (top.removeFromLeft (juce::roundToInt (unit * 0.8f)).removeFromTop (14));
+        const auto unit = (float) top.getWidth() / 6.0f;   // GENERATE 0.7, CHORD 2.2, the knobs about 1 each
+        generate.label.setBounds (top.removeFromLeft (juce::roundToInt (unit * 0.7f)).removeFromTop (14));
         generate.button.setBounds (juce::Rectangle<int> (generate.label.getX(), generate.label.getBottom(), generate.label.getWidth(), top.getHeight() - 14)
                                        .withSizeKeepingCentre (26, 26));
-        auto chordCell = top.removeFromLeft (juce::roundToInt (unit * 1.7f)).reduced (2, 0);
+        auto chordCell = top.removeFromLeft (juce::roundToInt (unit * 2.2f)).reduced (2, 0);
         chordLabel.setBounds (chordCell.removeFromTop (14));
         chord.setBounds (chordCell.withSizeKeepingCentre (chordCell.getWidth(), 24).translated (0, -8));
         const auto knobWidth = top.getWidth() / 3;
@@ -461,7 +479,10 @@ void HarmonyPanel::resized()
         }
         right.removeFromTop (6);
         auto bottom = right;
-        const auto width = bottom.getWidth() / 5;
+        const auto width = bottom.getWidth() * 10 / 68;   // MIDI 1.8, the knobs 1 each (of 6.8)
+        auto midiCell = bottom.removeFromLeft (bottom.getWidth() - 5 * width).reduced (2, 0);
+        midiLabel.setBounds (midiCell.removeFromTop (14));
+        midiMap.setBounds (midiCell.withSizeKeepingCentre (midiCell.getWidth(), 24).translated (0, -8));
         for (auto* knob : { &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
         {
             auto cell = bottom.removeFromLeft (width);
@@ -614,6 +635,38 @@ void HarmonyPanel::paint (juce::Graphics& g)
 
     if (notesShown)
     {
+        // The keyboard strip, C2 to B5: held MIDI keys pink, the generated note blue.
+        const auto keys = keyboardArea();
+        constexpr int lowest = 36, highest = 83;
+        const auto whiteCount = 28;   // four octaves of seven
+        const auto whiteWidth = keys.getWidth() / (float) whiteCount;
+        const auto isBlack = [] (int note) { const auto n = note % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; };
+        const auto generated = harmonyEngine != nullptr ? harmonyEngine->getGeneratedNote() : -1;
+        const auto colourFor = [&] (int note, juce::Colour normal)
+        {
+            if (midiKeyHeld != nullptr && midiKeyHeld (note))
+                return juce::Colour (0xffff6fa8);
+            return note == generated ? noteBlue : normal;
+        };
+        auto white = 0;
+        std::array<float, 128> xOf {};
+        for (int note = lowest; note <= highest; ++note)
+            if (! isBlack (note))
+            {
+                const auto key = juce::Rectangle<float> (keys.getX() + white * whiteWidth, keys.getY(), whiteWidth, keys.getHeight()).reduced (0.5f, 0.0f);
+                g.setColour (colourFor (note, juce::Colour (0xffd8d4da)));
+                g.fillRect (key);
+                xOf[(size_t) note] = key.getRight();
+                ++white;
+            }
+        for (int note = lowest; note <= highest; ++note)
+            if (isBlack (note))
+            {
+                const auto key = juce::Rectangle<float> (whiteWidth * 0.6f, keys.getHeight() * 0.6f).withCentre ({ xOf[(size_t) note - 1], keys.getY() + keys.getHeight() * 0.3f });
+                g.setColour (colourFor (note, juce::Colour (0xff1a171c)));
+                g.fillRect (key);
+            }
+
         g.setColour (ParagonColours::textDim);
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
         const auto on = value (ParamIDs::harmonyGenerate) > 0.5f;

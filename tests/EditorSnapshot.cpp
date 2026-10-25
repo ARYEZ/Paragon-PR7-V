@@ -190,6 +190,16 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             if (button->getButtonText() == "OCTAVE / FREEZE")
                 button->onClick();
     }
+    // PARAGON_SNAPSHOT_MIDI=60,64,67: hold these MIDI keys (and play a block so HARMONY hears them).
+    if (const auto keys = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MIDI", {}); keys.isNotEmpty())
+    {
+        juce::MidiBuffer midi;
+        for (const auto& key : juce::StringArray::fromTokens (keys, ",", {}))
+            midi.addEvent (juce::MidiMessage::noteOn (1, key.getIntValue(), 0.9f), 0);
+        juce::AudioBuffer<float> buffer (2, 256);
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
     // PARAGON_SNAPSHOT_HARMONYNOTES=1: the HARMONY panel's NOTES tab.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYNOTES", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))

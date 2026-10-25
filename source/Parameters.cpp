@@ -595,6 +595,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::harmonyNoteFormant, "Harmony Note Formant", { -12.0f, 12.0f, 0.1f }, noteDefaults.formant, v40, asSemitoneShift));
     layout.add (makeFloat (ParamIDs::harmonyNoteAttack, "Harmony Note Attack", skewed (1.0f, 2000.0f, 100.0f, 1.0f), noteDefaults.attackMs, v40, asTime));
     layout.add (makeFloat (ParamIDs::harmonyNoteRelease, "Harmony Note Release", skewed (1.0f, 5000.0f, 300.0f, 1.0f), noteDefaults.releaseMs, v40, asTime));
+    // Added in plugin version 41: HARMONY's MIDI note input (stage 4): how
+    // played keys become note voices.
+    constexpr int v41 = 41;
+    layout.add (makeChoice (ParamIDs::harmonyMidiMap, "Harmony MIDI Notes", v41, effects::Harmony::midiMapNames, 0));
     return layout;
 }
 

@@ -530,6 +530,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     }
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
+    harmonyPanel.setMidiKeys ([&processorToShow] (int key) { return processorToShow.isMidiKeyHeld (key); });
     addChildComponent (doublerPanel);
     addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })

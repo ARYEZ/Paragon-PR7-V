@@ -37,6 +37,8 @@ public:
     void selectVoice (int voice);
     int getSelectedVoice() const noexcept { return selected; }
     void showNotes (bool show);
+    // Which MIDI keys are held, for the NOTES graph's keyboard strip.
+    void setMidiKeys (std::function<bool (int)> isKeyHeld) { midiKeyHeld = std::move (isKeyHeld); }
     bool isShowingNotes() const noexcept { return notesShown; }
 
     // Where a voice with this pan and level sits on the graph, and back. Public for tests.
@@ -87,6 +89,11 @@ private:
     bool notesShown = false;
     juce::TextButton notesTab { "NOTES" };
     Switch generate;
+    std::function<bool (int)> midiKeyHeld;
+    juce::Label midiLabel;
+    juce::ComboBox midiMap;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> midiMapAttachment;
+    juce::Rectangle<float> keyboardArea() const;
     juce::Label chordLabel;
     juce::ComboBox chord;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> chordAttachment;

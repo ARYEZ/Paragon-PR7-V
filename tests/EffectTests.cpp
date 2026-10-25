@@ -3848,3 +3848,121 @@ TEST_CASE ("AEON: the flanger follows the BF-2's circuit and specifications", "[
         CHECK (swing (envelope (0.3f, 5.0)) > swing (envelope (8.0f, 5.0)) + 2.0f);
     }
 }
+
+//==============================================================================
+// HARMONY stage 4: MIDI note input.
+namespace
+{
+    // Runs `input` through `rig`, sending each MIDI message at its time (seconds).
+    std::vector<float> runWithMidi (EffectRig& rig, const std::vector<float>& input,
+                                    std::vector<std::pair<double, juce::MidiMessage>> events)
+    {
+        std::vector<float> output;
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        for (size_t start = 0; start + blockSize <= input.size(); start += blockSize)
+        {
+            juce::MidiBuffer midi;
+            for (const auto& [seconds, message] : events)
+            {
+                const auto at = (size_t) (seconds * sampleRate);
+                if (at >= start && at < start + blockSize)
+                    midi.addEvent (message, (int) (at - start));
+            }
+            buffer.clear();
+            std::copy (input.begin() + (long) start, input.begin() + (long) start + blockSize, buffer.getWritePointer (0));
+            rig.processor.processBlock (buffer, midi);
+            output.insert (output.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + blockSize);
+        }
+        return output;
+    }
+
+    juce::MidiMessage keyDown (int note, float velocity = 1.0f) { return juce::MidiMessage::noteOn (1, note, velocity); }
+    juce::MidiMessage keyUp (int note) { return juce::MidiMessage::noteOff (1, note); }
+
+    // HARMONY on, only note voices heard, GENERATE off: what MIDI plays.
+    struct MidiRig : NotesRig
+    {
+        explicit MidiRig (const char* chord = "3rd + 5th Above") : NotesRig (chord)
+        {
+            set (ParamIDs::harmonyGenerate, 0.0f);
+        }
+    };
+}
+
+TEST_CASE ("HARMONY MIDI: played keys become note voices", "[effects][harmony][midi]")
+{
+    const auto A3 = 220.0, C4 = 261.626, E4 = 329.628, G4 = 391.995;
+    const auto sung = sungVowel (A3, 1.0);
+    const auto sungLevel = levelAt (sung, A3, 0.5);
+
+    SECTION ("AS PLAYED: C4 and E4 held while singing an A: exactly those two notes")
+    {
+        MidiRig rig;
+        const auto out = runWithMidi (rig, sung, { { 0.0, keyDown (60) }, { 0.0, keyDown (64) } });
+        CAPTURE (levelAt (out, C4, 0.5), levelAt (out, E4, 0.5), levelAt (out, G4, 0.5));
+        CHECK (levelAt (out, C4, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, E4, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, G4, 0.5) < 0.2f * sungLevel);
+    }
+
+    SECTION ("AS PLAYED keeps an out-of-key key as played (F# in C major)")
+    {
+        MidiRig rig;
+        const auto out = runWithMidi (rig, sung, { { 0.0, keyDown (66) } });
+        CHECK (std::abs (cents (pitchOf (out), 369.994)) < 5.0);
+    }
+
+    SECTION ("THROUGH CHORD: an A key with 3rd + 5th Above plays C and E, in the key")
+    {
+        MidiRig rig;
+        rig.set (ParamIDs::harmonyMidiMap, 1.0f);
+        const auto out = runWithMidi (rig, sung, { { 0.0, keyDown (57) } });
+        CHECK (levelAt (out, C4, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, E4, 0.5) > 0.5f * sungLevel);
+    }
+
+    SECTION ("No keys, or HARMONY off: no note voices")
+    {
+        MidiRig none;
+        CHECK (rms (runWithMidi (none, sung, {}), 0.3) < 1.0e-4f);
+        MidiRig off;
+        off.set (ParamIDs::harmonyOn, 0.0f);
+        off.set (ParamIDs::harmonySource, effects::Harmony::silentDb);
+        const auto out = runWithMidi (off, sung, { { 0.0, keyDown (60) } });
+        CHECK (maxAbsDifference (sung, out, (size_t) (0.1 * sampleRate)) < 1.0e-5f);   // HARMONY off: the voice untouched
+    }
+
+    SECTION ("Letting go fades the note out; the sustain pedal holds it")
+    {
+        MidiRig released;
+        const auto out = runWithMidi (released, sung, { { 0.0, keyDown (60) }, { 0.5, keyUp (60) } });
+        // RELEASE (150 ms to start) fades it: well down 0.3 s after letting go.
+        const auto playing = rms (out, 0.3, 0.5);
+        CHECK (playing > 0.002f);
+        CHECK (dB (rms (out, 0.85, 1.0) / playing) < -15.0f);
+
+        MidiRig pedalled;
+        const auto held = runWithMidi (pedalled, sung, { { 0.0, juce::MidiMessage::controllerEvent (1, 64, 127) },
+                                                         { 0.0, keyDown (60) }, { 0.5, keyUp (60) } });
+        CHECK_THAT (dB (rms (held, 0.85, 1.0) / rms (held, 0.3, 0.5)), WithinAbs (0.0, 1.5));
+    }
+
+    SECTION ("Velocity: a soft key is quieter than a hard one")
+    {
+        const auto levelAtVelocity = [&] (float velocity)
+        {
+            MidiRig rig;
+            return rms (runWithMidi (rig, sung, { { 0.0, keyDown (60, velocity) } }), 0.5);
+        };
+        CHECK (dB (levelAtVelocity (0.15f) / levelAtVelocity (1.0f)) < -6.0f);
+    }
+}
+
+TEST_CASE ("HARMONY MIDI: TUNE VOICE's Notes follows the keyboard", "[effects][harmony][midi][correct]")
+{
+    // Singing an A with C4 held: the voice is pulled up to C4, the nearest held key.
+    CorrectRig rig (effects::Harmony::Correct::notes);
+    const auto out = runWithMidi (rig, sungVowel (220.0, 1.0), { { 0.0, keyDown (60) } });
+    CAPTURE (pitchOf (out));
+    CHECK (std::abs (cents (pitchOf (out), 261.626)) < 5.0);
+}
