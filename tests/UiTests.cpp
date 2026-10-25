@@ -651,3 +651,23 @@ TEST_CASE ("MARS's modulation pages: slots from the knobs, the target list, XLFO
         CHECK (juce::roundToInt (value (ParamIDs::marsLfo (0, "Steps"))) == 1);   // XLFO 1 untouched
     }
 }
+
+TEST_CASE ("HARMONY's NOTES tab: the note controls in place of the voice's", "[ui][harmony][notes]")
+{
+    ParagonX1AudioProcessor processor;
+    HarmonyPanel panel (processor.getParameters(), [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::ComboBox*> boxes;
+    findAll (panel, boxes);
+    const auto chordBox = std::find_if (boxes.begin(), boxes.end(), [] (juce::ComboBox* box)
+                                        { return box->getNumItems() == (int) effects::Harmony::chordMaps.size(); });
+    REQUIRE (chordBox != boxes.end());
+    CHECK_FALSE ((*chordBox)->isVisible());
+    panel.showNotes (true);
+    CHECK (panel.isShowingNotes());
+    CHECK ((*chordBox)->isVisible());
+    CHECK ((*chordBox)->getText() == "3rd + 5th Above");   // the default
+    panel.selectVoice (1);
+    panel.showNotes (false);
+    CHECK_FALSE ((*chordBox)->isVisible());
+}

@@ -36,6 +36,7 @@ namespace
                     screamingAmpStyle = 15, destroyStyle = 20;
     constexpr float texturizer = 3;                                                      // GLITCH's MODE
     constexpr float naturalTune = 1, hardTune = 2;                                       // HARMONY's CORRECT (TUNE VOICE)
+    constexpr float choirMap = 10;                                                       // HARMONY's CHORD map: Choir
     // MARS's modulation (effects::MarsModulation): sources, targets, XLFO SYNC.
     constexpr float xlfo1 = 1, envelopeFollower1 = 5, expressionPedal = 13;
     constexpr float band1Drive = 1, band1Level = 10, band2Drive = 11, crossover1 = 41;
@@ -490,6 +491,18 @@ std::vector<Rig> makeFactoryRigs()
             { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
             { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.14f } }),
+
+        // A choir out of one voice: every note you sing becomes five (an
+        // octave down to an octave up), held steady (HARMONY's NOTES:
+        // GENERATE NOTES, CHORD Choir). Set KEY and SCALE first.
+        make ("Auto Choir", E, 22, "Harmony,Choir,Ambient", {
+            { rigLevel, -4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, choirMap }, { harmonyNoteLevel, -8 }, { harmonyNoteWidth, 0.9f },
+            { harmonyNoteAttack, 120 }, { harmonyNoteRelease, 400 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.3f }, { reverbPreDelay, 40 } }),
 
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records

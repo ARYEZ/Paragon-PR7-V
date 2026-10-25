@@ -31,7 +31,8 @@ descriptions below still talk about guitar.
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
-| V6 | Harmony: Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
+| V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
+| V7 | Harmony: MIDI note input, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -86,6 +87,13 @@ descriptions below still talk about guitar.
       survive, **Hard** jumps to it (the robotic sound). It works with HARMONY off too, and SINGING shows the note it's
       tuning to. While it's on, the whole plugin runs 40 ms late, which it tells your DAW so the vocal is lined back up
       on playback; singing live through it you'll hear yourself 40 ms late. Off, there's no delay at all.
+      The **NOTES** tab (after voices 1-8): **GENERATE** turns your singing into steady notes (a new one after a silence,
+      or when your pitch moves more than **TOLERANCE** cents for longer than **TIME**; nothing below **MIN NOTE**), and
+      **CHORD** turns each note into harmonies, kept in the key: the same intervals on every note (3rd Above, 5th Above,
+      Octaves, Power, Choir...) or a chord from it (Triad Below, Seventh, Sus2, Sus4, Add9...). These **note voices**
+      play their notes exactly, whatever your own tuning, and show on the graph in blue while they sound; they have
+      their own **LEVEL**, **WIDTH**, **FORMANT**, **ATTACK** and **RELEASE**, and come on top of the voices on the graph.
+      TUNE VOICE's **Notes** setting tunes your voice hard to the generated note.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

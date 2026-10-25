@@ -3533,6 +3533,167 @@ TEST_CASE ("HARMONY CORRECT: works with HARMONY off, and harmonies stay in tune 
     }
 }
 
+//==============================================================================
+// HARMONY stage 3: GENERATE NOTES and CHORD maps.
+namespace
+{
+    // HARMONY on, its fixed voices and the singer's own voice out of the
+    // way, GENERATE NOTES on with `chord`: the output is the note voices alone.
+    struct NotesRig : EffectRig
+    {
+        explicit NotesRig (const char* chord, int key = 0, Scales::Scale scale = Scales::Scale::major)
+        {
+            set (ParamIDs::harmonyOn, 1.0f);
+            set (ParamIDs::harmonySource, effects::Harmony::silentDb);
+            set (ParamIDs::harmonyKey, (float) key);
+            set (ParamIDs::harmonyScale, (float) scale);
+            for (int v = 0; v < effects::Harmony::numVoices; ++v)
+                set (ParamIDs::harmonyVoice (v, "Active").toRawUTF8(), 0.0f);
+            set (ParamIDs::harmonyGenerate, 1.0f);
+            set (ParamIDs::harmonyChord, (float) effects::Harmony::chordMapNames().indexOf (chord));
+            set (ParamIDs::harmonyNoteLevel, 0.0f);
+            set (ParamIDs::harmonyNoteWidth, 0.0f);
+        }
+    };
+
+    // A voice singing `hz` for each stretch in turn (seconds).
+    std::vector<float> sungLine (std::initializer_list<std::pair<double, double>> stretches)
+    {
+        std::vector<float> line;
+        for (const auto& [hz, seconds] : stretches)
+        {
+            const auto part = hz > 0.0 ? sungVowel (hz, seconds) : silence (seconds);
+            line.insert (line.end(), part.begin(), part.end());
+        }
+        return line;
+    }
+
+    double semitonesUp (double hz, double semitones) { return hz * std::pow (2.0, semitones / 12.0); }
+}
+
+TEST_CASE ("HARMONY GENERATE NOTES: each sung note becomes the CHORD map's notes, in the key", "[effects][harmony][notes]")
+{
+    const auto A3 = 220.0, C4 = 261.626, E4 = 329.628, Csharp4 = 277.183, F4 = 349.228;
+
+    SECTION ("3rd + 5th Above on an A in C major: C and E (the minor third, in the key), nothing between")
+    {
+        NotesRig rig ("3rd + 5th Above");
+        const auto out = rig.runMono (sungVowel (A3, 1.0));
+        // Each note voice is about as loud as the sung note's own fundamental.
+        const auto sung = levelAt (sungVowel (A3, 1.0), A3, 0.5);
+        CAPTURE (sung, levelAt (out, C4, 0.5), levelAt (out, E4, 0.5), levelAt (out, Csharp4, 0.5));
+        CHECK (levelAt (out, C4, 0.5) > 0.5f * sung);
+        CHECK (levelAt (out, E4, 0.5) > 0.5f * sung);
+        CHECK (levelAt (out, Csharp4, 0.5) < 0.2f * levelAt (out, C4, 0.5));   // not the major third: out of the key
+        CHECK (levelAt (out, F4, 0.5) < 0.2f * levelAt (out, E4, 0.5));
+    }
+
+    SECTION ("The same in A major: C#, the major third")
+    {
+        NotesRig rig ("3rd + 5th Above", 9 /* A */);
+        const auto out = rig.runMono (sungVowel (A3, 1.0));
+        CHECK (levelAt (out, Csharp4, 0.5) > 0.5f * levelAt (sungVowel (A3, 1.0), A3, 0.5));
+        CHECK (levelAt (out, C4, 0.5) < 0.2f * levelAt (out, Csharp4, 0.5));
+    }
+
+    SECTION ("Note voices play their notes exactly, though the singer is 30 cents flat")
+    {
+        NotesRig rig ("5th Above");
+        const auto out = rig.runMono (sungVowel (semitonesUp (A3, -0.3), 1.0));
+        CAPTURE (pitchOf (out));
+        CHECK (std::abs (cents (pitchOf (out), E4)) < 5.0);
+    }
+
+    SECTION ("GENERATE NOTES off, or HARMONY off: no note voices")
+    {
+        NotesRig off ("5th Above");
+        off.set (ParamIDs::harmonyGenerate, 0.0f);
+        CHECK (rms (off.runMono (sungVowel (A3, 0.6)), 0.3) < 1.0e-4f);
+        NotesRig harmonyOff ("5th Above");
+        harmonyOff.set (ParamIDs::harmonyOn, 0.0f);
+        harmonyOff.set (ParamIDs::harmonySource, 0.0f);
+        const auto input = sungVowel (A3, 0.6);
+        CHECK (maxAbsDifference (input, harmonyOff.runMono (input), (size_t) (0.1 * sampleRate)) < 1.0e-5f);
+    }
+
+    SECTION ("Below MIN NOTE: no notes")
+    {
+        NotesRig rig ("5th Above");
+        rig.set (ParamIDs::harmonyMinNote, 48.0f);   // C3
+        CHECK (rms (rig.runMono (sungVowel (110.0 /* A2 */, 0.6)), 0.3) < 1.0e-4f);
+    }
+
+    SECTION ("ATTACK fades the note voices in; a silence ends them")
+    {
+        const auto risingAt = [A3] (float attackMs)
+        {
+            NotesRig rig ("5th Above");
+            rig.set (ParamIDs::harmonyNoteAttack, attackMs);
+            const auto out = rig.runMono (sungLine ({ { A3, 1.0 }, { 0.0, 0.5 } }));
+            CHECK (rms (out, 1.2, 1.5) < 1.0e-4f);   // the singer stopped: so did they
+            return dB (rms (out, 0.1, 0.15) / rms (out, 0.8, 0.9));
+        };
+        CHECK (risingAt (5.0f) > -2.0f);       // in at once
+        CHECK (risingAt (500.0f) < -6.0f);     // still fading in
+    }
+}
+
+TEST_CASE ("HARMONY GENERATE NOTES: TOLERANCE decides when a new note starts", "[effects][harmony][notes]")
+{
+    // The notes generated as a line is sung (chromatic, so every semitone counts).
+    const auto notesOf = [] (const std::vector<float>& line, float toleranceCents, float toleranceMs)
+    {
+        effects::Harmony harmony;
+        harmony.prepare (sampleRate, blockSize);
+        effects::Harmony::Settings settings;
+        settings.on = true;
+        settings.scale = Scales::Scale::chromatic;
+        settings.notes.generate = true;
+        settings.notes.toleranceCents = toleranceCents;
+        settings.notes.toleranceMs = toleranceMs;
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        std::vector<int> notes;
+        for (size_t start = 0; start + blockSize <= line.size(); start += blockSize)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.copyFrom (ch, 0, line.data() + start, blockSize);
+            juce::dsp::AudioBlock<float> block (buffer);
+            harmony.process (block, line.data() + start, settings);
+            const auto note = harmony.getGeneratedNote();
+            if (note >= 0 && (notes.empty() || notes.back() != note))
+                notes.push_back (note);
+        }
+        return notes;
+    };
+    const auto A3 = 220.0;
+
+    SECTION ("A wobble inside 50 cents keeps the note")
+    {
+        CHECK (notesOf (sungLine ({ { A3, 0.4 }, { semitonesUp (A3, 0.35), 0.4 }, { A3, 0.4 } }), 50.0f, 100.0f) == std::vector<int> { 57 });
+    }
+
+    SECTION ("A move past 50 cents for longer than TIME is a new note; a quick one isn't")
+    {
+        CHECK (notesOf (sungLine ({ { A3, 0.4 }, { semitonesUp (A3, 1.0), 0.4 } }), 50.0f, 100.0f) == std::vector<int> { 57, 58 });
+        CHECK (notesOf (sungLine ({ { A3, 0.4 }, { semitonesUp (A3, 1.0), 0.06 }, { A3, 0.4 } }), 50.0f, 150.0f) == std::vector<int> { 57 });
+    }
+
+    SECTION ("TOLERANCE Off: only a silence starts a new note")
+    {
+        CHECK (notesOf (sungLine ({ { A3, 0.4 }, { semitonesUp (A3, 2.0), 0.4 } }), effects::Harmony::toleranceOff, 100.0f) == std::vector<int> { 57 });
+        CHECK (notesOf (sungLine ({ { A3, 0.4 }, { 0.0, 0.3 }, { semitonesUp (A3, 2.0), 0.4 } }), effects::Harmony::toleranceOff, 100.0f)
+               == std::vector<int> { 57, 59 });
+    }
+}
+
+TEST_CASE ("HARMONY CORRECT NOTES: the voice tuned hard to the generated note", "[effects][harmony][notes][correct]")
+{
+    CorrectRig rig (effects::Harmony::Correct::notes);
+    const auto out = rig.runMono (sungVowel (semitonesUp (220.0, 0.3), 1.0));   // 30 cents sharp of A
+    CAPTURE (pitchOf (out));
+    CHECK (std::abs (cents (pitchOf (out), 220.0)) < 5.0);
+    CHECK (rig.processor.getLatencySamples() > 0);   // like NATURAL and HARD, it runs 40 ms late
+}
 TEST_CASE ("AEON: the flanger follows the BF-2's circuit and specifications", "[effects][modulation]")
 {
     using effects::Aeon;

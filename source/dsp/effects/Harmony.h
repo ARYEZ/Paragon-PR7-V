@@ -41,8 +41,18 @@ namespace effects
     // late (the processor reports it, so a DAW lines the voice back up) and
     // the voices come out at exactly that delay too, in time with the voice.
     // The speeds and the hold between notes are our choices: the guide
-    // doesn't give them. Its NOTES state (tune to played or generated notes)
-    // waits for MIDI input and Generate Notes.
+    // doesn't give them.
+    //
+    // GENERATE NOTES and CHORD MAPS (stage 3; the guide's Note Generator and
+    // Note Mapper): the singing is turned into steady notes (a new one after
+    // a silence, or when the pitch moves more than TOLERANCE cents for
+    // longer than TIME), and each note into up to eight NOTE VOICES by the
+    // CHORD map, kept in the KEY and SCALE as the fixed voices are. Note
+    // voices play their notes exactly, whatever the singer's own tuning, and
+    // fade in and out (ATTACK, RELEASE). They have their own pool of eight,
+    // apart from the fixed voices (on Waves Harmony the two share eight).
+    // The chord maps are ours; the guide names none. CORRECT's NOTES state
+    // tunes the singer hard to the generated note.
     class Harmony
     {
     public:
@@ -63,8 +73,57 @@ namespace effects
         };
 
         // Saved by number: only ever add to the end.
-        enum class Correct { off, natural, hard };
-        static inline const juce::StringArray correctNames { "Off", "Natural", "Hard" };
+        enum class Correct { off, natural, hard, notes };
+        static inline const juce::StringArray correctNames { "Off", "Natural", "Hard", "Notes" };
+
+        // CHORD maps: the intervals each generated note becomes (in semitones,
+        // corrected into the key so a third stays a third). Saved by number:
+        // only ever add to the end.
+        struct ChordMap
+        {
+            const char* name;
+            const char* description;
+            std::array<int, 8> intervals;
+            int count;
+        };
+        static inline const std::array<ChordMap, 18> chordMaps { {
+            { "3rd Above",            "A harmony a third above every note",                    { 4 }, 1 },
+            { "3rd Below",            "A harmony a third below every note",                    { -4 }, 1 },
+            { "5th Above",            "A fifth above every note",                              { 7 }, 1 },
+            { "3rd + 5th Above",      "The classic three-part harmony, both above you",        { 4, 7 }, 2 },
+            { "3rd Above, 4th Below", "One above and one below: a full triad around you",      { 4, -5 }, 2 },
+            { "Octave Up",            "Your note an octave up",                                { 12 }, 1 },
+            { "Octave Down",          "Your note an octave down",                              { -12 }, 1 },
+            { "Octaves Up + Down",    "An octave above and below",                             { 12, -12 }, 2 },
+            { "Power (5th + Octave)", "A fifth and an octave above: big and open",             { 7, 12 }, 2 },
+            { "Three-Part Stack",     "A third, a fifth and an octave above",                  { 4, 7, 12 }, 3 },
+            { "Choir",                "Five voices around you, from an octave down to an octave up", { -12, -5, 4, 7, 12 }, 5 },
+            { "Triad Below",          "A chord under you: you sing the top note",              { -4, -7 }, 2 },
+            { "Seventh Chord",        "A seventh chord on every note",                         { 4, 7, 11 }, 3 },
+            { "Sus2",                 "A suspended second chord: open, unresolved",            { 2, 7 }, 2 },
+            { "Sus4",                 "A suspended fourth chord",                              { 5, 7 }, 2 },
+            { "Add9",                 "A major or minor chord with a ninth on top",            { 4, 7, 14 }, 3 },
+            { "Open Fifths",          "An octave below and a fifth above: hollow and wide",    { -12, 7 }, 2 },
+            { "Gospel Stack",         "A wide chord under and over you: low root, third, fifth, octave", { -12, -8, 4, 7, 12 }, 5 },
+        } };
+        static juce::StringArray chordMapNames();
+
+        static constexpr int numNoteVoices = 8;
+        static constexpr double minNoteLowest = 24.0, minNoteHighest = 48.0;   // MIN NOTE's range: C1 to C3 (MIDI)
+        static constexpr float toleranceOff = 210.0f;                          // TOLERANCE above 200 cents: off
+
+        struct Notes
+        {
+            bool generate = false;
+            int chord = 3;                   // 3rd + 5th Above
+            float minNote = 31.0f;           // MIDI: G1 (the guide's G0, in its naming)
+            float toleranceCents = 50.0f;    // above 200: off (only a silence starts a new note)
+            float toleranceMs = 100.0f;
+            float levelDb = -3.0f;
+            float width = 0.7f;              // how far apart the note voices are panned
+            float formant = 0.0f;
+            float attackMs = 20.0f, releaseMs = 150.0f;
+        };
         static constexpr double correctLatencySeconds = 0.04;   // what CORRECT delays the plugin by
         static constexpr double naturalSeconds = 0.06, hardSeconds = 0.003;
 
@@ -80,6 +139,7 @@ namespace effects
             float correctFormant = 1.0f;        // 1: formants stay put; 0: they move with the pitch (chipmunk)
             float spread = 1.0f;                // 1: pans as set; 0: everything in the middle
             std::array<Voice, numVoices> voices;
+            Notes notes;
         };
 
         void prepare (double sampleRate, int maxBlockSize);
@@ -98,6 +158,14 @@ namespace effects
         float getCorrection() const noexcept { return correction.load(); }
         // The note CORRECT is tuning to (a MIDI number), or -1. For the panel.
         float getCorrectNote() const noexcept { return correctNote.load(); }
+        // The generated note (a MIDI number, in the key), or -1.
+        int getGeneratedNote() const noexcept { return generatedNote.load(); }
+        // A note voice's note (MIDI), or -1 when silent; its pan and level (0 to 1) as it sounds now. For the panel.
+        int getNoteVoiceNote (int voice) const noexcept { return noteVoiceShown[(size_t) voice].note.load(); }
+        float getNoteVoicePan (int voice) const noexcept { return noteVoiceShown[(size_t) voice].pan.load(); }
+        float getNoteVoiceLevel (int voice) const noexcept { return noteVoiceShown[(size_t) voice].level.load(); }
+        // A note voice's pitch ratio right now. For tests.
+        float getNoteVoiceRatio (int voice) const noexcept { return noteVoices[(size_t) voice].state.ratio; }
 
     private:
         static constexpr int bufferSize = 1 << 15;   // ~0.7 s at 48 kHz: room for the longest slices
@@ -138,6 +206,23 @@ namespace effects
 
         std::array<VoiceState, numVoices> voices;
         VoiceState corrected;                        // the singer's voice, tuned (CORRECT)
+
+        // GENERATE NOTES: the note held, and how long the voice has been away from it.
+        int heldNote = -1;
+        double awayFor = 0.0;
+        std::atomic<int> generatedNote { -1 };
+        void generateNotes (const Settings&, double sung) noexcept;
+
+        struct NoteVoice
+        {
+            VoiceState state;
+            int note = -1;                           // what it plays (MIDI), or -1: let go
+            double glided = 0.0;                     // its pitch, gliding to `note` (MIDI)
+            float envelope = 0.0f, pan = 0.0f, panTarget = 0.0f;
+        };
+        std::array<NoteVoice, numNoteVoices> noteVoices;
+        struct Shown { std::atomic<int> note { -1 }; std::atomic<float> pan { 0.0f }, level { 0.0f }; };
+        std::array<Shown, numNoteVoices> noteVoiceShown;
         int latencyInUse = 0;                        // the delay the last block ran at
         int correctTarget = -1;                      // the note it's tuned to, held between readings
         double correctSemitones = 0.0;               // the glide towards it

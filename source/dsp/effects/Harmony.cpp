@@ -28,6 +28,17 @@ namespace effects
             voice.ratio = voice.formantRatio = 1.0f;
             voice.leftGain = voice.rightGain = 0.0f;
         }
+        for (auto& voice : noteVoices)
+        {
+            voice.state.output.assign ((size_t) bufferSize, 0.0f);
+            voice.state.running = false;
+            voice.state.ratio = voice.state.formantRatio = 1.0f;
+            voice.note = -1;
+            voice.envelope = voice.pan = 0.0f;
+        }
+        heldNote = -1;
+        awayFor = 0.0;
+        generatedNote = -1;
         corrected.output.assign ((size_t) bufferSize, 0.0f);
         corrected.running = false;
         corrected.ratio = corrected.formantRatio = 1.0f;
@@ -70,6 +81,80 @@ namespace effects
         return best;
     }
 
+    juce::StringArray Harmony::chordMapNames()
+    {
+        juce::StringArray names;
+        for (const auto& map : chordMaps)
+            names.add (map.name);
+        return names;
+    }
+
+    void Harmony::generateNotes (const Settings& settings, double sung) noexcept
+    {
+        // GENERATE NOTES: hold a note until the voice has been more than
+        // TOLERANCE cents away from it for TIME (then the nearest semitone
+        // is the new note); a silence ends it, and the next sound starts one.
+        const auto& notes = settings.notes;
+        const auto wanted = notes.generate || settings.correct == Correct::notes;
+        if (! wanted || ! voiced || sung < notes.minNote)
+        {
+            heldNote = -1;
+            awayFor = 0.0;
+        }
+        else
+        {
+            const auto nearestSemitone = (int) std::lround (sung);
+            if (heldNote < 0)
+            {
+                heldNote = nearestSemitone;
+                awayFor = 0.0;
+            }
+            else if (notes.toleranceCents <= 200.0f && std::abs (sung - heldNote) * 100.0 > notes.toleranceCents)
+            {
+                awayFor += hop / sampleRate;
+                if (awayFor * 1000.0 >= notes.toleranceMs)
+                {
+                    heldNote = nearestSemitone;
+                    awayFor = 0.0;
+                }
+            }
+            else
+            {
+                awayFor = 0.0;
+            }
+        }
+
+        // The note in the key, then the CHORD map's notes from it, kept in
+        // the key too (a third stays a third), panned across WIDTH low to high.
+        const auto root = heldNote >= 0 ? Scales::nearest (heldNote, settings.key, settings.scale) : -1;
+        generatedNote = root;
+        const auto& map = chordMaps[(size_t) juce::jlimit (0, (int) chordMaps.size() - 1, notes.chord)];
+        for (int v = 0; v < numNoteVoices; ++v)
+        {
+            auto& voice = noteVoices[(size_t) v];
+            const auto inMap = v < map.count;
+            voice.note = notes.generate && root >= 0 && inMap ? Scales::harmonyNote (root, map.intervals[(size_t) v], settings.key, settings.scale) : -1;
+            if (! inMap)
+                continue;
+            auto rank = 0;
+            for (int other = 0; other < map.count; ++other)
+                rank += map.intervals[(size_t) other] < map.intervals[(size_t) v] ? 1 : 0;
+            voice.panTarget = map.count > 1 ? notes.width * (-1.0f + 2.0f * (float) rank / (float) (map.count - 1)) : 0.0f;
+        }
+
+        // Each note voice plays its note exactly, gliding (30 ms) when it changes.
+        const auto glide = 1.0 - std::exp (-(double) hop / (0.03 * sampleRate));
+        for (auto& voice : noteVoices)
+        {
+            if (voice.note >= 0)
+                voice.glided = voice.envelope < 1.0e-3f ? (double) voice.note : voice.glided + glide * ((double) voice.note - voice.glided);
+            const auto shift = voiced ? voice.glided - sung : 0.0;
+            voice.state.ratio = (float) juce::jlimit (0.25, 4.0, std::pow (2.0, shift / 12.0));
+            const auto formantSemitones = notes.formant + (1.0f - settings.correctFormant) * (float) shift;
+            voice.state.formantRatio = juce::jlimit (0.5f, 2.0f, std::pow (2.0f, formantSemitones / 12.0f));
+        }
+    }
+
     void Harmony::readPitch (const Settings& settings) noexcept
     {
         // The newest stretch of the clean voice, oldest first, for the detector.
@@ -97,11 +182,20 @@ namespace effects
         const auto sung = Scales::midiFromHz (sampleRate / period);
         sungNote = voiced ? (float) sung : -1.0f;
 
+        generateNotes (settings, sung);
+
         // CORRECT: the note the singer is aiming at, held until another is
         // clearly nearer (a fifth of a semitone), so a voice right between
         // two notes doesn't flicker between them.
         auto wanted = 0.0;
-        if (settings.correct != Correct::off && voiced)
+        if (settings.correct == Correct::notes)
+        {
+            // NOTES: hard onto the generated note (held through TOLERANCE).
+            correctTarget = generatedNote.load();
+            if (voiced && correctTarget >= 0)
+                wanted = juce::jlimit (-6.0, 6.0, (double) correctTarget - sung);
+        }
+        else if (settings.correct != Correct::off && voiced)
         {
             const auto nearestNote = Scales::nearest (sung, settings.key, settings.scale);
             if (correctTarget < 0 || ! Scales::isIn (correctTarget, settings.key, settings.scale)
@@ -113,7 +207,7 @@ namespace effects
         {
             correctTarget = -1;
         }
-        const auto speed = settings.correct == Correct::hard ? hardSeconds : naturalSeconds;
+        const auto speed = settings.correct == Correct::natural ? naturalSeconds : hardSeconds;
         correctSemitones += (1.0 - std::exp (-(double) hop / (speed * sampleRate))) * (wanted - correctSemitones);
         corrected.ratio = (float) std::pow (2.0, correctSemitones / 12.0);
         corrected.formantRatio = 1.0f;   // the voice's own resonances stay put
@@ -184,6 +278,12 @@ namespace effects
 
     void Harmony::resetVoices() noexcept
     {
+        for (auto& voice : noteVoices)
+        {
+            voice.envelope = 0.0f;
+            voice.state.running = false;
+            std::fill (voice.state.output.begin(), voice.state.output.end(), 0.0f);
+        }
         for (auto* state : { &corrected })
         {
             std::fill (state->output.begin(), state->output.end(), 0.0f);
@@ -257,6 +357,12 @@ namespace effects
                 // singer's own voice is; panned, it fades from the far side.
                 targets[v] = { gain * juce::jmin (1.0f, 1.0f - pan), gain * juce::jmin (1.0f, 1.0f + pan) };
             }
+            // The note voices' fades, and their level.
+            const auto noteGain = gainFor (settings.notes.levelDb) * harmonyGain;
+            const auto attack = (float) (1.0 - std::exp (-1.0 / (juce::jmax (1.0f, settings.notes.attackMs) * 0.001 * sampleRate)));
+            const auto release = (float) (1.0 - std::exp (-1.0 / (juce::jmax (1.0f, settings.notes.releaseMs) * 0.001 * sampleRate)));
+            const auto panGlide = (float) (1.0 - std::exp (-1.0 / (0.02 * sampleRate)));
+
             // SOURCE is HARMONY's mix: with HARMONY off, the voice is at its own level.
             const auto sourceTarget = voicesOn ? gainFor (settings.sourceDb) : 1.0f;
 
@@ -295,6 +401,25 @@ namespace effects
                     outRight += (state.rightGain + (targetRight - state.rightGain) * through) * sample;
                 }
 
+                for (auto& noteVoice : noteVoices)
+                {
+                    const auto gate = voicesOn && noteVoice.note >= 0;
+                    if (! noteVoice.state.running && ! gate)
+                        continue;
+                    noteVoice.envelope += (gate ? attack : release) * ((gate ? 1.0f : 0.0f) - noteVoice.envelope);
+                    noteVoice.pan += panGlide * (noteVoice.panTarget - noteVoice.pan);
+                    const auto sample = nextFrom (noteVoice.state, latency) * noteGain * noteVoice.envelope;
+                    outLeft += sample * juce::jmin (1.0f, 1.0f - noteVoice.pan);
+                    outRight += sample * juce::jmin (1.0f, 1.0f + noteVoice.pan);
+                    if (! gate && noteVoice.envelope < 1.0e-4f)
+                    {
+                        // Faded out: stop, and clear what it had laid down ahead.
+                        noteVoice.envelope = 0.0f;
+                        noteVoice.state.running = false;
+                        std::fill (noteVoice.state.output.begin(), noteVoice.state.output.end(), 0.0f);
+                    }
+                }
+
                 if (stereo)
                 {
                     left[i] = outLeft;
@@ -308,6 +433,14 @@ namespace effects
             }
 
             sourceGain = sourceTarget;
+            for (size_t v = 0; v < noteVoices.size(); ++v)
+            {
+                const auto& noteVoice = noteVoices[v];
+                const auto sounding = noteVoice.state.running && noteVoice.envelope > 0.01f;
+                noteVoiceShown[v].note.store (sounding ? juce::roundToInt (noteVoice.glided) : -1);
+                noteVoiceShown[v].pan.store (noteVoice.pan);
+                noteVoiceShown[v].level.store (noteVoice.envelope);
+            }
             for (size_t v = 0; v < voices.size(); ++v)
             {
                 auto& state = voices[v];

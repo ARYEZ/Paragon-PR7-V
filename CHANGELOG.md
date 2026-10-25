@@ -2,6 +2,26 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.19.0
+
+- **GENERATE NOTES and CHORD maps were meant to be 0.18.0,** but another 0.18.0 (AEON, below) was published first, so they arrive in this one, along with AEON.
+- **HARMONY stage 3: GENERATE NOTES and CHORD maps.** Inspired by Waves Harmony's Note Generator and Note Mapper. It's on the HARMONY panel's new **NOTES** tab, after voices 1-8.
+- **GENERATE NOTES** turns your singing into steady notes:
+  - A new note starts after a silence, or when your pitch moves more than **TOLERANCE** (cents) away for longer than **TIME**. Slides and quick embellishments don't make new notes.
+  - **TOLERANCE Off:** only a silence starts a new note.
+  - **MIN NOTE:** anything lower is ignored.
+- **CHORD** turns each note into harmonies, always kept in your KEY and SCALE (a third stays a third). There are 18 maps:
+  - **The same intervals on every note:** 3rd Above, 3rd Below, 5th Above, 3rd + 5th Above, 3rd Above + 4th Below, Octave Up, Octave Down, Octaves Up + Down, Power (5th + Octave), Three-Part Stack, Choir.
+  - **A chord from each note:** Triad Below (you sing the top), Seventh Chord, Sus2, Sus4, Add9, Open Fifths, Gospel Stack.
+- **Note voices** play their notes exactly, steady even if you drift a little. They come on top of the voices on the graph, which keep following you as before, and have their own **LEVEL**, **WIDTH** (low notes left, high right), **FORMANT**, **ATTACK** and **RELEASE**. They show on the graph in blue, with their note names, while they sound.
+- **TUNE VOICE: Notes** tunes your voice hard to the generated note, so held notes stay dead steady (and, like Natural and Hard, the plugin runs 40 ms late while it's on).
+- **New factory rig:** **Auto Choir** (E22): every note you sing becomes five, from an octave down to an octave up. Set KEY and SCALE first.
+- **Our design where the guide differs or doesn't say:**
+  - The 18 chord maps are ours.
+  - Note voices have their own eight voices rather than sharing eight with the graph's voices.
+  - TIME is in milliseconds (100 ms to start). Waves can sync it to the tempo and starts at a half note.
+- **Not built yet:** the per-key Note Map Editor (your own chord maps) and syncing TIME to the tempo.
+
 ## 0.18.0
 
 - **Everything in one build:** AEON, plus TUNE VOICE (0.17.0), MARS modulation, the vocal EQ presets and bank F (0.15.0 to 0.16.0).
