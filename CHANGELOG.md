@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.16.0
+
+- **A new bank of factory rigs, F: signature styles.** Sixteen rigs for the vocal sounds of genres and eras, named for the style rather than any artist:
+  - **Pop-Punk Lead** (squeezed, bright, double-tracked tight), **Pop-Punk Chorus** (four takes wide, a third above tucked in) and **Pop-Rock Ballad** (warm and close, a long plate, a dotted-eighth echo).
+  - **Ethereal Metalcore Clean** (airy, on a wide ping-pong echo and a big hall that ducks out of the way), **Metalcore Scream** (two bands of MARS that tear up harder the louder you scream) and **Haunted Clean** (a ghostly octave above, glitch texture, a cathedral).
+  - **Prog Tenor Stack** (harmonies a third and a fifth above, doubled, a dual echo), **Prog Scream** (mid-forward, an octave-down take underneath) and **Soaring Prog Chorus** (four takes, an octave-up harmony, wide echoes, a long hall).
+  - **Grunge Double**, **Emo Anthem**, **Nu-Metal Shout**, **Deathcore Growl** (an octave-down take at full weight beneath), **Whisper Pop**, **Bedroom Indie** and **Synth-Pop 80s**.
+- **The harmony rigs follow your song's key.** Set KEY and SCALE in the PITCH panel; a rig change keeps them.
+- **They're our reading of each style** (doubling, compression, delays, saturation, as such records are commonly made), not anyone's actual settings. Like all the factory rigs, their levels are balanced against each other.
+
 ## 0.15.1
 
 - **Vocal presets for the GRAPHIC EQ.** The PRESETS menu now starts with a **VOCAL** group of 13 curves for a voice:

@@ -31,11 +31,13 @@ namespace
     constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
     constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
     // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
-    constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, warmTapeStyle = 5,
-                    britishAmpStyle = 12, crunchyAmpStyle = 14, destroyStyle = 20;
+    constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, brokenTubeStyle = 3, warmTapeStyle = 5,
+                    saturatedTapeStyle = 6, americanAmpStyle = 11, britishAmpStyle = 12, crunchyAmpStyle = 14,
+                    screamingAmpStyle = 15, destroyStyle = 20;
+    constexpr float texturizer = 3;                                                      // GLITCH's MODE
     // MARS's modulation (effects::MarsModulation): sources, targets, XLFO SYNC.
     constexpr float xlfo1 = 1, envelopeFollower1 = 5, expressionPedal = 13;
-    constexpr float band1Drive = 1, band1Level = 10, crossover1 = 41;
+    constexpr float band1Drive = 1, band1Level = 10, band2Drive = 11, crossover1 = 41;
     constexpr float twoBars = 4, oneBar = 5, eighthNote = 8;
 }
 
@@ -47,12 +49,14 @@ namespace
 //   C  delays and throws (the H-Delay-inspired controls)
 //   D  spaces (the LXP-inspired reverb controls and CHAMBER)
 //   E  character: doubles, harmonies, modulation and lo-fi voices
+//   F  signature styles: the vocal sounds of genres and eras (pop-punk,
+//      metalcore, prog, grunge...), named for the style, not any artist
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -459,5 +463,194 @@ std::vector<Rig> makeFactoryRigs()
             { "mmLfo1S7Value", -1 }, { "mmLfo1S8Value", 0 },
             { "mmSlot1Source", xlfo1 }, { "mmSlot1Target", band1Level }, { "mmSlot1Amount", 0.5f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
+
+        // ---- F: signature styles ---------------------------------------------
+        // Each is our reading of a style's vocal sound (from how such records
+        // are commonly made: doubling, compression, delays, saturation), not
+        // a copy of anyone's settings.
+
+        // 2000s pop-punk lead: squeezed hard, bright, and double-tracked
+        // tight, as those records almost always were.
+        make ("Pop-Punk Lead", F, 1, "Pop-Punk,Rock,Doubler", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.2f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -2 }, { "eq2k", 2 }, { "eq4k", 3 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Detune", 7 }, { "dv2Detune", -7 },
+            { "dv1Drift", 0.4f }, { "dv2Drift", 0.4f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // The pop-punk chorus: four takes wide, a third above tucked in, a
+        // quarter-note echo behind.
+        make ("Pop-Punk Chorus", F, 2, "Pop-Punk,Rock,Doubler,Harmony", {
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { driveOn, 1 }, { "mb1Style", saturatedTapeStyle }, { "mb1Drive", 0.25f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq2k", 2 }, { "eq4k", 3 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { "dv1Drift", 0.6f }, { "dv2Drift", 0.6f },
+            { "dv3Drift", 0.6f }, { "dv4Drift", 0.6f }, { doublerOutput, -3 },
+            { harmonyOn, 1 }, { harmonyLevel, -9 }, { "hv2Active", 0 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.15f } }),
+
+        // The pop-rock ballad: warm and close in the verse, a long plate and
+        // a dotted-eighth echo to carry the held notes.
+        make ("Pop-Rock Ballad", F, 3, "Pop-Punk,Ballad,Delay,Reverb", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -4 }, { "eq125", 1 }, { "eq250", 1 }, { "eq4k", 1 }, { "eq16k", 2 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.14f }, { delayDuck, 0.6f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.6f }, { reverbMix, 0.22f }, { reverbPreDelay, 40 } }),
+
+        // Modern metalcore cleans: airy and polished, floating on a wide
+        // ping-pong echo and a big hall that ducks out of the way.
+        make ("Ethereal Metalcore Clean", F, 4, "Metal,Metalcore,Ambient,Delay,Reverb", {
+            { rigLevel, -2 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7500 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -2 }, { "eq4k", 1 }, { "eq8k", 3 }, { "eq16k", 4 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.4f }, { delayMix, 0.18f },
+            { delayDuck, 0.7f }, { delayLowCut, 300 }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.3f }, { reverbPreDelay, 60 },
+            { reverbDecay, 1.3f } }),
+
+        // Metalcore screams: two bands of MARS (the lows kept tight, the rest
+        // torn up), pushed harder the louder you scream (an envelope
+        // follower on DRIVE), doubled and kept dry.
+        make ("Metalcore Scream", F, 5, "Metal,Metalcore,Scream,Saturation,Mars,Modulation", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 5 },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 350 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.45f }, { "mb2Presence", 2 },
+            { "mmSlot1Source", envelopeFollower1 }, { "mmSlot1Target", band2Drive }, { "mmSlot1Amount", 0.35f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq1k", 1 }, { "eq2k", 3 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.1f } }),
+
+        // Haunted cleans: a ghostly octave above, a little texture glitching
+        // in the background, a cathedral behind.
+        make ("Haunted Clean", F, 6, "Metal,Metalcore,Ambient,Harmony,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { harmonyLevel, -10 }, { "hv1Pitch", 12 }, { "hv1Pan", 0 }, { "hv2Active", 0 },
+            { glitchOn, 1 }, { glitchMode, texturizer }, { glitchMix, 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.3f }, { reverbPreDelay, 50 } }),
+
+        // Prog-metal tenor: a high, clear lead stacked with harmonies a third
+        // and a fifth above (set the song's KEY and SCALE in PITCH), doubled,
+        // with a dual echo.
+        make ("Prog Tenor Stack", F, 7, "Metal,Prog,Harmony,Doubler,Delay", {
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 2 }, { "eq8k", 2 }, { "eq16k", 2 },
+            { harmonyOn, 1 }, { harmonyLevel, -6 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayDual, 1 }, { delaySyncRight, dottedEighth },
+            { delayFeedback, 0.3f }, { delayMix, 0.14f }, { delayDuck, 0.6f }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.2f }, { reverbPreDelay, 40 } }),
+
+        // Prog-metal screams: mid-forward and articulate rather than buried,
+        // an octave-down take underneath for weight, a short slap.
+        make ("Prog Scream", F, 8, "Metal,Prog,Scream,Saturation,Mars", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 4 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.55f }, { "mb1Mid", 2 }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -12 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 110 }, { delayFeedback, 0.15f },
+            { delayMix, 0.12f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),
+
+        // The soaring prog chorus: four takes, an octave-up harmony glinting
+        // on top, wide echoes and a long hall.
+        make ("Soaring Prog Chorus", F, 9, "Metal,Prog,Harmony,Doubler,Reverb", {
+            { rigLevel, -4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -4 },
+            { harmonyOn, 1 }, { harmonyLevel, -10 }, { "hv1Pitch", 12 }, { "hv1Pan", 0 }, { "hv2Active", 0 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayPingPong, 1 }, { delayFeedback, 0.35f }, { delayMix, 0.14f },
+            { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.28f }, { reverbDecay, 1.4f } }),
+
+        // 90s grunge: a doubled, mid-heavy, slightly dirty voice with a
+        // touch of chorus, in a dark plate.
+        make ("Grunge Double", F, 10, "Grunge,Rock,Doubler,Saturation", {
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.4f }, { "mb1Treble", -2 },
+            { eqOn, 1 }, { "eq63", -4 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq8k", -2 }, { "eq16k", -3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
+            { modOn, 1 }, { modType, chorus }, { modRate, 0.4f }, { modDepth, 0.3f }, { modMix, 0.2f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.15f }, { reverbRolloff, 6000 } }),
+
+        // 2000s emo and post-hardcore: clean but pushed, a slap and a short
+        // room, ready to break into a shout.
+        make ("Emo Anthem", F, 11, "Emo,Rock,Saturation,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.3f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 130 }, { delayFeedback, 0.2f },
+            { delayMix, 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // Nu-metal: a rap-rock voice that's hard, dry and right up front,
+        // doubled for the hooks, with a driven edge.
+        make ("Nu-Metal Shout", F, 12, "Nu-Metal,Rap,Rock,Saturation,Doubler", {
+            { rigLevel, -5 },   // even with the other rigs
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 5 },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.45f }, { "mb1Mix", 0.8f },
+            { eqOn, 1 }, { "eq63", -4 }, { "eq250", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 3 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Detune", 4 }, { "dv2Detune", -4 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.08f } }),
+
+        // Deathcore lows: a growl with a full octave-down take at its own
+        // level beneath it, torn up by MARS, very dry.
+        make ("Deathcore Growl", F, 13, "Metal,Deathcore,Scream,Pitch,Saturation", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 9 }, { compDetail, 5 },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Bass", 2 }, { "mb1Treble", -3 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 2 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq8k", -4 }, { "eq16k", -6 },
+            { doublerOn, 1 }, { "dv1On", 0 }, { "dv2On", 0 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -3 },
+            { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.06f } }),
+
+        // Whisper pop: breathy and intimate, right on the mic, with a soft
+        // octave-down shadow and a small room.
+        make ("Whisper Pop", F, 14, "Pop,Intimate,Doubler", {
+            { rigLevel, -5 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -24 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 9 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 2 }, { "eq250", 1 }, { "eq2k", -1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv1On", 0 }, { "dv2On", 0 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -14 },
+            { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),
+
+        // Bedroom indie: worn tape, a slow chorus and a small room, as if
+        // recorded at home on old gear.
+        make ("Bedroom Indie", F, 15, "Indie,Lo-Fi,Modulation", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.3f },
+            { modOn, 1 }, { modType, chorus }, { modRate, 0.3f }, { modDepth, 0.4f }, { modMix, 0.3f },
+            { lofiOn, 1 }, { lofiType, cassette }, { lofiAmount, 3 }, { lofiNoise, 1 }, { lofiMix, 0.5f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.4f }, { reverbMix, 0.18f } }),
+
+        // 80s synth-pop: chorused, a gated burst of reverb, a big
+        // dotted-eighth echo.
+        make ("Synth-Pop 80s", F, 16, "80s,Pop,Modulation,Reverb", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.5f }, { modDepth, 0.5f }, { modMix, 0.35f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.16f }, { delayDuck, 0.5f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.3f }, { reverbPreDelay, 0 },
+            { reverbDecay, 0.25f }, { reverbSpread, 200 }, { reverbShape, 0.85f } }),
     };
 }
