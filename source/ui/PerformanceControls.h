@@ -192,20 +192,3 @@ private:
     double smoothedNote = -1.0;   // as a fractional MIDI note number; -1 = none
     juce::uint32 lastHeard = 0;
 };
-
-//==============================================================================
-// "MIN" printed on the unit by the pedal, with an LED that lights while the
-// pedal is fully back on its heel, as in the mockup.
-class HeelIndicator final : public juce::Component,
-                            private juce::Timer
-{
-public:
-    explicit HeelIndicator (ParagonX1AudioProcessor&);
-    void paint (juce::Graphics&) override;
-
-private:
-    void timerCallback() override;
-
-    ParagonX1AudioProcessor& processor;
-    bool lit = false;
-};

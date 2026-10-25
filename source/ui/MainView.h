@@ -151,7 +151,6 @@ private:
 
     // Expression pedal and tuner
     ExpressionPedal expressionPedal;
-    HeelIndicator heelIndicator;
     TunerReader tunerReader;
     LedDisplay::Contents::Tuner tunerState;
     int ticks = 0;

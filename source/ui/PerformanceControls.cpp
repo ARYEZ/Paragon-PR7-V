@@ -869,29 +869,3 @@ void TunerReader::timerCallback()
     if (onReading)
         onReading (reading);
 }
-
-//==============================================================================
-HeelIndicator::HeelIndicator (ParagonX1AudioProcessor& processorToUse) : processor (processorToUse)
-{
-    setInterceptsMouseClicks (false, false);
-    startTimerHz (15);
-}
-
-void HeelIndicator::timerCallback()
-{
-    const auto atHeel = processor.getExpressionPosition() < 0.005f;
-    if (atHeel != lit)
-    {
-        lit = atHeel;
-        repaint();
-    }
-}
-
-void HeelIndicator::paint (juce::Graphics& g)
-{
-    const auto area = getLocalBounds().toFloat();
-    g.setColour (Finish::inkDim());
-    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
-    g.drawText ("MIN", area.withTrimmedRight (14.0f), juce::Justification::centredRight, false);
-    SlotWindow::drawRingLed (g, { area.getRight() - 6.0f, area.getCentreY() }, lit);
-}
