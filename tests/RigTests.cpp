@@ -59,7 +59,7 @@ TEST_CASE ("A rig survives being written to a file and read back", "[rigs]")
     rig.number = 17;
     rig.favourite = true;
     rig.tags = { "Rock", "High Gain" };
-    rig.parameters = { { "driveGain", 6.5f }, { "delayTime", 420.0f } };
+    rig.parameters = { { "lofiAmount", 6.5f }, { "delayTime", 420.0f } };
 
     const auto restored = Rig::fromXml (*juce::XmlDocument::parse (rig.toXml()->toString()));
     REQUIRE (restored.has_value());
@@ -97,7 +97,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 32);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 36);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -133,36 +133,72 @@ TEST_CASE ("Every factory rig is valid", "[rigs]")
     CHECK (slots.size() == (int) makeFactoryRigs().size());   // no two in the same slot
 }
 
-TEST_CASE ("The Whammy-Wah factory rigs use the XP-100 programs they're named for", "[rigs]")
+TEST_CASE ("Every factory rig is for the voice, and plays at a sensible level", "[rigs]")
 {
-    const auto rigs = makeFactoryRigs();
-    const auto find = [&] (const juce::String& name) -> const Rig&
+    // A sung phrase: a 220 Hz vowel with vibrato, about -20 dB, then a rest.
+    constexpr double rate = 48000.0;
+    std::vector<float> phrase ((size_t) (2.5 * rate), 0.0f);
+    for (size_t i = 0; i < (size_t) (1.6 * rate); ++i)
     {
-        const auto found = std::find_if (rigs.begin(), rigs.end(), [&] (const Rig& rig) { return rig.name == name; });
-        REQUIRE (found != rigs.end());
-        return *found;
-    };
-    const auto programOf = [] (const Rig& rig)
-    {
-        return effects::FilterPitch::xpProgramNames()[juce::roundToInt (rig.parameters.at (ParamIDs::fpXpProgram))];
-    };
-
-    CHECK (programOf (find ("Nu-Metal Screech")) == "21 Down Oct / Up Oct");
-    CHECK (programOf (find ("Whammy Lead")) == "13 Up 1 Octave");
-    CHECK (programOf (find ("XP Wah Crunch")) == "02 Original Cry Wah");
-    CHECK (programOf (find ("Harmony Bends")) == "24 Up 4th / Up 5th");
-
-    // The screech's EQ is the Tight Low End preset (bands it leaves out are at 0 dB).
-    const auto& screech = find ("Nu-Metal Screech");
-    CHECK (juce::roundToInt (screech.parameters.at (ParamIDs::expressionTarget)) == ExpressionTargets::whammyWah);
-    const auto& tight = *std::find_if (EqPresets::all.begin(), EqPresets::all.end(),
-                                       [] (const auto& preset) { return juce::String (preset.name) == "Tight Low End"; });
-    for (int band = 0; band < ParamIDs::eqBands.size(); ++band)
-    {
-        const auto found = screech.parameters.find (ParamIDs::eqBands[band]);
-        CHECK_THAT (found != screech.parameters.end() ? found->second : 0.0f, Catch::Matchers::WithinAbs (tight.gainsDb[(size_t) band], 0.01));
+        const auto t = (double) i / rate;
+        const auto f0 = 220.0 * (1.0 + 0.01 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * 220.0 - 700.0) / 400.0, 2.0)) + 0.1;
+            phrase[i] += (float) (0.025 * shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+        }
     }
-    CHECK_THAT (screech.parameters.at (ParamIDs::eqLevel), Catch::Matchers::WithinAbs (tight.levelDb, 0.01));
+
+    const auto rigs = makeFactoryRigs();
+    REQUIRE (rigs.size() >= 30);
+    std::vector<double> levels;
+    for (const auto& factory : rigs)
+    {
+        INFO (factory.name);
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (factory.name));
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        std::vector<float> left;
+        auto peak = 0.0f;
+        auto finite = true;
+        for (size_t start = 0; start < phrase.size(); start += 256)
+        {
+            buffer.clear();
+            const auto count = (int) std::min<size_t> (256, phrase.size() - start);
+            buffer.setSize (2, count, false, false, true);
+            std::copy (phrase.begin() + (long) start, phrase.begin() + (long) start + count, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            for (int i = 0; i < count; ++i)
+            {
+                finite = finite && std::isfinite (buffer.getSample (0, i)) && std::isfinite (buffer.getSample (1, i));
+                peak = std::max ({ peak, std::abs (buffer.getSample (0, i)), std::abs (buffer.getSample (1, i)) });
+                left.push_back (buffer.getSample (0, i));
+            }
+        }
+        REQUIRE (finite);
+        double sum = 0.0;
+        for (auto i = (size_t) (0.4 * rate); i < (size_t) (1.6 * rate); ++i)
+            sum += (double) left[i] * left[i];
+        const auto levelDb = 10.0 * std::log10 (sum / (1.2 * rate) + 1.0e-12);
+        levels.push_back (levelDb);
+        CHECK (peak <= 1.0f);     // never clipping (the master LIMITER as the last word)
+        CHECK (levelDb > -60.0);  // and not silent
+    }
+
+    // None stands out much louder or quieter than the rest, so switching
+    // rigs doesn't make you jump.
+    auto sorted = levels;
+    std::sort (sorted.begin(), sorted.end());
+    const auto median = sorted[sorted.size() / 2];
+    for (size_t i = 0; i < rigs.size(); ++i)
+    {
+        UNSCOPED_INFO (rigs[i].name << ": " << levels[i] << " dB");
+        if (rigs[i].name == "Clean Slate")
+            continue;   // everything off: your own voice, before any compressor's make-up
+        INFO (rigs[i].name << ": " << levels[i] << " dB, the median " << median << " dB");
+        CHECK (std::abs (levels[i] - median) < 6.0);
+    }
 }
 
 TEST_CASE ("The rig library saves, finds, renames and deletes rigs", "[rigs]")
@@ -223,7 +259,7 @@ TEST_CASE ("Favourites stick, including on factory rigs", "[rigs]")
 
     RigLibrary reopened (temp.folder);
     CHECK (reopened.findFactory ("Slapback")->rig.favourite);
-    CHECK_FALSE (reopened.findFactory ("Studio Clean")->rig.favourite);
+    CHECK_FALSE (reopened.findFactory ("Studio Vocal")->rig.favourite);
 }
 
 TEST_CASE ("Rigs are sorted by bank and number, and < > wrap round", "[rigs]")
@@ -246,21 +282,21 @@ TEST_CASE ("Rigs are sorted by bank and number, and < > wrap round", "[rigs]")
     CHECK (library.step (&entries.front(), -1) == &entries.back());
     CHECK (library.step (nullptr, 1) == &entries.front());
 
-    CHECK (library.nextFreeNumber (0) == 6);   // factory rigs fill A01-A05
+    CHECK (library.nextFreeNumber (0) == 8);   // factory rigs fill A01-A07
 }
 
 TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs", "[rigs]")
 {
     RigRig r;
     r.set (ParamIDs::driveOn, 1.0f);
-    r.set (ParamIDs::driveGain, 7.5f);
+    r.set (ParamIDs::lofiAmount, 7.5f);
     r.set (ParamIDs::delayTime, 640.0f);
     r.set (ParamIDs::rigLevel, -3.0f);
     REQUIRE (r.processor.saveCurrentRigAs ("My Sound"));
 
     // Change everything, including the global input and output knobs.
     r.set (ParamIDs::driveOn, 0.0f);
-    r.set (ParamIDs::driveGain, 1.0f);
+    r.set (ParamIDs::lofiAmount, 1.0f);
     r.set (ParamIDs::delayTime, 100.0f);
     r.set (ParamIDs::rigLevel, 0.0f);
     r.set (ParamIDs::inputGain, 5.0f);
@@ -269,7 +305,7 @@ TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs
     r.processor.loadRig (r.entryNamed ("My Sound"));
 
     CHECK (r.get (ParamIDs::driveOn) > 0.5f);
-    CHECK_THAT (r.get (ParamIDs::driveGain), WithinAbs (7.5, 0.01));
+    CHECK_THAT (r.get (ParamIDs::lofiAmount), WithinAbs (7.5, 0.01));
     CHECK_THAT (r.get (ParamIDs::delayTime), WithinAbs (640.0, 0.5));
     CHECK_THAT (r.get (ParamIDs::rigLevel), WithinAbs (-3.0, 0.01));
     // Global knobs are left alone.
@@ -298,12 +334,12 @@ TEST_CASE ("A rig that doesn't mention a parameter sets it to its default", "[ri
 TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]")
 {
     RigRig r;
-    r.processor.loadRig (r.entryNamed ("Studio Clean"));
+    r.processor.loadRig (r.entryNamed ("Studio Vocal"));
     CHECK_FALSE (r.processor.isRigModified());
 
     SECTION ("Turning a knob marks it modified")
     {
-        r.set (ParamIDs::driveGain, 9.0f);
+        r.set (ParamIDs::lofiAmount, 9.0f);
         CHECK (r.processor.isRigModified());
     }
 
@@ -317,10 +353,10 @@ TEST_CASE ("The modified marker tracks changes since loading or saving", "[rigs]
 
     SECTION ("Saving clears it")
     {
-        r.set (ParamIDs::driveGain, 9.0f);
+        r.set (ParamIDs::lofiAmount, 9.0f);
         REQUIRE (r.processor.saveCurrentRigAs ("Saved"));
         CHECK_FALSE (r.processor.isRigModified());
-        r.set (ParamIDs::driveGain, 2.0f);
+        r.set (ParamIDs::lofiAmount, 2.0f);
         CHECK (r.processor.isRigModified());
         REQUIRE (r.processor.saveCurrentRig());   // a user rig now, so plain save works
         CHECK_FALSE (r.processor.isRigModified());
@@ -341,7 +377,7 @@ TEST_CASE ("< and > step through the rigs in order", "[rigs]")
     RigRig r;
     r.processor.loadRig (r.entryNamed ("Clean Slate"));
     r.processor.stepRig (1);
-    CHECK (r.processor.getCurrentRig().name == "Studio Clean");
+    CHECK (r.processor.getCurrentRig().name == "Studio Vocal");
     r.processor.stepRig (-1);
     r.processor.stepRig (-1);   // wraps round to the last rig
     CHECK (r.processor.getCurrentRig().name == r.processor.getRigLibrary().getEntries().back().rig.name);
@@ -350,13 +386,13 @@ TEST_CASE ("< and > step through the rigs in order", "[rigs]")
 TEST_CASE ("Deleting the loaded rig keeps the sound, now unsaved", "[rigs]")
 {
     RigRig r;
-    r.set (ParamIDs::driveGain, 8.0f);
+    r.set (ParamIDs::lofiAmount, 8.0f);
     REQUIRE (r.processor.saveCurrentRigAs ("Temporary"));
     REQUIRE (r.processor.deleteRig (r.entryNamed ("Temporary")));
 
     CHECK_FALSE (r.processor.getCurrentRig().isUserRig());
     CHECK (r.processor.isRigModified());
-    CHECK_THAT (r.get (ParamIDs::driveGain), WithinAbs (8.0, 0.01));
+    CHECK_THAT (r.get (ParamIDs::lofiAmount), WithinAbs (8.0, 0.01));
 }
 
 TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
@@ -365,9 +401,9 @@ TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
     juce::File rigFile;
     {
         RigRig r;
-        r.set (ParamIDs::driveGain, 8.0f);
+        r.set (ParamIDs::lofiAmount, 8.0f);
         REQUIRE (r.processor.saveCurrentRigAs ("Project Rig"));
-        r.set (ParamIDs::driveGain, 3.0f);   // tweaked after saving
+        r.set (ParamIDs::lofiAmount, 3.0f);   // tweaked after saving
         rigFile = r.processor.getCurrentRig().file;
         r.processor.getStateInformation (saved);
     }
@@ -377,7 +413,7 @@ TEST_CASE ("The DAW project remembers which rig was loaded", "[rigs][state]")
     CHECK (restored.getCurrentRig().name == "Project Rig");
     CHECK (restored.getCurrentRig().file == rigFile);
     CHECK (restored.isRigModified());   // the tweak is remembered as unsaved
-    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::driveGain)->load(), WithinAbs (3.0, 0.01));
+    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::lofiAmount)->load(), WithinAbs (3.0, 0.01));
 }
 
 TEST_CASE ("Each rig's RIG LEVEL adds to the master output", "[rigs]")
@@ -461,4 +497,23 @@ TEST_CASE ("Rigs saved with 0.7.0's DOUBLER keep their sound: no DRIFT, its old 
     const auto reloaded = Rig::fromXml (*juce::XmlDocument::parse (current.toXml()->toString()));
     REQUIRE (reloaded.has_value());
     CHECK (reloaded->parameters.count (ParamIDs::doublerVoice (0, "Drift")) == 0);
+}
+
+TEST_CASE ("Rigs saved with a pedal drive model load as MARS, the old knobs gone", "[rigs][mars]")
+{
+    // As 0.13.0 wrote it: a Face Fuzz with its DRIVE, TONE and LEVEL.
+    const auto old = Rig::fromXml (*juce::XmlDocument::parse (
+        "<ParagonRig version=\"1\" parameterVersion=\"35\" name=\"Fuzzy\" bank=\"B\" number=\"20\">"
+        "  <Param id=\"driveOn\" value=\"1\"/><Param id=\"driveModel\" value=\"3\"/>"
+        "  <Param id=\"driveGain\" value=\"10\"/><Param id=\"driveTone\" value=\"2\"/><Param id=\"driveLevel\" value=\"-3\"/>"
+        "</ParagonRig>"));
+    REQUIRE (old.has_value());
+    const auto& p = old->parameters;
+    CHECK (juce::roundToInt (p.at (ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::brokenTube);
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Drive")), WithinAbs (0.85, 0.01));
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Treble")), WithinAbs (-6.0, 0.01));
+    CHECK_THAT (p.at (ParamIDs::marsBand (0, "Level")), WithinAbs (-3.0, 0.01));
+    CHECK (p.at (ParamIDs::driveOn) > 0.5f);
+    for (const auto* gone : { "driveModel", "driveGain", "driveTone", "driveLevel" })
+        CHECK (p.count (gone) == 0);
 }

@@ -8,6 +8,7 @@
 #include "ui/Finish.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/DoublerPanel.h"
+#include "ui/MarsPanel.h"
 #include "ui/HarmonyPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/LedDisplay.h"
@@ -165,6 +166,7 @@ private:
     // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
     HarmonyPanel harmonyPanel;
     DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
+    MarsPanel marsPanel;         // SATURATION's own panel (panels[driveBlock] is empty)
     juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
     bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default

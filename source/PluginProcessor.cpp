@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 32;
+    constexpr int parameterVersion = 36;
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -36,6 +36,9 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
     for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::harmonyVoiceParts.size(); ++part)
             harmonyVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::harmonyVoice (voice, ParamIDs::harmonyVoiceParts[part]));
+    for (int band = 0; band < effects::Mars::maxBands; ++band)
+        for (int part = 0; part < ParamIDs::marsBandParts.size(); ++part)
+            marsBandParameters[(size_t) band].parts[part] = parameters.getRawParameterValue (ParamIDs::marsBand (band, ParamIDs::marsBandParts[part]));
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
@@ -88,7 +91,7 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     compGate.prepare (sampleRate, preparedBlockSize);
     filterPitch.prepare (sampleRate, preparedBlockSize);
     deEsser.prepare (sampleRate, preparedBlockSize);
-    drive.prepare (sampleRate, preparedBlockSize);
+    mars.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
     lowCut.prepare (sampleRate, preparedBlockSize);
     lowCut.reset (param (ParamIDs::inputLowCut));
@@ -300,8 +303,34 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
-    drive.process (monoBlock, { isOn (ParamIDs::driveOn), (effects::Drive::Model) (int) param (ParamIDs::driveModel),
-                                param (ParamIDs::driveGain), param (ParamIDs::driveTone), param (ParamIDs::driveLevel) });
+    // SATURATION: MARS.
+    effects::Mars::Settings marsSettings;
+    marsSettings.on = isOn (ParamIDs::driveOn);
+    marsSettings.numBands = (int) param (ParamIDs::marsBands) + 1;
+    marsSettings.crossoverHz = { param (ParamIDs::marsCross1), param (ParamIDs::marsCross2), param (ParamIDs::marsCross3) };
+    marsSettings.slope = (effects::Mars::Slope) (int) param (ParamIDs::marsSlope);
+    marsSettings.inputDb = param (ParamIDs::marsInput);
+    marsSettings.outputDb = param (ParamIDs::marsOutput);
+    marsSettings.mix = param (ParamIDs::marsMix);
+    marsSettings.quality = (effects::Mars::Quality) (int) param (ParamIDs::marsQuality);
+    for (size_t b = 0; b < marsSettings.bands.size(); ++b)
+    {
+        const auto& parts = marsBandParameters[b].parts;
+        auto& band = marsSettings.bands[b];
+        band.on = parts[0]->load() > 0.5f;
+        band.style = (effects::Mars::Style) (int) parts[1]->load();
+        band.drive = parts[2]->load();
+        band.dynamics = parts[3]->load();
+        band.feedback = parts[4]->load();
+        band.feedbackHz = parts[5]->load();
+        band.bassDb = parts[6]->load();
+        band.midDb = parts[7]->load();
+        band.trebleDb = parts[8]->load();
+        band.presenceDb = parts[9]->load();
+        band.mix = parts[10]->load();
+        band.levelDb = parts[11]->load();
+    }
+    mars.process (monoBlock, marsSettings);
 
     presence.process (monoBlock, param (ParamIDs::presence));
 
@@ -402,14 +431,49 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     modulation.process (stereoBlock, { isOn (ParamIDs::modOn), modType, modRate,
                                        param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
                                        param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph) });
-    delay.process (stereoBlock, { isOn (ParamIDs::delayOn), param (ParamIDs::delayTime), (int) param (ParamIDs::delaySync),
-                                  param (ParamIDs::delayFeedback), param (ParamIDs::delayTone), param (ParamIDs::delayMix) * morph,
-                                  isOn (ParamIDs::delayPingPong), (effects::Delay::Type) (int) param (ParamIDs::delayType),
-                                  param (ParamIDs::delayDuck) },
-                   getTempoBpm());
-    reverb.process (stereoBlock, { isOn (ParamIDs::reverbOn), (effects::Reverb::Type) (int) param (ParamIDs::reverbType),
-                                   param (ParamIDs::reverbSize), param (ParamIDs::reverbTone), param (ParamIDs::reverbMix) * morph,
-                                   param (ParamIDs::reverbPreDelay), param (ParamIDs::reverbDuck) });
+    effects::Delay::Settings delaySettings;
+    delaySettings.on = isOn (ParamIDs::delayOn);
+    delaySettings.timeMs = param (ParamIDs::delayTime);
+    delaySettings.syncIndex = (int) param (ParamIDs::delaySync);
+    delaySettings.feedback = param (ParamIDs::delayFeedback);
+    delaySettings.tone = param (ParamIDs::delayTone);
+    delaySettings.mix = param (ParamIDs::delayMix) * morph;
+    delaySettings.pingPong = isOn (ParamIDs::delayPingPong);
+    delaySettings.type = (effects::Delay::Type) (int) param (ParamIDs::delayType);
+    delaySettings.duck = param (ParamIDs::delayDuck);
+    delaySettings.dual = isOn (ParamIDs::delayDual);
+    delaySettings.timeRightMs = param (ParamIDs::delayTimeRight);
+    delaySettings.syncRightIndex = (int) param (ParamIDs::delaySyncRight);
+    delaySettings.startRight = (int) param (ParamIDs::delayPingStart) == 1;
+    delaySettings.phaseLeft = isOn (ParamIDs::delayPhaseLeft);
+    delaySettings.phaseRight = isOn (ParamIDs::delayPhaseRight);
+    delaySettings.lowCutHz = param (ParamIDs::delayLowCut);
+    delaySettings.highCutHz = param (ParamIDs::delayHighCut);
+    delaySettings.modDepth = param (ParamIDs::delayModDepth);
+    delaySettings.modRateHz = param (ParamIDs::delayModRate);
+    delaySettings.analog = (effects::Delay::Analog) (int) param (ParamIDs::delayAnalog);
+    delaySettings.loFi = isOn (ParamIDs::delayLoFi);
+    delay.process (stereoBlock, delaySettings, getTempoBpm());
+    effects::Reverb::Settings reverbSettings;
+    reverbSettings.on = isOn (ParamIDs::reverbOn);
+    reverbSettings.type = (effects::Reverb::Type) (int) param (ParamIDs::reverbType);
+    reverbSettings.size = param (ParamIDs::reverbSize);
+    reverbSettings.tone = param (ParamIDs::reverbTone);
+    reverbSettings.mix = param (ParamIDs::reverbMix) * morph;
+    reverbSettings.preDelayMs = param (ParamIDs::reverbPreDelay);
+    reverbSettings.duck = param (ParamIDs::reverbDuck);
+    reverbSettings.decay = param (ParamIDs::reverbDecay);
+    reverbSettings.bassRt = param (ParamIDs::reverbBassRt);
+    reverbSettings.crossoverHz = param (ParamIDs::reverbCrossover);
+    reverbSettings.rolloffHz = param (ParamIDs::reverbRolloff);
+    reverbSettings.diffusion = param (ParamIDs::reverbDiffusion);
+    reverbSettings.earlyDb = param (ParamIDs::reverbEarly);
+    reverbSettings.reverbDb = param (ParamIDs::reverbLevel);
+    reverbSettings.spreadMs = param (ParamIDs::reverbSpread);
+    reverbSettings.shape = param (ParamIDs::reverbShape);
+    reverbSettings.spin = param (ParamIDs::reverbSpin);
+    reverbSettings.wander = param (ParamIDs::reverbWander);
+    reverb.process (stereoBlock, reverbSettings);
 
     // LO-FI last, so the whole sound goes through the phone. Assigned to the
     // expression pedal, the pedal fades it in: full band at the heel, lo-fi at the toe.
@@ -757,7 +821,7 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
         parameter.setProperty ("value", value, nullptr);
         state.appendChild (parameter, nullptr);
     };
-    addIfMissing (ParamIDs::driveModel, (int) effects::Drive::Model::classic);    // before the drive had a MODEL
+    addIfMissing (ParamIDs::driveModel, 0);   // before the drive had a MODEL: the original (Classic), for convertOldDrive
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
 
     const auto get = [&state] (const juce::String& id) -> std::optional<float>
@@ -786,6 +850,9 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     // ...and 0.7.0's DOUBLER, before DRIFT and its stronger start.
     else if (savedWith < 32)
         keepDoublerAsSaved (get, set);
+    // Saved with a pedal drive model: now MARS, set up to sound close to it.
+    if (savedWith < 36)
+        convertOldDrive (get, set);
     parameters.replaceState (state);
 
     // Restoring the project changed parameters, which marked the rig as

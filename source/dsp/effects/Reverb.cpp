@@ -32,6 +32,9 @@ namespace effects
             static const Space plate     { 0.32f, 0.5f, 0.8f, 4.5f, 0.0f, 1.0f, 0.75f, 1.35f, 3.0f, 1.1f, 110.0f, 0.35f };
             static const Space digital   { 1.0f, 1.5f, 1.0f, 8.0f, 0.2f, 0.8f, 0.7f, 1.2f, 22.0f, 0.45f, 90.0f, 0.8f };
             static const Space reverse   { 0.9f, 1.2f, 0.6f, 2.2f, 0.0f, 1.0f, 0.7f, 1.0f, 6.0f, 0.6f, 120.0f, 0.9f };
+            // Small and hard: lines a little longer than a room's, reflections
+            // packed close (no distinct slap), the densest diffusion of all.
+            static const Space chamber   { 0.5f, 0.85f, 0.45f, 3.2f, 0.6f, 0.6f, 0.8f, 1.0f, 3.0f, 0.9f, 110.0f, 1.0f };
             switch (type)
             {
                 case Reverb::Type::room:      return room;
@@ -39,6 +42,7 @@ namespace effects
                 case Reverb::Type::plate:     return plate;
                 case Reverb::Type::digital:   return digital;
                 case Reverb::Type::reverse:   return reverse;
+                case Reverb::Type::chamber:   return chamber;
                 case Reverb::Type::classic:
                 case Reverb::Type::spring:
                 case Reverb::Type::hall:      break;
@@ -50,7 +54,8 @@ namespace effects
         constexpr float diffuserMs[4] = { 4.7f, 3.6f, 12.7f, 9.3f };
         constexpr float earlyMs[2][6] = { { 7.1f, 11.3f, 17.9f, 23.3f, 31.7f, 39.1f }, { 8.3f, 13.1f, 19.7f, 26.9f, 33.1f, 42.7f } };
         constexpr float earlyGain[6] = { 0.6f, -0.5f, 0.42f, -0.35f, 0.28f, -0.22f };
-        constexpr float maxScale = 2.1f, maxModulation = 24.0f, maxEarlyScale = 1.8f;
+        constexpr float maxScale = 2.1f, maxModulation = 100.0f, maxEarlyScale = 1.8f;   // modulation: room for WANDER at 400%
+        constexpr int spreadTaps = 8;
         constexpr float networkGain = 1.4f;   // the network's output, so the new types sit near CLASSIC's level
 
         // Each line's sign in the left and right outputs: different patterns,
@@ -83,13 +88,13 @@ namespace effects
         return a + (b - a) * t;
     }
 
-    float Reverb::decaySeconds (Type type, float size) noexcept
+    float Reverb::decaySeconds (Type type, float size, float decay) noexcept
     {
         const auto t = juce::jlimit (0.0f, 1.0f, size);
         if (type == Type::spring)
             return logLerp (1.2f, 4.5f, t);
         const auto& space = spaceFor (type);
-        return logLerp (space.decay0, space.decay1, t);
+        return logLerp (space.decay0, space.decay1, t) * (hasNetworkControls (type) ? juce::jlimit (0.1f, 8.0f, decay) : 1.0f);
     }
 
     void Reverb::prepare (double newSampleRate, int maxBlockSize)
@@ -111,6 +116,8 @@ namespace effects
             line.prepare ((int) std::ceil (55.0f * ms) + 8);
         for (auto& line : reverseBuffers)
             line.prepare ((int) std::ceil (sampleRate * 3.2));
+        for (auto& line : spreadLines)
+            line.prepare ((int) std::ceil (maxSpreadMs * ms) + 8);
 
         send.reset (sampleRate, 0.02);
         mix.reset (sampleRate, 0.05);
@@ -134,7 +141,11 @@ namespace effects
         for (auto& line : earlyTaps) line.clear();
         for (auto& line : springLoops) line.clear();
         for (auto& line : reverseBuffers) line.clear();
+        for (auto& line : spreadLines) line.clear();
         lineDamping.fill (0.0f);
+        lineBass.fill (0.0f);
+        for (auto& state : rolloffState)
+            state[0] = state[1] = 0.0f;
         for (size_t i = 0; i < linePhase.size(); ++i)
             linePhase[i] = (float) i / (float) numLines;   // spread out, so the lines don't drift together
         std::fill (std::begin (outputLowCut), std::end (outputLowCut), 0.0f);
@@ -209,7 +220,8 @@ namespace effects
             case Type::hall:
             case Type::cathedral:
             case Type::plate:
-            case Type::digital: processNetwork (wetBlock, settings); break;
+            case Type::digital:
+            case Type::chamber: processNetwork (wetBlock, settings); break;
         }
 
         // Mix in the reverb, ducked under the playing if DUCK is up (the
@@ -259,20 +271,53 @@ namespace effects
 
         // Reverse plays back chunks of the tail, so its own tail is set by
         // the chunk length rather than straight from SIZE.
-        const auto decay = settings.type == Type::reverse ? lerp (0.6f, 2.2f, t) : decaySeconds (settings.type, t);
+        const auto decayMultiple = juce::jlimit (0.1f, 8.0f, settings.decay);
+        const auto decay = settings.type == Type::reverse ? lerp (0.6f, 2.2f, t) * decayMultiple : decaySeconds (settings.type, t, settings.decay);
+        const auto bassDecay = decay * juce::jlimit (0.25f, 4.0f, settings.bassRt);
+        const auto bassOn = std::abs (settings.bassRt - 1.0f) > 0.001f;
 
-        std::array<float, numLines> length {}, feedback {};
+        std::array<float, numLines> length {}, feedback {}, bassFeedback {};
         for (size_t i = 0; i < (size_t) numLines; ++i)
         {
             length[i] = std::round (lineMs[i] * scale * ms) + (float) i;
             // Each pass through a line loses the right amount for the whole
-            // tail to fall 60 dB in `decay` seconds.
+            // tail to fall 60 dB in `decay` seconds (the lows, with BASS RT,
+            // in their own time).
             feedback[i] = std::pow (10.0f, -3.0f * length[i] / (decay * (float) sampleRate));
+            bassFeedback[i] = std::pow (10.0f, -3.0f * length[i] / (bassDecay * (float) sampleRate));
         }
 
         const auto damping = onePole (sampleRate, knobToFrequency (settings.tone, 1500.0f, 16000.0f) * space.brightness);
+        const auto crossover = onePole (sampleRate, juce::jlimit (20.0f, 2000.0f, settings.crossoverHz));
         const auto lowCut = onePole (sampleRate, space.lowCutHz);
-        const auto modulationStep = space.modulationHz / (float) sampleRate;
+        const auto modulationStep = space.modulationHz * juce::jlimit (0.0f, 4.0f, settings.spin) / (float) sampleRate;
+        const auto modulationDepth = space.modulationSamples * juce::jlimit (0.0f, 4.0f, settings.wander);
+        const auto diffusion = juce::jlimit (0.0f, 0.9f, space.diffusion * juce::jmax (0.0f, settings.diffusion));
+        const auto levelOf = [] (float db) { return db <= levelOffDb ? 0.0f : juce::Decibels::decibelsToGain (db); };
+        const auto earlyGainOut = levelOf (settings.earlyDb), reverbGainOut = levelOf (settings.reverbDb);
+        const auto rolloffOn = settings.rolloffHz < rolloffOffHz - 1.0f;
+        const auto rolloff = onePole (sampleRate, juce::jmax (200.0f, settings.rolloffHz));
+
+        // SPREAD and SHAPE: eight taps across the window, weighted towards
+        // its start (SHAPE low), evenly, or its end (high); their squares
+        // add up to one, so a sound goes in about as strongly as without.
+        const auto spreadSamples = juce::jlimit (0.0f, maxSpreadMs, settings.spreadMs) * ms;
+        const auto spreadOn = spreadSamples >= 1.0f;
+        std::array<float, spreadTaps> tapAt {}, tapWeight {};
+        if (spreadOn)
+        {
+            const auto slope = (juce::jlimit (0.0f, 1.0f, settings.shape) - 0.5f) * 8.0f;
+            auto energy = 0.0f;
+            for (int k = 0; k < spreadTaps; ++k)
+            {
+                const auto position = (float) k / (float) (spreadTaps - 1);
+                tapAt[(size_t) k] = juce::jmax (1.0f, position * spreadSamples);
+                tapWeight[(size_t) k] = std::exp (slope * (position - 0.5f));
+                energy += juce::square (tapWeight[(size_t) k]);
+            }
+            for (auto& weight : tapWeight)
+                weight /= std::sqrt (energy);
+        }
         const auto numChannels = (int) wetBlock.getNumChannels();
 
         for (size_t i = 0; i < wetBlock.getNumSamples(); ++i)
@@ -292,16 +337,26 @@ namespace effects
                         early[ch] += earlyGain[tap] * earlyTaps[(size_t) ch].at (earlyMs[ch][tap] * space.earlyScale * ms);
                 early[ch] *= space.earlyLevel;
 
+                // SPREAD: the sound fed in across its window, not at once.
+                auto x = input[ch] + early[ch] * 0.5f;
+                if (spreadOn)
+                {
+                    auto& line = spreadLines[(size_t) ch];
+                    line.push (x);
+                    x = 0.0f;
+                    for (int k = 0; k < spreadTaps; ++k)
+                        x += tapWeight[(size_t) k] * line.at (tapAt[(size_t) k]);
+                }
+
                 // Input diffusion: four all-passes smear each sound into a
                 // dense burst before it enters the network.
-                auto x = input[ch] + early[ch] * 0.5f;
                 for (int stage = 0; stage < 4; ++stage)
                 {
                     auto& line = diffusers[(size_t) (ch * 4 + stage)];
                     const auto delayed = line.at (diffuserMs[stage] * (ch == 0 ? 1.0f : 1.12f) * ms);
-                    const auto v = x + space.diffusion * delayed;
+                    const auto v = x + diffusion * delayed;
                     line.push (v);
-                    x = delayed - space.diffusion * v;
+                    x = delayed - diffusion * v;
                 }
                 input[ch] = x;
             }
@@ -314,10 +369,19 @@ namespace effects
             {
                 linePhase[l] += modulationStep * (1.0f + 0.13f * (float) l);
                 linePhase[l] -= std::floor (linePhase[l]);
-                const auto drift = space.modulationSamples * std::sin (twoPi * linePhase[l]);
+                const auto drift = modulationDepth * std::sin (twoPi * linePhase[l]);
                 auto y = lines[l].at (length[l] + drift);
                 lineDamping[l] += (y - lineDamping[l]) * damping;   // highs fade faster than lows, as in a real room
-                out[l] = lineDamping[l] * feedback[l];
+                if (bassOn)
+                {
+                    // BASS RT: below CROSSOVER, the lows lose their own amount each pass.
+                    lineBass[l] += (lineDamping[l] - lineBass[l]) * crossover;
+                    out[l] = lineBass[l] * bassFeedback[l] + (lineDamping[l] - lineBass[l]) * feedback[l];
+                }
+                else
+                {
+                    out[l] = lineDamping[l] * feedback[l];
+                }
                 sum += out[l];
             }
 
@@ -334,7 +398,8 @@ namespace effects
                 left += outLeft[l] * out[l];
                 right += outRight[l] * out[l];
             }
-            float result[maxChannels] = { (left * networkGain + early[0]) * space.level, (right * networkGain + early[1]) * space.level };
+            float result[maxChannels] = { (left * networkGain * reverbGainOut + early[0] * earlyGainOut) * space.level,
+                                          (right * networkGain * reverbGainOut + early[1] * earlyGainOut) * space.level };
 
             // Low cut on the way out (once, not on every pass round the
             // network, where it would shorten the tail): keeps the reverb
@@ -343,6 +408,13 @@ namespace effects
             {
                 outputLowCut[ch] += (result[ch] - outputLowCut[ch]) * lowCut;
                 result[ch] -= outputLowCut[ch];
+                if (rolloffOn)
+                {
+                    // ROLLOFF: two poles of high cut on the way out.
+                    rolloffState[ch][0] += (result[ch] - rolloffState[ch][0]) * rolloff;
+                    rolloffState[ch][1] += (rolloffState[ch][0] - rolloffState[ch][1]) * rolloff;
+                    result[ch] = rolloffState[ch][1];
+                }
             }
             for (int ch = 0; ch < numChannels; ++ch)
                 wetBlock.getChannelPointer ((size_t) ch)[i] = numChannels == 1 ? 0.5f * (result[0] + result[1]) : result[ch];

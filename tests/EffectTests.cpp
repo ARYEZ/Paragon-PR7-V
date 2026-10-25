@@ -6,6 +6,7 @@
 #include "PluginProcessor.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Delay.h"
+#include "dsp/effects/Mars.h"
 #include "dsp/effects/Reverb.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/TalkBox.h"
@@ -330,6 +331,219 @@ TEST_CASE ("Revival compressor: GATE, COMPRESSION and GAIN do what they say", "[
     }
 }
 
+namespace
+{
+    // SATURATION on its MARS model, the master limiter out of the way.
+    struct MarsRig : EffectRig
+    {
+        MarsRig()
+        {
+            set (ParamIDs::driveOn, 1.0f);
+            set (ParamIDs::outputLimiter, effects::Limiter::offDb);
+        }
+        void band (int index, const char* part, float value) { set (ParamIDs::marsBand (index, part).toRawUTF8(), value); }
+    };
+}
+
+TEST_CASE ("MARS: the bands split and add back up, and off is off", "[effects][drive][mars]")
+{
+    SECTION ("Switched off, it's exactly the input")
+    {
+        MarsRig rig;
+        rig.set (ParamIDs::driveOn, 0.0f);
+        const auto input = sine (440.0, 0.3f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+    }
+
+    SECTION ("MIX at 0: your voice as it was (in level and tone)")
+    {
+        for (const auto hz : { 100.0, 1000.0, 8000.0 })
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsMix, 0.0f);
+            rig.band (0, "Drive", 1.0f);
+            const auto input = sine (hz, 0.3f, 0.5);
+            CHECK_THAT (dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2)), WithinAbs (0.0, 0.1));
+        }
+    }
+
+    SECTION ("At every slope, four bands with their saturation off add back up flat")
+    {
+        for (int slope = 0; slope < effects::Mars::slopeNames.size(); ++slope)
+            for (const auto hz : { 60.0, 250.0, 700.0, 2500.0, 5000.0, 12000.0 })
+            {
+                MarsRig rig;
+                rig.set (ParamIDs::marsBands, 3.0f);   // 4 bands
+                rig.set (ParamIDs::marsSlope, (float) slope);
+                for (int b = 0; b < 4; ++b)
+                    rig.band (b, "On", 0.0f);
+                const auto input = sine (hz, 0.3f, 0.5);
+                INFO (effects::Mars::slopeNames[slope] << " at " << hz << " Hz");
+                CHECK_THAT (dB (rms (rig.runMono (input), 0.25) / rms (input, 0.25)), WithinAbs (0.0, 0.3));
+            }
+    }
+
+    SECTION ("Each band is its own: drive the highs, and a low note stays clean")
+    {
+        const auto harmonicsOf = [] (double hz, int drivenBand)
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsBands, 1.0f);   // 2 bands
+            rig.set (ParamIDs::marsCross1, 600.0f);
+            for (int b = 0; b < 2; ++b)
+            {
+                rig.band (b, "Style", (float) effects::Mars::Style::saturatedTube);
+                rig.band (b, "Drive", 1.0f);
+                rig.band (b, "On", b == drivenBand ? 1.0f : 0.0f);   // the other band passes clean
+            }
+            const auto output = rig.runMono (sine (hz, 0.3f, 0.5));
+            return dB ((levelAt (output, 2.0 * hz, 0.2) + levelAt (output, 3.0 * hz, 0.2)) / levelAt (output, hz, 0.2));
+        };
+        CHECK (harmonicsOf (2000.0, 1) > -30.0f);   // the high band, driven: rich
+        CHECK (harmonicsOf (150.0, 1) < -40.0f);    // a low note, in the clean low band: clean
+        CHECK (harmonicsOf (150.0, 0) > -30.0f);    // unless the low band is driven
+    }
+}
+
+TEST_CASE ("MARS: every style saturates more with DRIVE, its level kept even", "[effects][drive][mars]")
+{
+    for (int style = 0; style < effects::Mars::numStyles; ++style)
+    {
+        INFO (effects::Mars::styleNames[style]);
+        const auto run = [style] (float drive)
+        {
+            MarsRig rig;
+            rig.band (0, "Style", (float) style);
+            rig.band (0, "Drive", drive);
+            return rig.runMono (sine (330.0, 0.3f, 0.6));
+        };
+        const auto light = run (0.1f), heavy = run (1.0f);
+        REQUIRE (allFinite (heavy));
+        // What isn't the note itself: the harmonics (and, for the FX styles, whatever else they make).
+        const auto other = [] (const std::vector<float>& output)
+        {
+            const auto total = rms (output, 0.3), fundamental = levelAt (output, 330.0, 0.3) / std::sqrt (2.0f);
+            return std::sqrt (std::max (0.0f, total * total - fundamental * fundamental)) / total;
+        };
+        CHECK (other (heavy) > other (light) + 0.02f);
+        // Level matching: full DRIVE is within a few dB of the input, not 36 dB louder.
+        CHECK (std::abs (dB (rms (heavy, 0.3) / rms (sine (330.0, 0.3f, 0.6), 0.3))) < 8.0f);
+    }
+
+    SECTION ("Breakdown pitches the voice down: an octave at full DRIVE")
+    {
+        MarsRig rig;
+        rig.band (0, "Style", (float) effects::Mars::Style::breakdown);
+        rig.band (0, "Drive", 1.0f);
+        const auto output = rig.runMono (sine (440.0, 0.3f, 0.8));
+        CHECK (levelAt (output, 220.0, 0.4) > 0.2f * levelAt (output, 440.0, 0.4));
+    }
+}
+
+TEST_CASE ("MARS: DYNAMICS, FEEDBACK, TONE, LEVEL and QUALITY do what they say", "[effects][drive][mars]")
+{
+    const auto clean = [] (MarsRig& rig)
+    {
+        rig.band (0, "Style", (float) effects::Mars::Style::cleanTube);
+        rig.band (0, "Drive", 0.0f);
+    };
+
+    SECTION ("DYNAMICS right compresses: loud and soft come out closer")
+    {
+        const auto spread = [&] (float dynamics)
+        {
+            const auto levelFor = [&] (float amplitude)
+            {
+                MarsRig rig;
+                clean (rig);
+                rig.band (0, "Dynamics", dynamics);
+                return rms (rig.runMono (sine (440.0, amplitude, 0.8)), 0.4);
+            };
+            return dB (levelFor (0.5f) / levelFor (0.02f));
+        };
+        CHECK (spread (1.0f) < spread (0.0f) - 10.0f);
+    }
+
+    SECTION ("DYNAMICS left gates: quiet sounds taken well down, loud ones through")
+    {
+        const auto through = [&] (float amplitude, float dynamics)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.band (0, "Dynamics", dynamics);
+            const auto input = sine (440.0, amplitude, 0.8);
+            return dB (rms (rig.runMono (input), 0.4) / rms (input, 0.4));
+        };
+        CHECK (through (0.003f, -1.0f) < through (0.003f, 0.0f) - 15.0f);
+        CHECK_THAT (through (0.3f, -1.0f) - through (0.3f, 0.0f), WithinAbs (0.0, 1.0));
+    }
+
+    SECTION ("FEEDBACK rings at FEEDBACK FREQ")
+    {
+        const auto ringAt = [&] (float feedback)
+        {
+            MarsRig rig;
+            rig.band (0, "Style", (float) effects::Mars::Style::warmTape);
+            rig.band (0, "Feedback", feedback);
+            rig.band (0, "FbFreq", 2000.0f);
+            juce::Random random (7);
+            std::vector<float> noise ((size_t) (0.8 * sampleRate));
+            for (auto& sample : noise)
+                sample = 0.1f * (random.nextFloat() * 2.0f - 1.0f);
+            const auto output = rig.runMono (noise);
+            return dB (levelAt (output, 2000.0, 0.3) / levelAt (output, 500.0, 0.3));
+        };
+        CHECK (ringAt (1.0f) > ringAt (0.0f) + 6.0f);
+    }
+
+    SECTION ("TONE: BASS and TREBLE shape what comes out")
+    {
+        const auto levelWith = [&] (const char* part, float db, double hz)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.band (0, part, db);
+            return levelAt (rig.runMono (sine (hz, 0.1f, 0.5)), hz, 0.2);
+        };
+        CHECK_THAT (dB (levelWith ("Bass", 12.0f, 50.0) / levelWith ("Bass", 0.0f, 50.0)), WithinAbs (11.0, 1.5));
+        CHECK_THAT (dB (levelWith ("Treble", -12.0f, 16000.0) / levelWith ("Treble", 0.0f, 16000.0)), WithinAbs (-11.0, 1.5));
+        CHECK_THAT (dB (levelWith ("Treble", -12.0f, 300.0) / levelWith ("Treble", 0.0f, 300.0)), WithinAbs (0.0, 0.5));
+    }
+
+    SECTION ("LEVEL: a band all the way down is silent; OUTPUT moves everything")
+    {
+        MarsRig off;
+        off.band (0, "Level", effects::Mars::minLevelDb);
+        CHECK (rms (off.runMono (sine (440.0, 0.3f, 0.5)), 0.2) < 1.0e-4f);
+
+        const auto outputLevel = [&] (float db)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.set (ParamIDs::marsOutput, db);
+            return rms (rig.runMono (sine (440.0, 0.1f, 0.5)), 0.2);
+        };
+        CHECK_THAT (dB (outputLevel (-6.0f) / outputLevel (0.0f)), WithinAbs (-6.0, 0.2));
+    }
+
+    SECTION ("QUALITY: oversampling keeps the fold-back (aliasing) down")
+    {
+        // A 9 kHz note folded hard: its 5th harmonic, 45 kHz, folds back
+        // down to 3 kHz without oversampling.
+        const auto aliasAt3k = [&] (float quality)
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsQuality, quality);
+            rig.band (0, "Style", (float) effects::Mars::Style::foldback);
+            rig.band (0, "Drive", 0.7f);
+            const auto output = rig.runMono (sine (9000.0, 0.3f, 0.5));
+            return dB (levelAt (output, 3000.0, 0.2) / levelAt (output, 9000.0, 0.2));
+        };
+        CHECK (aliasAt3k (1.0f) < aliasAt3k (0.0f) - 15.0f);   // Good (4x) against Off
+        CHECK (aliasAt3k (2.0f) <= aliasAt3k (1.0f) + 1.0f);   // Superb (8x) at least as clean
+    }
+}
+
 TEST_CASE ("GLITCH: each mode chops, repeats or smears the guitar as it says", "[effects][glitch]")
 {
     const auto glitchRig = [] (EffectRig& rig, effects::Glitch::Mode mode, float density, float chaos, float pitch = 0.0f, float mixAmount = 1.0f)
@@ -476,63 +690,6 @@ TEST_CASE ("GLITCH: each mode chops, repeats or smears the guitar as it says", "
     }
 }
 
-TEST_CASE ("Fuzzes: Muff sustains with odd harmonics and scoops the mids; Face clips unevenly and cleans up", "[effects][drive]")
-{
-    const auto play = [] (effects::Drive::Model model, float amplitude, float drive = 5.0f, float tone = 5.0f, double hz = 220.0)
-    {
-        EffectRig rig;
-        rig.set (ParamIDs::driveOn, 1.0f);
-        rig.set (ParamIDs::driveModel, (float) model);
-        rig.set (ParamIDs::driveGain, drive);
-        rig.set (ParamIDs::driveTone, tone);
-        const auto output = rig.runMono (sine (hz, amplitude, 1.0));
-        REQUIRE (allFinite (output));
-        return output;
-    };
-
-    SECTION ("At LEVEL 0 dB both sit near the guitar's own level, at any FUZZ / SUSTAIN")
-    {
-        for (const auto model : { effects::Drive::Model::muff, effects::Drive::Model::face })
-            for (const auto drive : { 2.0f, 5.0f, 9.0f })
-            {
-                INFO ("model " << (int) model << ", drive " << drive);
-                CHECK (std::abs (dB (rms (play (model, 0.3f, drive), 0.3) / (0.3f / std::sqrt (2.0f)))) < 3.0f);
-            }
-    }
-
-    SECTION ("Muff clips both halves alike (odd harmonics); Face clips one harder (a strong 2nd)")
-    {
-        const auto secondToThird = [&] (effects::Drive::Model model)
-        {
-            const auto output = play (model, 0.3f, 7.0f, 7.0f);
-            return dB (levelAt (output, 440.0, 0.3) / levelAt (output, 660.0, 0.3));
-        };
-        CHECK (secondToThird (effects::Drive::Model::face) > secondToThird (effects::Drive::Model::muff) + 10.0f);
-    }
-
-    SECTION ("Face cleans up as the guitar's volume comes down")
-    {
-        const auto harmonics = [&] (float amplitude)
-        {
-            const auto output = play (effects::Drive::Model::face, amplitude, 5.0f);
-            return dB ((levelAt (output, 440.0, 0.3) + levelAt (output, 660.0, 0.3)) / levelAt (output, 220.0, 0.3));
-        };
-        CHECK (harmonics (0.3f) > harmonics (0.01f) + 10.0f);
-    }
-
-    SECTION ("Muff's TONE scoops the mids at noon")
-    {
-        // A quiet 1 kHz tone (still fuzzed), against 250 Hz, through the tone stack.
-        const auto midsAgainstLows = [&] (float tone)
-        {
-            const auto mids = play (effects::Drive::Model::muff, 0.3f, 5.0f, tone, 1000.0);
-            const auto lows = play (effects::Drive::Model::muff, 0.3f, 5.0f, tone, 250.0);
-            return dB (rms (mids, 0.3) / rms (lows, 0.3));
-        };
-        CHECK (midsAgainstLows (5.0f) < midsAgainstLows (10.0f) - 3.0f);
-    }
-}
-
 TEST_CASE ("Noise gate silences signal below its threshold", "[effects][comp]")
 {
     EffectRig rig;
@@ -545,105 +702,6 @@ TEST_CASE ("Noise gate silences signal below its threshold", "[effects][comp]")
 
     const auto note = sine (220.0, juce::Decibels::decibelsToGain (-20.0f), 1.0);
     CHECK_THAT (dB (rms (rig.runMono (note), 0.5) / rms (note, 0.5)), WithinAbs (0.0, 0.5));
-}
-
-TEST_CASE ("Overdrive adds harmonics, and oversampling keeps aliasing down", "[effects][drive]")
-{
-    EffectRig rig;
-    rig.set (ParamIDs::driveOn, 1.0f);
-    rig.set (ParamIDs::driveModel, (float) effects::Drive::Model::classic);
-    rig.set (ParamIDs::driveTone, 10.0f);
-
-    SECTION ("Harmonics: odd from clipping, even from the asymmetry")
-    {
-        rig.set (ParamIDs::driveGain, 7.0f);
-        const auto output = rig.runMono (sine (1000.0, 0.3f, 0.5));
-        REQUIRE (allFinite (output));
-        const auto fundamental = levelAt (output, 1000.0);
-        CHECK (dB (levelAt (output, 3000.0) / fundamental) > -30.0f);
-        CHECK (dB (levelAt (output, 2000.0) / fundamental) > -40.0f);
-    }
-
-    SECTION ("Aliasing")
-    {
-        // A 5 kHz note at full drive makes harmonics at 15, 25, 35 kHz...
-        // Without oversampling, 35 kHz folds back to 13 kHz (48 - 35), a
-        // frequency that isn't musically related to the note.
-        rig.set (ParamIDs::driveGain, 10.0f);
-        const auto output = rig.runMono (sine (5000.0, 0.5f, 0.5));
-        CHECK (dB (levelAt (output, 13000.0) / levelAt (output, 5000.0)) < -45.0f);
-    }
-
-    SECTION ("Drive 0 at level 0 dB is close to unity; level adds gain")
-    {
-        rig.set (ParamIDs::driveGain, 0.0f);
-        const auto input = sine (1000.0, 0.1f, 0.5);
-        CHECK_THAT (dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2)), WithinAbs (0.0, 1.0));
-
-        rig.set (ParamIDs::driveLevel, 6.0f);
-        CHECK_THAT (dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2)), WithinAbs (6.0, 1.0));
-    }
-}
-
-TEST_CASE ("The Screamer drive behaves like a Tube Screamer", "[effects][drive]")
-{
-    EffectRig rig;
-    rig.set (ParamIDs::driveOn, 1.0f);
-    rig.set (ParamIDs::driveModel, (float) effects::Drive::Model::screamer);
-
-    SECTION ("It's the default for new rigs")
-    {
-        EffectRig fresh;
-        CHECK (juce::roundToInt (fresh.processor.getParameters().getRawParameterValue (ParamIDs::driveModel)->load())
-               == (int) effects::Drive::Model::screamer);
-    }
-
-    SECTION ("Mid hump: the bass passes clean while the mids are boosted")
-    {
-        // A quiet signal, so nothing clips and this is just the frequency response.
-        rig.set (ParamIDs::driveGain, 0.0f);
-        rig.set (ParamIDs::driveTone, 10.0f);
-        const auto gainAt = [&] (double hz)
-        {
-            const auto input = sine (hz, 0.003f, 0.5);
-            return dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2));
-        };
-        CHECK (gainAt (1000.0) - gainAt (100.0) > 9.0f);
-
-        // TONE: dark at 0 (the top well below the mids), bright at 10.
-        const auto brightTreble = gainAt (6000.0) - gainAt (1000.0);
-        rig.set (ParamIDs::driveTone, 0.0f);
-        const auto darkTreble = gainAt (6000.0) - gainAt (1000.0);
-        CHECK (darkTreble < -10.0f);
-        CHECK (brightTreble - darkTreble > 12.0f);
-    }
-
-    SECTION ("Its diodes clip both halves alike: odd harmonics, hardly any even")
-    {
-        rig.set (ParamIDs::driveGain, 7.0f);
-        rig.set (ParamIDs::driveTone, 10.0f);
-        const auto output = rig.runMono (sine (500.0, 0.3f, 0.5));
-        REQUIRE (allFinite (output));
-        const auto fundamental = levelAt (output, 500.0);
-        CHECK (dB (levelAt (output, 1500.0) / fundamental) > -25.0f);
-        CHECK (dB (levelAt (output, 1000.0) / fundamental) < -50.0f);
-    }
-
-    SECTION ("Its level at noon is close to the guitar's own")
-    {
-        rig.set (ParamIDs::driveGain, 5.0f);
-        rig.set (ParamIDs::driveTone, 5.0f);
-        const auto input = sine (440.0, 0.3f, 0.5);
-        CHECK_THAT (dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2)), WithinAbs (0.0, 3.0));
-    }
-
-    SECTION ("Aliasing stays down at full drive")
-    {
-        rig.set (ParamIDs::driveGain, 10.0f);
-        rig.set (ParamIDs::driveTone, 10.0f);
-        const auto output = rig.runMono (sine (5000.0, 0.5f, 0.5));
-        CHECK (dB (levelAt (output, 13000.0) / levelAt (output, 5000.0)) < -45.0f);
-    }
 }
 
 TEST_CASE ("Modulation effects", "[effects][mod]")
@@ -1056,32 +1114,80 @@ TEST_CASE ("DOUBLER, as it starts: a take on each side", "[effects][doubler]")
     CHECK_THAT (dB (rms (takes[1], 0.5) / rms (note, 0.5)), WithinAbs (-2.0, 1.5));
 }
 
-TEST_CASE ("Projects saved before the drive MODEL keep the original overdrive", "[effects][drive]")
+TEST_CASE ("Projects saved with a pedal drive model load as MARS, set up close to it", "[effects][drive][mars]")
 {
-    EffectRig original;
-    juce::MemoryBlock saved;
-    original.processor.getStateInformation (saved);
-
-    // As an older version saved it: no driveModel parameter at all.
-    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
-    REQUIRE (xml != nullptr);
-    for (auto* child : xml->getChildIterator())
-        if (child->getStringAttribute ("id") == ParamIDs::driveModel)
-        {
-            xml->removeChildElement (child, true);
-            break;
-        }
-    juce::MemoryBlock older;
-    juce::AudioProcessor::copyXmlToBinary (*xml, older);
-
-    const auto modelAfterLoading = [] (const juce::MemoryBlock& state)
+    // As 0.13.0 or before saved it: SATURATION on, a pedal model with its DRIVE, TONE and LEVEL.
+    const auto loadOld = [] (int model, float gain, float tone, float level, bool on = true)
     {
-        EffectRig rig;
-        rig.processor.setStateInformation (state.getData(), (int) state.getSize());
-        return juce::roundToInt (rig.processor.getParameters().getRawParameterValue (ParamIDs::driveModel)->load());
+        EffectRig original;
+        juce::MemoryBlock saved;
+        original.processor.getStateInformation (saved);
+        auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), (int) saved.getSize());
+        REQUIRE (xml != nullptr);
+        xml->setAttribute ("parameterVersion", 35);
+        const std::pair<const char*, float> old[] = { { ParamIDs::driveOn, on ? 1.0f : 0.0f }, { ParamIDs::driveModel, (float) model },
+                                                      { ParamIDs::driveGain, gain }, { ParamIDs::driveTone, tone }, { ParamIDs::driveLevel, level } };
+        for (const auto& [id, value] : old)
+        {
+            auto* child = xml->getChildByAttribute ("id", id);
+            if (child == nullptr)
+            {
+                child = xml->createNewChildElement ("PARAM");
+                child->setAttribute ("id", id);
+            }
+            child->setAttribute ("value", value);
+        }
+        juce::MemoryBlock older;
+        juce::AudioProcessor::copyXmlToBinary (*xml, older);
+        auto rig = std::make_unique<EffectRig>();
+        rig->processor.setStateInformation (older.getData(), (int) older.getSize());
+        return rig;
     };
-    CHECK (modelAfterLoading (older) == (int) effects::Drive::Model::classic);
-    CHECK (modelAfterLoading (saved) == (int) effects::Drive::Model::screamer);
+    const auto value = [] (EffectRig& rig, const juce::String& id) { return rig.processor.getParameters().getRawParameterValue (id)->load(); };
+
+    SECTION ("Screamer: the bass kept clean below 720 Hz, the mids driven")
+    {
+        auto rig = loadOld (1, 6.0f, 7.0f, -2.0f);
+        CHECK (value (*rig, ParamIDs::driveOn) > 0.5f);
+        CHECK (juce::roundToInt (value (*rig, ParamIDs::marsBands)) == 1);   // 2 bands
+        CHECK_THAT (value (*rig, ParamIDs::marsCross1), WithinAbs (720.0, 1.0));
+        CHECK (value (*rig, ParamIDs::marsBand (0, "On")) < 0.5f);
+        CHECK (juce::roundToInt (value (*rig, ParamIDs::marsBand (1, "Style"))) == (int) effects::Mars::Style::saturatedTube);
+        CHECK_THAT (value (*rig, ParamIDs::marsBand (1, "Drive")), WithinAbs (0.15 + 0.07 * 6.0, 0.01));
+        CHECK_THAT (value (*rig, ParamIDs::marsBand (1, "Treble")), WithinAbs (4.0, 0.01));   // TONE 7: +4 dB
+        CHECK_THAT (value (*rig, ParamIDs::marsBand (1, "Level")), WithinAbs (-2.0, 0.01));
+
+        // And it sounds like it: a low note clean, a high one driven.
+        const auto harmonics = [&] (double hz)
+        {
+            auto fresh = loadOld (1, 8.0f, 5.0f, 0.0f);
+            fresh->set (ParamIDs::outputLimiter, effects::Limiter::offDb);
+            const auto output = fresh->runMono (sine (hz, 0.3f, 0.6));
+            return dB ((levelAt (output, 2.0 * hz, 0.3) + levelAt (output, 3.0 * hz, 0.3)) / levelAt (output, hz, 0.3));
+        };
+        CHECK (harmonics (2000.0) > harmonics (110.0) + 15.0f);
+    }
+
+    SECTION ("Muff, Face and Classic each become a MARS style of their own kind")
+    {
+        CHECK (juce::roundToInt (value (*loadOld (2, 5.0f, 5.0f, 0.0f), ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::americanAmp);
+        CHECK (juce::roundToInt (value (*loadOld (3, 5.0f, 5.0f, 0.0f), ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::brokenTube);
+        CHECK (juce::roundToInt (value (*loadOld (0, 5.0f, 5.0f, 0.0f), ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::saturatedTube);
+    }
+
+    SECTION ("A drive that was off and never touched leaves MARS as it starts")
+    {
+        auto rig = loadOld (1, 5.0f, 5.0f, 0.0f, false);
+        CHECK (juce::roundToInt (value (*rig, ParamIDs::marsBands)) == 0);
+        CHECK (juce::roundToInt (value (*rig, ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::warmTape);
+    }
+
+    SECTION ("Saved with MARS already: as it was")
+    {
+        auto rig = loadOld (4, 9.0f, 0.0f, 6.0f);
+        CHECK (juce::roundToInt (value (*rig, ParamIDs::marsBand (0, "Style"))) == (int) effects::Mars::Style::warmTape);
+        CHECK_THAT (value (*rig, ParamIDs::marsBand (0, "Level")), WithinAbs (0.0, 0.01));
+    }
 }
 
 TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with the DOUBLER stomp on", "[effects][doubler]")
@@ -1137,7 +1243,7 @@ TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with t
     rig.processor.getStateInformation (current);
     auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
     REQUIRE (currentXml != nullptr);
-    CHECK (currentXml->getIntAttribute ("parameterVersion") == 32);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 36);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")
@@ -1309,6 +1415,254 @@ TEST_CASE ("Delay repeats at the set time", "[effects][delay]")
         CHECK (peakNear (output[1], 4800) < 0.001f);
         CHECK (peakNear (output[1], 9600) > 0.05f);   // 2nd echo: right
         CHECK (peakNear (output[0], 9600) < 0.001f);
+    }
+}
+
+TEST_CASE ("Delay engine on its own: one echo, at the set time, at full level", "[effects][delay]")
+{
+    // The DELAY effect without the rest of the plugin, so a failure here
+    // (rather than only in the plugin tests) points at the engine itself.
+    effects::Delay delay;
+    delay.prepare (sampleRate, blockSize);
+    effects::Delay::Settings settings;
+    settings.on = true;
+    settings.syncIndex = 0;
+    settings.timeMs = 100.0f;
+    settings.feedback = 0.0f;
+    settings.mix = 1.0f;
+    CAPTURE (effects::Delay::delaySeconds (settings, 120.0), effects::Delay::delaySecondsRight (settings, 120.0));
+
+    juce::AudioBuffer<float> buffer (2, (int) (0.3 * sampleRate));
+    buffer.clear();
+    buffer.setSample (0, 0, 0.5f);
+    buffer.setSample (1, 0, 0.5f);
+    for (int start = 0; start < buffer.getNumSamples(); start += blockSize)
+    {
+        const auto count = juce::jmin (blockSize, buffer.getNumSamples() - start);
+        delay.process (juce::dsp::AudioBlock<float> (buffer).getSubBlock ((size_t) start, (size_t) count), settings, 120.0);
+    }
+    // Where the echo came, and how loud.
+    int loudest = 1;
+    for (int i = 1; i < buffer.getNumSamples(); ++i)
+        if (std::abs (buffer.getSample (0, i)) > std::abs (buffer.getSample (0, loudest)))
+            loudest = i;
+    // Where the left side's first sound after the click is.
+    int firstLeft = -1;
+    for (int i = 1; i < buffer.getNumSamples() && firstLeft < 0; ++i)
+        if (std::abs (buffer.getSample (0, i)) > 1.0e-6f)
+            firstLeft = i;
+    CAPTURE (loudest, buffer.getSample (0, loudest), buffer.getSample (1, 4800), buffer.getSample (0, 0), firstLeft);
+
+    // JUCE's delay line by itself, at the old (2.5 s) and new (3.5 s) sizes.
+    for (const auto seconds : { 2.51, 3.51 })
+    {
+        juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> line { 4 };
+        line.setMaximumDelayInSamples ((int) std::ceil (seconds * sampleRate) + 4);
+        line.prepare ({ sampleRate, (juce::uint32) blockSize, 2 });
+        std::array<int, 2> arrived { -1, -1 };
+        for (int i = 0; i < 6000; ++i)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+            {
+                const auto out = line.popSample (ch, 4800.0f);
+                if (arrived[(size_t) ch] < 0 && std::abs (out) > 0.25f)
+                    arrived[(size_t) ch] = i;
+            }
+            for (int ch = 0; ch < 2; ++ch)
+                line.pushSample (ch, i == 0 ? 0.5f : 0.0f);
+        }
+        CAPTURE (seconds, arrived[0], arrived[1]);
+        CHECK (arrived[0] == 4800);
+        CHECK (arrived[1] == 4800);
+    }
+
+    // The engine on a one-channel block.
+    {
+        effects::Delay monoDelay;
+        monoDelay.prepare (sampleRate, blockSize);
+        juce::AudioBuffer<float> monoBuffer (1, (int) (0.3 * sampleRate));
+        monoBuffer.clear();
+        monoBuffer.setSample (0, 0, 0.5f);
+        for (int start = 0; start < monoBuffer.getNumSamples(); start += blockSize)
+        {
+            const auto count = juce::jmin (blockSize, monoBuffer.getNumSamples() - start);
+            monoDelay.process (juce::dsp::AudioBlock<float> (monoBuffer).getSubBlock ((size_t) start, (size_t) count), settings, 120.0);
+        }
+        CAPTURE (monoBuffer.getSample (0, 4800));
+        CHECK_THAT (monoBuffer.getSample (0, 4800), WithinAbs (0.5, 0.01));
+    }
+    CHECK (loudest == 4800);
+    CHECK_THAT (buffer.getSample (0, 4800), WithinAbs (0.5, 0.01));
+    CHECK_THAT (buffer.getSample (1, 4800), WithinAbs (0.5, 0.01));
+}
+
+TEST_CASE ("Delay: the controls inspired by H-Delay do what they say", "[effects][delay]")
+{
+    const auto delayRig = [] (EffectRig& rig, float timeMs = 100.0f, float feedback = 0.0f)
+    {
+        rig.set (ParamIDs::delayOn, 1.0f);
+        rig.set (ParamIDs::delayMix, 1.0f);
+        rig.set (ParamIDs::delaySync, 0.0f);
+        rig.set (ParamIDs::delayTime, timeMs);
+        rig.set (ParamIDs::delayFeedback, feedback);
+        rig.set (ParamIDs::delayTone, 10.0f);
+    };
+    const auto peakNear = [] (const std::vector<float>& samples, size_t at, size_t window = 64)
+    {
+        float peak = 0.0f;
+        for (auto i = at - window; i <= at + window; ++i)
+            peak = std::max (peak, std::abs (samples[i]));
+        return peak;
+    };
+    // The echoes alone: what comes out, less your own voice (which passes straight through).
+    const auto echoesOf = [] (EffectRig& rig, const std::vector<float>& input)
+    {
+        auto output = rig.runMono (input);
+        for (size_t i = 0; i < output.size(); ++i)
+            output[i] -= input[i];
+        return output;
+    };
+    // Where the strongest sample is, after the click itself.
+    const auto loudestAt = [] (const std::vector<float>& samples, size_t from = 100)
+    {
+        size_t at = from;
+        for (auto i = from; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > std::abs (samples[at]))
+                at = i;
+        return at;
+    };
+
+    SECTION ("DUAL: the right side has its own time")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f);
+        rig.set (ParamIDs::delayDual, 1.0f);
+        rig.set (ParamIDs::delaySyncRight, 0.0f);
+        rig.set (ParamIDs::delayTimeRight, 150.0f);
+        const auto output = rig.run (impulse (0.3, 0.5f));
+        CHECK (loudestAt (output[0]) == 4800);   // 100 ms
+        CHECK (loudestAt (output[1]) == 7200);   // 150 ms
+    }
+
+    SECTION ("Ping-pong's START: the first echo on the right")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f, 0.5f);
+        rig.set (ParamIDs::delayPingPong, 1.0f);
+        rig.set (ParamIDs::delayPingStart, 1.0f);
+        const auto output = rig.run (impulse (0.3, 0.5f));
+        CHECK (peakNear (output[1], 4800) > 0.1f);
+        CHECK (peakNear (output[0], 4800) < 0.001f);
+        CHECK (peakNear (output[0], 9600) > 0.05f);
+    }
+
+    SECTION ("PHASE flips one side's echoes")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f);
+        rig.set (ParamIDs::delayPhaseLeft, 1.0f);
+        const auto output = rig.run (impulse (0.2, 0.5f));
+        CHECK_THAT (output[0][4800], WithinAbs (-0.5, 0.01));
+        CHECK_THAT (output[1][4800], WithinAbs (0.5, 0.01));
+    }
+
+    SECTION ("FEEDBACK past 100% builds the repeats up, and holds them there")
+    {
+        EffectRig rig;
+        delayRig (rig, 100.0f, 1.5f);
+        const auto output = rig.runMono (impulse (3.0, 0.3f));
+        REQUIRE (allFinite (output));
+        const auto first = peakNear (output, 4800), later = peakNear (output, 4800 * 20);
+        CHECK (later > 2.0f * first);   // louder than the first echo, not quieter
+        auto peak = 0.0f;
+        for (const auto x : output)
+            peak = std::max (peak, std::abs (x));
+        CHECK (peak < 1.5f);            // but held, not running away
+    }
+
+    SECTION ("LOW CUT and HIGH CUT filter the echoes")
+    {
+        const auto echoLevel = [&] (double hz, float lowCut, float highCut)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayLowCut, lowCut);
+            rig.set (ParamIDs::delayHighCut, highCut);
+            return levelAt (echoesOf (rig, sine (hz, 0.2f, 0.6)), hz, 0.3);
+        };
+        const auto off = effects::Delay::cutOffLowHz, top = effects::Delay::cutOffHighHz;
+        // 12 dB per octave: over 3 octaves from where they're set, about 36 dB down.
+        CHECK (dB (echoLevel (100.0, 1000.0f, top) / echoLevel (100.0, off, top)) < -30.0f);
+        CHECK (dB (echoLevel (8000.0, off, 1000.0f) / echoLevel (8000.0, off, top)) < -30.0f);
+        // Between them, untouched.
+        CHECK_THAT (dB (echoLevel (1000.0, 100.0f, 10000.0f) / echoLevel (1000.0, off, top)), WithinAbs (0.0, 0.5));
+    }
+
+    SECTION ("MOD sweeps the echo's time")
+    {
+        // Clicks every 0.25 s: with MOD at full, their echoes come at different times.
+        const auto spread = [&] (float depth)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayModDepth, depth);
+            rig.set (ParamIDs::delayModRate, 0.7f);
+            auto input = silence (2.6);
+            for (int click = 0; click < 10; ++click)
+                input[(size_t) ((0.1 + 0.25 * click) * sampleRate)] = 0.5f;
+            const auto output = rig.runMono (input);
+            double low = 1.0e9, high = -1.0e9;
+            for (int click = 0; click < 10; ++click)
+            {
+                const auto at = (size_t) ((0.1 + 0.25 * click) * sampleRate);
+                size_t loudest = at + 10;
+                for (auto i = at + 10; i < at + (size_t) (0.1 * sampleRate); ++i)
+                    if (std::abs (output[i]) > std::abs (output[loudest]))
+                        loudest = i;
+                const auto ms = (double) (loudest - at) / sampleRate * 1000.0;
+                low = std::min (low, ms);
+                high = std::max (high, ms);
+            }
+            return high - low;
+        };
+        CHECK (spread (0.0f) < 0.1);
+        CHECK (spread (1.0f) > 4.0);    // up to 4 ms either way
+        CHECK (spread (1.0f) < 8.5);
+    }
+
+    SECTION ("ANALOG adds warmth (harmonics) to the echoes; Off adds none")
+    {
+        const auto harmonics = [&] (float analog)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayAnalog, analog);
+            rig.set (ParamIDs::outputLimiter, effects::Limiter::offDb);   // so only ANALOG adds harmonics
+            const auto output = rig.runMono (sine (440.0, 0.4f, 0.6));
+            return dB ((levelAt (output, 880.0, 0.3) + levelAt (output, 1320.0, 0.3)) / levelAt (output, 440.0, 0.3));
+        };
+        CHECK (harmonics (0.0f) < -80.0f);
+        CHECK (harmonics (1.0f) > -60.0f);
+        CHECK (harmonics (4.0f) > harmonics (1.0f) + 10.0f);   // 4, Grit, much more than 1, Warm
+    }
+
+    SECTION ("LO-FI narrows the echoes' band")
+    {
+        const auto highs = [&] (bool loFi)
+        {
+            EffectRig rig;
+            delayRig (rig, 50.0f);
+            rig.set (ParamIDs::delayLoFi, loFi ? 1.0f : 0.0f);
+            return levelAt (echoesOf (rig, sine (12000.0, 0.2f, 0.6)), 12000.0, 0.3);
+        };
+        CHECK (dB (highs (true) / highs (false)) < -10.0f);   // an early digital delay's narrow band
+    }
+
+    SECTION ("Up to 3.5 seconds")
+    {
+        EffectRig rig;
+        delayRig (rig, 3400.0f);
+        CHECK (loudestAt (rig.runMono (impulse (3.6, 0.5f))) == (size_t) (3.4 * sampleRate));
     }
 }
 
@@ -1598,6 +1952,33 @@ TEST_CASE ("Full chain runs comfortably faster than real time", "[effects][perfo
     CHECK (realtimeFraction < 0.5);
 }
 
+TEST_CASE ("MARS at its heaviest still runs comfortably faster than real time", "[effects][performance][mars]")
+{
+    // Four bands of the costliest styles, with DYNAMICS and FEEDBACK on, at each QUALITY.
+    for (const auto quality : { effects::Mars::Quality::off, effects::Mars::Quality::good, effects::Mars::Quality::superb })
+    {
+        MarsRig rig;
+        rig.set (ParamIDs::marsBands, 3.0f);
+        rig.set (ParamIDs::marsQuality, (float) quality);
+        const effects::Mars::Style styles[] = { effects::Mars::Style::breakdown, effects::Mars::Style::smudge,
+                                                effects::Mars::Style::screamingAmp, effects::Mars::Style::extremeTape };
+        for (int b = 0; b < 4; ++b)
+        {
+            rig.band (b, "Style", (float) styles[b]);
+            rig.band (b, "Drive", 0.8f);
+            rig.band (b, "Dynamics", 0.5f);
+            rig.band (b, "Feedback", 0.3f);
+            rig.band (b, "Bass", 3.0f);
+        }
+        const auto input = sine (220.0, 0.3f, 4.0);
+        const auto startMs = juce::Time::getMillisecondCounterHiRes();
+        rig.runMono (input);
+        const auto fraction = (juce::Time::getMillisecondCounterHiRes() - startMs) / 1000.0 / 4.0;
+        WARN ("MARS, 4 bands, " << effects::Mars::qualityNames[(int) quality] << ": " << juce::String (fraction * 100.0, 1) << "% of one core");
+        CHECK (fraction < (quality == effects::Mars::Quality::superb ? 0.4 : 0.25));
+    }
+}
+
 TEST_CASE ("Graphic EQ: flat is transparent, each band moves only its octave", "[effects][eq]")
 {
     // The peak level of a steady tone after the plugin, with the EQ set by `setUp`.
@@ -1747,6 +2128,139 @@ TEST_CASE ("Reverb types: each is a stable stereo space of its own", "[effects][
         const auto mids = band (1200.0f);
         CHECK (mids > 4.0f * band (50.0f));
         CHECK (mids > 4.0f * band (12000.0f));
+    }
+}
+
+TEST_CASE ("Reverb: the controls inspired by Lexicon LXP do what they say", "[effects][reverb]")
+{
+    using ReverbType = effects::Reverb::Type;
+    const auto play = [] (ReverbType type, std::initializer_list<std::pair<const char*, float>> settings, const std::vector<float>& input)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::reverbOn, 1.0f);
+        rig.set (ParamIDs::reverbType, (float) type);
+        rig.set (ParamIDs::reverbMix, 1.0f);
+        rig.set (ParamIDs::reverbPreDelay, 0.0f);
+        for (const auto& [id, value] : settings)
+            rig.set (id, value);
+        return rig.run (input)[0];
+    };
+    // An octave band of a signal (around `hz`).
+    const auto band = [] (const std::vector<float>& samples, float hz)
+    {
+        juce::dsp::IIR::Filter<float> first, second;
+        first.coefficients = second.coefficients = juce::dsp::IIR::Coefficients<float>::makeBandPass (sampleRate, hz, 1.4f);
+        auto filtered = samples;
+        for (auto& sample : filtered)
+            sample = second.processSample (first.processSample (sample));
+        return filtered;
+    };
+    // Echo density: how many moments in a stretch have real sound in them
+    // (above a tenth of the stretch's loudest), as a share of the stretch.
+    const auto density = [] (const std::vector<float>& samples, double from, double to)
+    {
+        const auto start = (size_t) (from * sampleRate), end = (size_t) (to * sampleRate);
+        auto peak = 0.0f;
+        for (auto i = start; i < end; ++i)
+            peak = std::max (peak, std::abs (samples[i]));
+        int busy = 0;
+        for (auto i = start; i < end; ++i)
+            busy += std::abs (samples[i]) > 0.1f * peak ? 1 : 0;
+        return (double) busy / (double) (end - start);
+    };
+    // How long the tail takes to fall 60 dB, from how fast it falls between two moments.
+    const auto rt60 = [] (const std::vector<float>& samples, double from, double to)
+    {
+        const auto early = dB (rms (samples, from - 0.05, from + 0.05)), late = dB (rms (samples, to - 0.05, to + 0.05));
+        return 60.0 * (to - from) / (double) (early - late);
+    };
+
+    SECTION ("DECAY stretches the tail: 200% rings twice as long, and the stomp shows the seconds")
+    {
+        const auto normal = rt60 (play (ReverbType::hall, {}, impulse (4.0, 0.5f)), 0.3, 1.3);
+        const auto longer = rt60 (play (ReverbType::hall, { { ParamIDs::reverbDecay, 2.0f } }, impulse (4.0, 0.5f)), 0.3, 1.3);
+        CHECK_THAT (longer / normal, WithinAbs (2.0, 0.3));
+        CHECK_THAT (effects::Reverb::decaySeconds (ReverbType::hall, 0.5f, 2.0f), WithinAbs (2.0 * effects::Reverb::decaySeconds (ReverbType::hall, 0.5f), 1.0e-4));
+    }
+
+    SECTION ("BASS RT: the lows ring longer than the rest at 2x, and the mids don't change")
+    {
+        // CROSSOVER well above the lows measured, as you'd set it for them.
+        const auto hallWith = [&] (float bassRt) { return play (ReverbType::hall, { { ParamIDs::reverbBassRt, bassRt }, { ParamIDs::reverbCrossover, 800.0f } }, impulse (4.0, 0.5f)); };
+        const auto lowRt = [&] (float bassRt) { return rt60 (band (hallWith (bassRt), 100.0f), 0.3, 1.3); };
+        const auto midRt = [&] (float bassRt) { return rt60 (band (hallWith (bassRt), 3000.0f), 0.3, 1.3); };
+        CHECK_THAT (lowRt (2.0f) / lowRt (1.0f), WithinAbs (2.0, 0.3));
+        CHECK_THAT (midRt (2.0f) / midRt (1.0f), WithinAbs (1.0, 0.15));
+    }
+
+    SECTION ("ROLLOFF cuts the reverb's highs on the way out")
+    {
+        const auto at = [&] (float rolloff, float hz) { return rms (band (play (ReverbType::plate, { { ParamIDs::reverbRolloff, rolloff } }, impulse (1.0, 0.5f)), hz), 0.02, 0.6); };
+        CHECK (dB (at (1500.0f, 8000.0f) / at (effects::Reverb::rolloffOffHz, 8000.0f)) < -20.0f);
+        CHECK (dB (at (1500.0f, 300.0f) / at (effects::Reverb::rolloffOffHz, 300.0f)) > -3.0f);
+    }
+
+    SECTION ("EARLY and REVERB: the first reflections and the tail, each on its own")
+    {
+        // A room's reflections are its first 40 ms; its tail goes on long after.
+        const auto room = [&] (float early, float tail) { return play (ReverbType::room, { { ParamIDs::reverbEarly, early }, { ParamIDs::reverbLevel, tail } }, impulse (1.0, 0.5f)); };
+        const auto both = room (0.0f, 0.0f), tailOnly = room (effects::Reverb::levelOffDb, 0.0f), earlyOnly = room (0.0f, effects::Reverb::levelOffDb);
+        CHECK (rms (tailOnly, 0.003, 0.03) < 0.7f * rms (both, 0.003, 0.03));   // without them, the start is quieter
+        CHECK (rms (earlyOnly, 0.3, 0.6) < 1.0e-6f);                           // without the tail, nothing late
+        CHECK (rms (earlyOnly, 0.003, 0.03) > 1.0e-3f);                        // but the reflections still there
+    }
+
+    SECTION ("SPREAD and SHAPE: fed in across the window, early or late in it")
+    {
+        // When the first 400 ms's energy comes, on average.
+        const auto centre = [&] (float shape)
+        {
+            const auto output = play (ReverbType::hall, { { ParamIDs::reverbSpread, 250.0f }, { ParamIDs::reverbShape, shape },
+                                                          { ParamIDs::reverbDecay, 0.3f } }, impulse (0.6, 0.5f));
+            double weighted = 0.0, total = 0.0;
+            for (size_t i = 10; i < (size_t) (0.4 * sampleRate); ++i)
+            {
+                const auto energy = (double) output[i] * output[i];
+                weighted += energy * (double) i / sampleRate;
+                total += energy;
+            }
+            return weighted / total;
+        };
+        CHECK (centre (1.0f) > centre (0.0f) + 0.06);   // SHAPE late: the reverb builds, then stops (a gated sound)
+    }
+
+    SECTION ("DIFFUSION: less of it leaves the first echoes apart, as distinct clicks")
+    {
+        const auto busy = [&] (float diffusion) { return density (play (ReverbType::plate, { { ParamIDs::reverbDiffusion, diffusion } }, impulse (0.3, 0.5f)), 0.002, 0.06); };
+        CHECK (busy (1.25f) > 3.0 * busy (0.0f));
+    }
+
+    SECTION ("SPIN and WANDER move the tail; at 0 it holds still")
+    {
+        const auto still = play (ReverbType::digital, { { ParamIDs::reverbWander, 0.0f } }, impulse (1.5, 0.5f));
+        const auto moving = play (ReverbType::digital, { { ParamIDs::reverbWander, 4.0f }, { ParamIDs::reverbSpin, 3.0f } }, impulse (1.5, 0.5f));
+        REQUIRE (allFinite (moving));
+        std::vector<float> difference (still.size());
+        for (size_t i = 0; i < difference.size(); ++i)
+            difference[i] = moving[i] - still[i];
+        CHECK (rms (difference, 0.5, 1.4) > 0.3f * rms (still, 0.5, 1.4));
+    }
+
+    SECTION ("CHAMBER: dense at once, shorter than a hall")
+    {
+        const auto chamber = play (ReverbType::chamber, {}, impulse (2.0, 0.5f)), hall = play (ReverbType::hall, {}, impulse (2.0, 0.5f));
+        CHECK (density (chamber, 0.002, 0.04) > 1.5 * density (hall, 0.002, 0.04));   // a hall starts sparse
+        CHECK (rms (chamber, 1.4, 1.6) < rms (hall, 1.4, 1.6));
+    }
+
+    SECTION ("Classic and Spring don't take them")
+    {
+        for (const auto type : { ReverbType::classic, ReverbType::spring })
+        {
+            const auto plain = play (type, {}, impulse (0.8, 0.5f));
+            const auto set = play (type, { { ParamIDs::reverbDecay, 3.0f }, { ParamIDs::reverbRolloff, 1000.0f }, { ParamIDs::reverbSpread, 200.0f } }, impulse (0.8, 0.5f));
+            CHECK (maxAbsDifference (plain, set) < 1.0e-6f);
+        }
     }
 }
 

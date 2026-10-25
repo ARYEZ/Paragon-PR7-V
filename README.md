@@ -49,10 +49,10 @@ descriptions below still talk about guitar.
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
     what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
-  - **2 Saturation:** four models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
-    **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
-    mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,
-    level; 8x oversampled to avoid harsh aliasing.
+  - **2 Saturation:** **MARS**, a multi-band saturator inspired by FabFilter Saturn 2: up to four frequency bands,
+    each with its own STYLE (21: tubes, tapes, transformers, amps and effects like Smudge, Breakdown and Destroy), DRIVE
+    (its level kept even), DYNAMICS, FEEDBACK, a four-band TONE, MIX and LEVEL; click and drag the bands on its display.
+    (The guitar pedal models PR7-G had went in 0.14.0; rigs and projects that used them load as MARS, set up close.)
   - **3 Doubler:** up to four extra "takes" of your voice, inspired by Waves Doubler. Each voice is a copy that's
     truly a few cents out of tune (its timing kept), a little late, and placed left to right: it sounds like a second
     take sung alongside rather than a chorus. Its panel is a table, a row per voice: **GAIN**, **PAN**, **DELAY**
@@ -84,9 +84,15 @@ descriptions below still talk about guitar.
     vibrato, harmonic tremolo and auto-pan. SYNC locks the rate to the tapped or DAW tempo.
   - **6 Delay:** syncs to your DAW's tempo (or set SYNC to Off for milliseconds), has a tone control for darker repeats,
     and optional ping-pong; eight types: Digital (the original), Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer and
-    Ducking.
-  - **7 Reverb:** eight types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse and Classic (the original), with
-    SIZE, PRE-DELAY, TONE and MIX. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
+    Ducking. Up to 3.5 seconds. Its panel has three pages: **MAIN**; **STEREO** (DUAL: the right side's own time;
+    ping-pong's START side; FLIP LEFT / RIGHT); and **COLOUR** (LOW CUT and HIGH CUT on the repeats, MOD DEPTH and RATE,
+    ANALOG 1 Warm / 2 Round / 3 Hiss / 4 Grit, LO-FI), inspired by Waves H-Delay. FEEDBACK goes to 200%: past 100% the
+    repeats build up and hold.
+  - **7 Reverb:** nine types: Room, Hall, Cathedral, Plate, Spring, Digital, Reverse, Chamber and Classic (the original),
+    with SIZE, DECAY, PRE-DELAY, TONE and MIX. Inspired by the Lexicon LXP reverbs, its panel has four pages: **MAIN**;
+    **DECAY** (BASS RT and CROSSOVER: lows longer or shorter than the rest; ROLLOFF); **SPACE** (DIFFUSION, the EARLY and
+    REVERB levels, SPREAD and SHAPE for building, gated and inverse reverbs); and **MOTION** (SPIN and WANDER). Hover over
+    the REVERB stomp to see the tail's length in seconds. Delay and reverb both have a DUCK knob that tucks the repeats or reverb under your
     singing and lets them swell back in the gaps, and both let their tails ring out when switched off.
 - **More blocks in the signal chain** (no stomp: click them in the strip at the bottom):
   - **Filter / Pitch:** an auto-wah (envelope filter), a pitch shifter (two octaves down to two up, blended with the
@@ -108,7 +114,7 @@ descriptions below still talk about guitar.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-D), tags and favourites rigs. (The factory rigs are still PR7-G's guitar rigs for now; vocal ones are coming.)
+  (banks A-D), tags and favourites rigs. The factory rigs are for the voice, in five banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi).
   INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.

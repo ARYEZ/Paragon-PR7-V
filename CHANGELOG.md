@@ -2,6 +2,83 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.14.1
+
+- **No more screws on the face plate, and no MIN light.** The four screw heads in its corners and the MIN light beside the expression pedal are gone, for a cleaner front (released on its own as 0.9.1, and now joined with everything since). The dock's EXPRESSION ASSIGN screen still shows where the pedal sits.
+
+## 0.14.0
+
+- **SATURATION is MARS.** The four guitar pedal models PR7-V inherited from PR7-G (Classic, Screamer, Muff Fuzz and Face Fuzz) are gone, and with them the MODEL menu: SATURATION now always opens MARS.
+- **Your rigs and projects still load.** Any that used one of the old pedals is set up in MARS to sound close to it. It's a different engine, so close rather than identical:
+  - **Screamer** becomes two bands: below 720 Hz left clean, above it Saturated Tube with a mid push. That's the Tube Screamer's trick of keeping the bass clean while driving the mids.
+  - **Muff Fuzz** becomes American Amp with the mids scooped; **Face Fuzz** becomes Broken Tube; **Classic** becomes Saturated Tube.
+  - The old DRIVE, TONE and LEVEL carry over to the band's DRIVE, TREBLE and LEVEL.
+  - If the drive was off and never touched, MARS starts as normal.
+- **The four factory rigs that used the old pedals** now use MARS, set up for a voice: **Rock Lead** (edge on the mids only, the lows clean), **Grit Shout** (British Amp with extra presence), **Garage Megaphone** (Crunchy Amp) and **Gang Vocal** (Warm Tube). Their levels are balanced with the other rigs.
+
+## 0.13.0
+
+- **MARS: a multi-band saturator for SATURATION.** Pick MARS as SATURATION's MODEL. Inspired by FabFilter Saturn 2: our own design, following how its manual describes it.
+  - **Up to four bands.** Your voice is split by frequency, and each band is saturated its own way: for example, clean lows so nothing gets muddy, gritty mids for bite, smooth tape on the highs. The bands add back up exactly when nothing is done to them.
+  - **The display:** each band is a column, its DRIVE a bar. Click a band to edit it, drag a crossover line to move it, drag up or down in a band for its DRIVE, double-click to split a band (the new one copies it), right-click to remove one. BANDS sets how many.
+  - **21 STYLES**, in Saturn 2's families: **Tube** (Clean, Warm, Saturated, Broken), **Tape** (Clean, Warm, Saturated, Extreme), **Transformer** (Subtle, Warm, Lush), **Amp** (American, British, Smooth, Crunchy, Screaming) and **FX** (Smudge: the sound smeared and stretched; Breakdown: pitched down and crushed; Foldback; Rectify; Destroy: bits and sample rate crushed).
+  - **Each band:** DRIVE (its level stays about the same as you turn it up, so you hear the character, not just louder), DYNAMICS (left: a gate; right: pumping compression), FEEDBACK and FB FREQ (the band rings, like a mic near its speaker; it stops when you stop singing), BASS, MID, TREBLE, PRESENCE, MIX (clean against saturated) and LEVEL.
+  - **GLOBAL page:** INPUT, OUTPUT, MIX, QUALITY (oversampling: Off, Good 4x, Superb 8x; cleaner highs on heavy drive, for more CPU) and the crossovers' SLOPE (6 to 48 dB per octave). Still no latency.
+  - **Three new factory rigs:** Tape Warmth (A07), Multiband Grit (B06) and Broken Transmission (E15).
+- **Honest limits:**
+  - Saturn 2's manual describes what each style family is for, not how it's built, so all 21 curves are our own.
+  - Its modulation system (LFOs, envelopes, XY pads) isn't built yet: that's the next stage. Nor are band solo/mute and linear-phase mode.
+  - SATURATION sits in the mono part of the vocal chain, so there are no pan or mid/side controls.
+  - At the heaviest (four bands of the most complex styles, Superb), it uses about a fifth of one CPU core; one or two bands at Good, far less.
+- The four pedal models are unchanged, and rigs that use them sound the same.
+
+## 0.12.0
+
+- **42 factory rigs for the voice.** The guitar rigs PR7-V started with are gone; your own saved rigs are untouched. They show off the new delay, reverb, doubler and Revival compressor. Most start with a compressor and the de-esser, as a vocal chain would. Five banks:
+  - **A: everyday vocals.** Clean Slate, Studio Vocal, Pop Lead, Intimate, Radio Ready, Podcast Voice.
+  - **B: rock and grit.** Rock Lead, Grit Shout, Garage Megaphone, Gang Vocal (four loose takes), Arena Rock.
+  - **C: delays and throws.** Slapback, Dotted Throw, Ping-Pong Echo, Dub Echo, Wide Dual Echo, Lo-Fi Echo, Endless Echo (feedback past 100%: it keeps swelling until you switch the delay off), Pedal Throw (the expression pedal fades the echoes and hall in), Backwards Echo.
+  - **D: spaces.** Vocal Plate, Big Hall, Echo Chamber, Cathedral Choir, Worship Wash, Gated 80s, Reverse Swell, Floating.
+  - **E: character.** Big Double, Octave Double, Harmony Stack (set KEY and SCALE in the PITCH panel first), Dream Chorus, Rotary Voice, Phaser Dream, Jet Voice, Wide Pan, Tremolo Ghost, Telephone, Old Radio, Cassette Memory, Metallic Voice, Trap Ad-Lib.
+- **Even levels:** every rig was played through and its RIG LEVEL set so they sit within a few dB of each other, so switching doesn't make you jump. Clean Slate (everything off) is quieter, because it has no compressor lifting your voice.
+- They're starting points tuned by measurement, not by ear: adjust to your voice and mic, and save your own versions.
+
+## 0.11.0
+
+- **Includes 0.10.0's bigger DELAY** (its notes are below): 0.10.0 was never published, because its macOS build failed its tests.
+- **A bigger REVERB, inspired by the Lexicon LXP reverbs.** Our own design, following how their manual describes them. The REVERB panel now has four pages, like a rack reverb's edit pages:
+  - **MAIN:** as before, plus **DECAY**: how long the tail rings, as a percentage of what TYPE and SIZE give (200% is twice as long, 50% half). It's a percentage rather than seconds so that switching TYPE still gives each space its own natural length. **Hover over the REVERB stomp to see the length in seconds.**
+  - **DECAY page:**
+    - **BASS RT and CROSSOVER:** below CROSSOVER, the lows ring longer (above 1.0x) or shorter (below 1.0x) than the rest. Real halls hold their lows longer; for a voice, shorter lows (around 0.7x) keep the reverb from muddying it.
+    - **ROLLOFF:** a high cut on the reverb's output, to take the sizzle off. Off at the top.
+  - **SPACE page:**
+    - **DIFFUSION:** how fast the first echoes melt into a smooth wash. Turn it down to hear them as separate repeats.
+    - **EARLY and REVERB:** the first reflections and the tail, each at its own level. All EARLY and no REVERB gives a tight, close room sound.
+    - **SPREAD and SHAPE:** the sound fed into the reverb over a stretch of time (SPREAD, up to 300 ms) rather than all at once; SHAPE puts most of it early, evenly (50%) or late. With SHAPE high and DECAY short, the reverb builds and then stops: the gated sound of the 80s, or an inverse reverb.
+  - **MOTION page:** **SPIN** (how fast the tail's movement is) and **WANDER** (how far it moves). Less makes it still and pure, more makes it lush and chorused.
+- **New type: CHAMBER.** An echo chamber, the original studio reverb: a small, hard room that turns dense straight away with no slap off its walls. Shorter than a hall, smoother than a room; a classic on vocals.
+- The new controls work on Room, Hall, Cathedral, Plate, Digital, Reverse and Chamber. Classic and Spring keep their own sound (their controls on the new pages are greyed).
+- **Your rigs sound the same:** every new control starts where it changes nothing.
+- **Not built:** the LXP's individual echo and reflection editors, Tap Slope, and its moving display. TONE still does the job of its RT Hi Cut.
+
+## 0.10.0
+
+- **A bigger DELAY, inspired by Waves H-Delay.** Our own design, following how its user guide describes it. The eight types (Digital, Analog, Tape, Mod, Reverse, Multi-Tap, Shimmer, Ducking) stay, and every one of them gets the new controls. The DELAY panel now has three pages:
+  - **MAIN:** as before.
+  - **STEREO:**
+    - **DUAL:** the right side gets its own time or note value, for example 1/4 on the left and 1/8 dotted on the right, for wide, rhythmic echoes.
+    - **START:** which side ping-pong's first echo comes from.
+    - **FLIP LEFT / RIGHT:** turns one side's echoes upside down (phase), for an extra-wide, hollow sound. Careful on a mono track: it can cancel.
+  - **COLOUR:**
+    - **LOW CUT and HIGH CUT:** filters on the repeats. Each repeat goes through them again, so a few passes thin and darken the echoes the way old units did. Turn LOW CUT up to keep echoes from muddying your low notes; turn HIGH CUT down to tuck them behind your voice. Off at their ends.
+    - **MOD DEPTH and RATE:** sweeps the echo time, for a chorus or flange on the echoes (flanging on short times).
+    - **ANALOG:** four characters of our own (the guide doesn't say what its four do): **1 Warm** (subtle), **2 Round** (warmer and softer), **3 Hiss** (2 with tape hiss), **4 Grit** (driven, dark and noisy).
+    - **LO-FI:** an early digital delay's narrow band and grainy 12-bit sound.
+- **FEEDBACK up to 200%:** past 100% the repeats build up instead of fading, into an endless swell, held at about full level rather than running away. Bring it back under 100% to let it die away.
+- **Up to 3.5 seconds** of delay (from 2.5).
+- **Your rigs sound the same:** every new control starts where it does nothing.
+- **Not built:** H-Delay's LINK (moving both filters together) and its OUTPUT knob (MIX does that job here).
+
 ## 0.9.1
 
 - **No more screws on the face plate.** The four screw heads in its corners are gone, for a cleaner front.

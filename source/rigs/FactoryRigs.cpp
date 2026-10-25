@@ -19,320 +19,389 @@ namespace
         return rig;
     }
 
-    // Delay sync choices (index into effects::Delay::syncNames).
-    constexpr float syncOff = 0, quarter = 3, eighth = 6, dottedEighth = 7;
-    // Modulation types (index into effects::Modulation::typeNames).
-    constexpr float chorus = 0, flanger = 1, tremolo = 3, dimension = 4, uniVibe = 5, rotary = 6, vibrato = 7,
-                    harmonicTremolo = 8, autoPan = 9;
-    // FILTER / PITCH types.
-    constexpr float autoWah = 0, pitchShifter = 1, whammyWah = 2, talkBoxType = 3;
-    constexpr float pedalTalkBox = 8;   // the expression pedal's TALK BOX setting
-    constexpr float daybreakComp = 1;   // COMP / GATE's TYPE
-    constexpr float glitchSequence = 1, glitchTexturizer = 3, glitchSixteenth = 3;   // GLITCH's MODE and LENGTH
-    constexpr float pedalGlitch = 7;   // the expression pedal's GLITCH setting
-    constexpr float pedalWah = 2;      // the expression pedal's WAH / FILTER setting
-    constexpr float glitchKillswitch = 4;
-    constexpr int E = 4;               // bank E: rigs inspired by particular songs
-    constexpr float muffFuzz = 2, faceFuzz = 3;   // OD / DISTORTION's MODEL
-    constexpr float digitalDelay = 0;
-    constexpr float xpCryWah = 1, xpUpOctave = 12, xpOctDownOctUp = 20, xpUp4thUp5th = 23;   // Whammy-Wah programs 02, 13, 21 and 24
-    constexpr float pedalWhammyWah = 6;   // the expression pedal's WHAMMY-WAH setting
-    // Delay types (index into effects::Delay::typeNames).
-    constexpr float analogDelay = 1, tapeDelay = 2, modDelay = 3, reverseDelay = 4, multiTap = 5, shimmer = 6, ducking = 7;
-    // Reverb types (index into effects::Reverb::typeNames).
-    constexpr float room = 1, hall = 2, cathedral = 3, plate = 4, spring = 5, digital = 6, reverse = 7;
-    // LO-FI types.
-    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;
+    // Choices, by their index in each list (see the effects' typeNames).
+    constexpr float classicComp = 0, daybreakComp = 1, revival = 2;                     // DYNAMICS' TYPE
+    constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
+                    harmonicTremolo = 8, autoPan = 9;                                    // MODULATION's TYPE
+    constexpr float digitalDelay = 0, analogDelay = 1, tapeDelay = 2, reverseDelay = 4, shimmer = 6;   // DELAY's TYPE
+    constexpr float syncOff = 0, quarter = 3, eighth = 6, dottedEighth = 7, sixteenth = 9;  // DELAY and MOD SYNC
+    constexpr float warm = 1, roundAnalog = 2, hiss = 3, grit = 4;                           // DELAY's ANALOG
+    constexpr float room = 1, hall = 2, cathedral = 3, plate = 4, spring = 5, digital = 6,
+                    reverse = 7, chamber = 8;                                            // REVERB's TYPE
+    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
+    constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
+    // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
+    constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, warmTapeStyle = 5,
+                    britishAmpStyle = 12, crunchyAmpStyle = 14, destroyStyle = 20;
 }
 
+// The factory rigs, all for the voice (since 0.12.0; the guitar rigs PR7-V
+// started with are gone). Five banks:
+//
+//   A  everyday vocals: polished, ready-to-sing starting points
+//   B  rock and grit
+//   C  delays and throws (the H-Delay-inspired controls)
+//   D  spaces (the LXP-inspired reverb controls and CHAMBER)
+//   E  character: doubles, harmonies, modulation and lo-fi voices
+//
+// Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4;
 
     return {
+        // ---- A: everyday vocals ------------------------------------------
         make ("Clean Slate", A, 1, "Clean", {}),
 
-        make ("Studio Clean", A, 2, "Clean", {
-            { compOn, 1 }, { compThreshold, -24 }, { compRatio, 3 }, { compLevel, 3 },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.2f } }),
+        // The all-rounder: levelled, de-essed, a little air, on a short plate.
+        make ("Studio Vocal", A, 2, "Clean,Studio,Reverb", {
+            { rigLevel, 2 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq250", -2 }, { "eq4k", 1.5f }, { "eq16k", 2 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.18f }, { reverbPreDelay, 30 },
+            { reverbRolloff, 10000 } }),
 
-        make ("Chorus Clean", A, 3, "Clean,Modulation", {
-            { compOn, 1 }, { compThreshold, -22 }, { compRatio, 3 }, { compLevel, 2 },
-            { modOn, 1 }, { modType, chorus }, { modRate, 0.6f }, { modDepth, 0.5f }, { modMix, 0.5f },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.25f } }),
+        // Modern pop: squeezed, bright, doubled, with a tucked dotted-eighth echo.
+        make ("Pop Lead", A, 3, "Pop,Doubler,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq125", -2 }, { "eq500", -1 }, { "eq4k", 2 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.25f }, { delayMix, 0.14f }, { delayDuck, 0.6f },
+            { delayLowCut, 300 }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.18f }, { reverbPreDelay, 40 } }),
 
-        make ("Edge of Breakup", A, 4, "Crunch,Drive", {
-            { driveOn, 1 }, { driveGain, 2 }, { driveTone, 6 }, { driveLevel, 4 },
-            { reverbOn, 1 }, { reverbType, room }, { reverbMix, 0.2f } }),
+        // Close and warm, for ballads: gentle compression, a small chamber.
+        make ("Intimate", A, 4, "Ballad,Clean,Reverb", {
+            { rigLevel, 4 },   // even with the other rigs
+            { compOn, 1 }, { compType, classicComp }, { compThreshold, -22 }, { compRatio, 2.5f }, { compLevel, 4 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { eqOn, 1 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq16k", 2 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.3f }, { reverbMix, 0.15f }, { reverbPreDelay, 10 } }),
 
-        // Daybreak on a clean: smooth, even and sustaining, with half the dry
-        // guitar mixed back in so every pick attack still speaks.
-        make ("Daybreak Clean", A, 5, "Clean,Compressor", {
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 }, { compDetail, 6 }, { compMix, 0.5f }, { compLevel, 1 },
-            { modOn, 1 }, { modType, chorus }, { modRate, 0.4f }, { modDepth, 0.3f }, { modMix, 0.25f },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.2f } }),
-
-        make ("Lead Boost", B, 1, "Lead,Drive", {
-            { compThreshold, -20 }, { gateThreshold, -60 }, { compOn, 1 }, { compRatio, 2 },
-            { driveOn, 1 }, { driveGain, 4 }, { driveTone, 6 }, { driveLevel, 6 },
-            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.2f },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.25f }, { rigLevel, 2 } }),
-
-        // A low-gain overdrive in front of a high-gain amp tightens the bass
-        // and sharpens the attack: the classic metal "boost" trick.
-        make ("High Gain Tight", B, 2, "High Gain,Rhythm", {
-            { compOn, 1 }, { compThreshold, 0 }, { gateThreshold, -55 },
-            { driveOn, 1 }, { driveGain, 1 }, { driveTone, 6 }, { driveLevel, 8 },
-            { presence, 2 } }),
-
-        make ("Ambient Swells", C, 1, "Ambient,Clean", {
-            { compOn, 1 }, { compThreshold, -26 }, { compRatio, 4 }, { compLevel, 4 },
-            { modOn, 1 }, { modType, chorus }, { modRate, 0.25f }, { modDepth, 0.6f }, { modMix, 0.35f },
-            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.6f }, { delayMix, 0.35f },
-            { delayTone, 5 }, { delayPingPong, 1 },
-            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.9f }, { reverbTone, 5 }, { reverbMix, 0.45f } }),
-
-        make ("Slapback", C, 2, "Rockabilly,Delay", {
-            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 110 }, { delayFeedback, 0.1f },
-            { delayMix, 0.3f }, { delayTone, 5 },
-            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.25f }, { reverbMix, 0.15f } }),
-
-        make ("Surf Tremolo", C, 3, "Surf,Modulation", {
-            { modOn, 1 }, { modType, tremolo }, { modRate, 6 }, { modDepth, 0.6f },
-            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.7f }, { reverbTone, 7 }, { reverbMix, 0.4f } }),
-
-        make ("Jet Flanger", D, 1, "Modulation,Drive", {
-            { driveOn, 1 }, { driveGain, 3 },
-            { modOn, 1 }, { modType, flanger }, { modRate, 0.2f }, { modDepth, 0.8f }, { modMix, 0.5f } }),
-
-        make ("Leslie Spin", D, 2, "Modulation,Clean", {
-            { compOn, 1 }, { compThreshold, -20 }, { compRatio, 3 },
-            { modOn, 1 }, { modType, rotary }, { modRate, 6.5f }, { modDepth, 0.7f }, { modMix, 0.85f },
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.4f }, { reverbMix, 0.2f } }),
-
-        make ("Machine Gun Vibe", D, 3, "Modulation,Drive,Lead", {
-            { driveOn, 1 }, { driveGain, 6 }, { driveTone, 5 }, { driveLevel, 3 },
-            { modOn, 1 }, { modType, uniVibe }, { modRate, 1.2f }, { modDepth, 0.75f }, { modMix, 0.5f },
-            { reverbOn, 1 }, { reverbMix, 0.18f } }),
-
-        make ("Dimension Clean", D, 4, "Clean,Modulation", {
-            { compOn, 1 }, { compThreshold, -22 }, { compRatio, 3 }, { compLevel, 2 },
-            { modOn, 1 }, { modType, dimension }, { modRate, 0.4f }, { modDepth, 0.5f }, { modMix, 0.5f },
-            { delayOn, 1 }, { delayType, modDelay }, { delaySync, dottedEighth }, { delayFeedback, 0.25f }, { delayMix, 0.15f },
-            { reverbOn, 1 }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
-
-        make ("Warble Vibrato", D, 5, "Modulation,Lo-Fi", {
-            { modOn, 1 }, { modType, vibrato }, { modRate, 5.5f }, { modDepth, 0.35f },
-            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.5f }, { reverbTone, 4 }, { reverbMix, 0.3f } }),
-
-        make ("Octave Lead", B, 3, "Lead,Pitch,Drive", {
-            { compOn, 1 }, { compThreshold, -20 }, { compRatio, 3 },
-            { fpOn, 1 }, { fpType, pitchShifter }, { fpInterval, 12 }, { fpMix, 0.45f },
-            { driveOn, 1 }, { driveGain, 5 }, { driveTone, 6 }, { driveLevel, 2 },
-            { delayOn, 1 }, { delayType, ducking }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.2f },
-            { reverbOn, 1 }, { reverbMix, 0.2f } }),
-
-        make ("Harmony Fifths", B, 4, "Lead,Pitch", {
-            { fpOn, 1 }, { fpType, pitchShifter }, { fpInterval, 7 }, { fpMix, 0.4f },
-            { driveOn, 1 }, { driveGain, 4 }, { driveTone, 5 },
-            { reverbOn, 1 }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
-
-        make ("Funk Envelope", C, 6, "Funk,Filter,Clean", {
-            { compOn, 1 }, { compThreshold, -26 }, { compRatio, 4 }, { compLevel, 4 },
-            { fpOn, 1 }, { fpType, autoWah }, { fpSensitivity, 6 }, { fpResonance, 6 }, { fpMix, 1 },
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.15f } }),
-
-        make ("Wide Doubler", D, 6, "Rhythm,Modulation", {
-            { driveOn, 1 }, { driveGain, 3 }, { driveTone, 5 },
-            { doublerOn, 1 },   // its voices as they start: the Doubler user guide's recipe
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
-
-        // LO-FI: for intros and breakdowns. Assign the expression pedal to
-        // LO-FI to sweep from the full band (heel) into the effect (toe).
-        make ("Whammy Lead", B, 7, "Lead,Pitch,Drive,Expression", {
-            { fpOn, 1 }, { fpType, whammyWah }, { fpXpProgram, xpUpOctave }, { fpMix, 1 },
-            { expressionTarget, pedalWhammyWah },
-            { driveOn, 1 }, { driveGain, 6 }, { driveTone, 6 }, { driveLevel, 3 },
-            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.25f }, { delayMix, 0.18f },
-            { reverbOn, 1 }, { reverbMix, 0.2f } }),
-
-        make ("XP Wah Crunch", B, 8, "Wah,Drive,Expression", {
-            { fpOn, 1 }, { fpType, whammyWah }, { fpXpProgram, xpCryWah }, { fpMix, 1 },
-            { expressionTarget, pedalWhammyWah },
-            { driveOn, 1 }, { driveGain, 4 }, { driveTone, 5 }, { driveLevel, 4 },
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.15f } }),
-
-        make ("Harmony Bends", B, 9, "Lead,Pitch,Expression", {
-            { fpOn, 1 }, { fpType, whammyWah }, { fpXpProgram, xpUp4thUp5th }, { fpMix, 0.8f },
-            { expressionTarget, pedalWhammyWah },
-            { driveOn, 1 }, { driveGain, 5 }, { driveTone, 6 },
-            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.2f },
-            { reverbOn, 1 }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
-
-        // The late-'90s nu-metal screech: the XP-100's program 21 (an octave
-        // down and an octave up, blended with the guitar), rocked while a
-        // high note rings, into a tight Screamer boost and a high-gain amp
-        // (load a Rectifier-style capture). The EQ is the Tight Low End
-        // preset, so the octave-down voice doesn't turn to mud.
-        make ("Nu-Metal Screech", B, 10, "High Gain,Pitch,Expression", {
-            { compOn, 1 }, { compThreshold, 0 }, { gateThreshold, -55 },
-            { fpOn, 1 }, { fpType, whammyWah }, { fpXpProgram, xpOctDownOctUp }, { fpMix, 0.85f },
-            { expressionTarget, pedalWhammyWah },
-            { driveOn, 1 }, { driveGain, 1 }, { driveTone, 6 }, { driveLevel, 8 },
+        // Up-front and even, the way a voice sits on the radio.
+        make ("Radio Ready", A, 5, "Pop,Studio", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -24 }, { revivalGain, -1 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 8 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq2k", 2 }, { "eq4k", 3 },
             { presence, 2 },
-            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -4 }, { "eq250", -1 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 2 }, { "eq8k", 1 },
-            { eqLevel, -0.5f },
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.1f } }),
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f }, { reverbDecay, 0.8f } }),
 
-        // Tempo-locked stutters on a crunch, faded in with the pedal: rock
-        // forward on a transition or the end of a riff.
-        make ("Stutter Edit", C, 10, "Glitch,Drive,Expression", {
-            { glitchOn, 1 }, { glitchMode, glitchSequence }, { glitchSync, 1 }, { glitchDivision, glitchSixteenth },
-            { glitchDensity, 6 }, { glitchChaos, 2 }, { glitchMix, 1 },
-            { expressionTarget, pedalGlitch },
-            { driveOn, 1 }, { driveGain, 5 }, { driveTone, 6 }, { driveLevel, 4 },
+        // Talking, not singing: even, clear, the room noise gated down, dry.
+        make ("Podcast Voice", A, 6, "Spoken,Clean", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 }, { revivalGate, -50 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq250", -1 }, { "eq4k", 1 } }),
+
+        // MARS on one band of warm tape: the glue and warmth of a voice recorded to tape.
+        make ("Tape Warmth", A, 7, "Studio,Saturation,Mars", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", 1.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // ---- B: rock and grit ----------------------------------------------
+        // A rock lead: a little Screamer edge, a tape slap and a plate.
+        make ("Rock Lead", B, 1, "Rock,Drive,Delay", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            // Edge on the mids only (the lows kept clean), as a TS-style boost does.
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 300 }, { "mb1Style", cleanTubeStyle }, { "mb1Drive", 0.1f },
+            { "mb2Style", saturatedTubeStyle }, { "mb2Drive", 0.45f }, { "mb2Mid", 2 }, { "mb2Treble", 1 },
+            { eqOn, 1 }, { "eq1k", 2 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 120 }, { delayFeedback, 0.15f },
+            { delayMix, 0.18f }, { delayAnalog, warm },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
+
+        // Shouted and driven, mids pushed forward, a tight room.
+        make ("Grit Shout", B, 2, "Rock,Drive", {
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 7 }, { compDetail, 4 },
+            { driveOn, 1 }, { "mb1Style", britishAmpStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 2 }, { "mb1Mix", 0.85f },
+            { eqOn, 1 }, { "eq125", -4 }, { "eq1k", 3 }, { "eq2k", 2 }, { "eq8k", -2 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.12f } }),
+
+        // A bullhorn with a dirty slap: garage, punk and breakdowns.
+        make ("Garage Megaphone", B, 3, "Rock,Lo-Fi,Drive", {
+            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.5f },
+            { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 2 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.2f },
+            { delayMix, 0.2f }, { delayAnalog, grit } }),
+
+        // Four loose takes stacked, a gang-vocal wall.
+        make ("Gang Vocal", B, 4, "Rock,Doubler", {
+            { rigLevel, 2 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.35f },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Drift", 0.75f }, { "dv2Drift", 0.75f }, { "dv3Drift", 0.8f }, { "dv4Drift", 0.8f },
+            { doublerOutput, -4 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // Big chorus vocal: doubled, wide echoes (1/4 left, dotted 1/8 right), a hall.
+        make ("Arena Rock", B, 5, "Rock,Doubler,Delay,Reverb", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { doublerOn, 1 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayDual, 1 }, { delaySyncRight, dottedEighth },
+            { delayFeedback, 0.3f }, { delayMix, 0.15f }, { delayDuck, 0.5f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.22f }, { reverbPreDelay, 50 },
+            { reverbDecay, 1.2f }, { reverbBassRt, 0.7f } }),
+
+        // MARS in three bands: clean lows (no mud), amp-driven mids for bite,
+        // tape on the highs so the grit stays smooth.
+        make ("Multiband Grit", B, 6, "Rock,Saturation,Mars", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { driveOn, 1 }, { marsBands, 2 }, { marsCross1, 250 }, { marsCross2, 3000 },
+            { "mb1Style", cleanTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", britishAmpStyle }, { "mb2Drive", 0.55f }, { "mb2Dynamics", 0.3f },
+            { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
+
+        // ---- C: delays and throws ------------------------------------------
+        // The 50s slap: one quick tape repeat.
+        make ("Slapback", C, 1, "Vintage,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 110 }, { delayFeedback, 0.1f },
+            { delayMix, 0.3f }, { delayAnalog, warm },
+            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.4f }, { reverbMix, 0.12f } }),
+
+        // The pop throw: dotted eighths that duck under you and bloom in the gaps.
+        make ("Dotted Throw", C, 2, "Pop,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.4f }, { delayMix, 0.3f }, { delayDuck, 0.75f },
+            { delayLowCut, 250 }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
+
+        // Echoes bouncing left and right, softly swirling.
+        make ("Ping-Pong Echo", C, 3, "Delay,Stereo", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayPingPong, 1 }, { delayFeedback, 0.45f }, { delayMix, 0.22f },
+            { delayDuck, 0.5f }, { delayHighCut, 6000 }, { delayModDepth, 0.15f }, { delayModRate, 0.4f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.15f } }),
+
+        // Dub: long, dark, hissy tape repeats that keep going, into a spring.
+        make ("Dub Echo", C, 4, "Reggae,Delay,Vintage", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.8f }, { delayMix, 0.3f },
+            { delayAnalog, hiss }, { delayLowCut, 200 }, { delayHighCut, 3000 },
+            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.6f }, { reverbMix, 0.2f } }),
+
+        // A wide stereo echo: different times on each side.
+        make ("Wide Dual Echo", C, 5, "Delay,Stereo", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayDual, 1 }, { delaySyncRight, dottedEighth },
+            { delayFeedback, 0.3f }, { delayMix, 0.22f }, { delayDuck, 0.6f }, { delayHighCut, 7000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
+
+        // An early digital delay: grainy, gritty repeats.
+        make ("Lo-Fi Echo", C, 6, "Lo-Fi,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.5f }, { delayMix, 0.25f }, { delayLoFi, 1 },
+            { delayAnalog, grit }, { delayHighCut, 4000 },
             { reverbOn, 1 }, { reverbType, room }, { reverbMix, 0.12f } }),
 
-        // A slow cloud of grains under a clean tone: chords smear into a pad.
-        make ("Grain Cloud", D, 10, "Glitch,Ambient,Clean", {
-            { compOn, 1 }, { compThreshold, -24 }, { compRatio, 3 },
-            { glitchOn, 1 }, { glitchMode, glitchTexturizer }, { glitchSync, 0 }, { glitchTime, 250 },
-            { glitchDensity, 4 }, { glitchChaos, 5 }, { glitchMix, 0.45f },
-            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.4f }, { delayMix, 0.25f },
-            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.35f } }),
+        // Feedback past 100%: the echoes build into an endless swell. Stop
+        // singing and it keeps going; switch the delay off to let it fade.
+        make ("Endless Echo", C, 7, "Ambient,Delay,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 1.15f }, { delayMix, 0.18f }, { delayDuck, 0.8f },
+            { delayLowCut, 300 }, { delayHighCut, 4000 }, { delayAnalog, roundAnalog },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.25f } }),
 
-        //======================================================================
-        // Bank E: inspired by particular songs. Our settings for the sound,
-        // not the artists' own (which are their own gear, played their way).
+        // Throws on the pedal: heel dry, toe into the echoes and the hall.
+        make ("Pedal Throw", C, 8, "Delay,Expression,Live", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.45f }, { delayMix, 0.4f }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.35f },
+            { expressionTarget, pedalMorph } }),
 
-        // Rage Against the Machine, "Killing in the Name" solo: a Whammy an
-        // octave up, rocked to the toe for the squeal, into a cranked crunch
-        // with no reverb. (For a higher squeal, PROGRAM 14 Up 2 Octaves.)
-        make ("Killing Solo (RATM)", E, 1, "Song,Lead,Pitch,Expression", {
-            { fpOn, 1 }, { fpType, whammyWah }, { fpXpProgram, xpUpOctave }, { fpMix, 1 },
-            { expressionTarget, pedalWhammyWah },
-            { driveOn, 1 }, { driveGain, 3 }, { driveTone, 6 }, { driveLevel, 6 },
-            { presence, 1 } }),
+        // Each echo played backwards, sucking into the next word.
+        make ("Backwards Echo", C, 9, "Psychedelic,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delayType, reverseDelay }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.3f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.2f } }),
 
-        // Rage Against the Machine, "Bulls on Parade" scratch: a wah on the
-        // pedal, rocked as you rub the muted strings over the pickup, and
-        // the toggle-switch chop (GLITCH Killswitch, 1/16, on the song's
-        // grid when the DAW plays).
-        make ("Bulls Scratch (RATM)", E, 2, "Song,Wah,Glitch,Expression", {
-            { expressionTarget, pedalWah },
-            { glitchOn, 1 }, { glitchMode, glitchKillswitch }, { glitchSync, 1 }, { glitchDivision, glitchSixteenth },
-            { glitchDensity, 5 }, { glitchChaos, 0 }, { glitchMix, 1 },
-            { driveOn, 1 }, { driveGain, 4 }, { driveTone, 6 }, { driveLevel, 5 },
-            { presence, 1 } }),
+        // ---- D: spaces -------------------------------------------------------
+        // The classic vocal plate, lows kept short and the sizzle rolled off.
+        make ("Vocal Plate", D, 1, "Reverb,Studio", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.25f }, { reverbPreDelay, 40 },
+            { reverbBassRt, 0.8f }, { reverbRolloff, 9000 } }),
 
-        // Pink Floyd. David Gilmour's sounds as his gear guides describe them;
-        // the rest is in his hands (vibrato, bends, note choice).
+        // A concert hall: a long, warm tail behind a clear voice.
+        make ("Big Hall", D, 2, "Reverb,Ballad", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.3f }, { reverbPreDelay, 60 },
+            { reverbDecay, 1.3f }, { reverbBassRt, 0.7f }, { reverbCrossover, 250 }, { reverbRolloff, 8000 } }),
 
-        // "Comfortably Numb" solos: a Big Muff-style fuzz (sustain about 70%,
-        // tone 30-40%) into a delay of about 370 ms, through a subtly mixed
-        // rotating speaker (his Yamaha RA-200), with studio reverb.
-        make ("Numb Solo (Floyd)", E, 3, "Song,Lead,Fuzz", {
-            { driveOn, 1 }, { driveModel, muffFuzz }, { driveGain, 7 }, { driveTone, 3.5f }, { driveLevel, 1 },
-            { modOn, 1 }, { modType, rotary }, { modRate, 0.9f }, { modDepth, 0.5f }, { modMix, 0.3f },
-            { delayOn, 1 }, { delayType, digitalDelay }, { delaySync, syncOff }, { delayTime, 370 }, { delayFeedback, 0.3f }, { delayMix, 0.25f },
-            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.18f } }),
+        // The echo chamber: dense, smooth and short, the old studio sound.
+        make ("Echo Chamber", D, 3, "Reverb,Vintage", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.55f }, { reverbMix, 0.25f }, { reverbPreDelay, 25 } }),
 
-        // "Us and Them": the neck pickup, clean, through a slow rotating
-        // speaker (a Leslie dominated it; a Uni-Vibe is close too), with echo.
-        // For the louder chorus, stomp footswitch 2: a Fuzz Face-style fuzz
-        // is set up and waiting, as Gilmour kicked his in.
-        make ("Us and Them (Floyd)", E, 4, "Song,Clean,Modulation,Fuzz", {
-            { driveOn, 0 }, { driveModel, faceFuzz }, { driveGain, 6 }, { driveTone, 6 }, { driveLevel, 0 },
-            { modOn, 1 }, { modType, rotary }, { modRate, 0.7f }, { modDepth, 0.6f }, { modMix, 0.6f },
-            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 420 }, { delayFeedback, 0.25f }, { delayMix, 0.2f },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.25f } }),
+        // A stone cathedral: a long gap, then a huge tail.
+        make ("Cathedral Choir", D, 4, "Reverb,Worship,Ambient", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -12 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.32f }, { reverbPreDelay, 80 },
+            { reverbBassRt, 0.8f } }),
 
-        // "Run Like Hell": muted eighths into a long, clean delay (about
-        // 380 ms, five or six repeats) that makes the gallop, with flanging
-        // and light compression.
-        make ("Run Like Hell (Floyd)", E, 5, "Song,Clean,Delay,Modulation", {
-            { compOn, 1 }, { compThreshold, -22 }, { compRatio, 3 }, { compLevel, 2 },
-            { modOn, 1 }, { modType, flanger }, { modRate, 0.3f }, { modDepth, 0.5f }, { modMix, 0.4f },
-            { delayOn, 1 }, { delayType, digitalDelay }, { delaySync, syncOff }, { delayTime, 380 }, { delayFeedback, 0.55f }, { delayMix, 0.3f },
-            { reverbOn, 1 }, { reverbType, room }, { reverbMix, 0.12f } }),
+        // Worship wash: a shimmering octave-up echo into a long, moving hall.
+        make ("Worship Wash", D, 5, "Worship,Ambient,Delay,Reverb", {
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.5f }, { delayMix, 0.18f },
+            { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.35f }, { reverbPreDelay, 40 },
+            { reverbDecay, 1.4f }, { reverbSpin, 1.5f } }),
 
-        // "Money" solos: the bridge pickup into a Fuzz Face-style fuzz, with
-        // a multi-head echo in the spirit of his Binson Echorec.
-        make ("Money Solo (Floyd)", E, 6, "Song,Lead,Fuzz,Delay", {
-            { driveOn, 1 }, { driveModel, faceFuzz }, { driveGain, 7 }, { driveTone, 7 }, { driveLevel, 1 },
-            { delayOn, 1 }, { delayType, multiTap }, { delaySync, syncOff }, { delayTime, 330 }, { delayFeedback, 0.3f }, { delayMix, 0.22f },
-            { reverbOn, 1 }, { reverbType, room }, { reverbMix, 0.15f } }),
+        // The 80s gated reverb: a burst that builds and stops dead.
+        make ("Gated 80s", D, 6, "80s,Reverb,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.35f }, { reverbPreDelay, 0 },
+            { reverbDecay, 0.2f }, { reverbSpread, 200 }, { reverbShape, 0.85f } }),
 
-        // Tool, "Jambi" solo: a talk box on a tight, heavy tone. Load a
-        // high-gain amp capture; the pedal opens the "mouth" from oo to ee.
-        make ("Jambi Talk Box (Tool)", E, 7, "Song,Lead,Talk Box,Expression", {
-            { fpOn, 1 }, { fpType, talkBoxType }, { fpResonance, 6 }, { fpMix, 1 },
-            { expressionTarget, pedalTalkBox },
-            { driveOn, 1 }, { driveGain, 3 }, { driveTone, 6 }, { driveLevel, 6 },
-            { delayOn, 1 }, { delayType, digitalDelay }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.12f },
-            { reverbOn, 1 }, { reverbType, room }, { reverbMix, 0.1f } }),
+        // The reverse reverb: each word swells up out of nowhere.
+        make ("Reverse Swell", D, 7, "Ambient,Reverb,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { reverbOn, 1 }, { reverbType, reverse }, { reverbSize, 0.5f }, { reverbMix, 0.45f }, { reverbPreDelay, 0 } }),
 
-        // Peter Frampton, "Show Me the Way": the talk box on a warm, lightly
-        // driven tone, the most famous talk box sound there is.
-        make ("Show Me the Way (Frampton)", E, 8, "Song,Lead,Talk Box,Expression", {
-            { fpOn, 1 }, { fpType, talkBoxType }, { fpResonance, 5 }, { fpMix, 1 },
-            { expressionTarget, pedalTalkBox },
-            { driveOn, 1 }, { driveModel, 0 }, { driveGain, 3 }, { driveTone, 5 }, { driveLevel, 2 },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.2f } }),
+        // A floating pad: a very long, lush, moving space with a shimmer on top.
+        make ("Floating", D, 8, "Ambient,Reverb,Delay", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.55f }, { delayMix, 0.2f },
+            { delayPingPong, 1 }, { delayDuck, 0.5f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.8f }, { reverbMix, 0.4f }, { reverbDecay, 1.6f },
+            { reverbSpin, 2 }, { reverbWander, 2 }, { reverbDiffusion, 1.2f } }),
 
-        make ("Phone Intro", B, 5, "Lo-Fi,Clean", {
-            { compOn, 1 }, { compThreshold, -22 }, { compRatio, 3 },
-            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.2f },
-            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 6 }, { lofiNoise, 3 }, { lofiLevel, 2 } }),
+        // ---- E: character ----------------------------------------------------
+        // The full doubler: four loose takes around you.
+        make ("Big Double", E, 1, "Doubler,Pop", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f }, { "dv3Drift", 0.7f }, { "dv4Drift", 0.7f }, { doublerOutput, -3 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
 
-        make ("Megaphone Verse", B, 6, "Lo-Fi,Drive", {
-            { driveOn, 1 }, { driveGain, 5 }, { driveTone, 6 },
-            { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 2 } }),
+        // A double an octave down under you, for a deep, thick voice.
+        make ("Octave Double", E, 2, "Doubler,Pitch", {
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -8 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbMix, 0.18f } }),
 
-        make ("Old Radio", C, 7, "Lo-Fi,Vintage", {
-            { modOn, 1 }, { modType, tremolo }, { modRate, 4.5f }, { modDepth, 0.3f },
-            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.5f }, { reverbMix, 0.3f },
-            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 5 }, { lofiNoise, 5 }, { lofiLevel, 1 } }),
+        // Harmonies a third and a fifth above you, kept in the song's key
+        // (set KEY and SCALE in the PITCH panel first).
+        make ("Harmony Stack", E, 3, "Harmony,Pitch,Pop", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { harmonyLevel, -3 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.22f } }),
 
-        make ("Cassette Dreams", D, 7, "Lo-Fi,Ambient", {
-            { compOn, 1 }, { compThreshold, -24 }, { compRatio, 3 },
-            { modOn, 1 }, { modType, chorus }, { modRate, 0.4f }, { modDepth, 0.4f }, { modMix, 0.35f },
-            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.25f },
-            { reverbOn, 1 }, { reverbType, digital }, { reverbSize, 0.8f }, { reverbMix, 0.35f },
+        // A lush, wide chorus on the voice, into a plate.
+        make ("Dream Chorus", E, 4, "Modulation,Dream Pop", {
+            { rigLevel, 2 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.5f }, { modDepth, 0.5f }, { modMix, 0.4f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.15f }, { delayDuck, 0.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
+
+        // A rotating speaker on the voice: the 60s psychedelic sound.
+        make ("Rotary Voice", E, 5, "Modulation,Vintage,Psychedelic", {
+            { rigLevel, 5 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { modOn, 1 }, { modType, rotary }, { modRate, 1.2f }, { modDepth, 0.6f }, { modMix, 0.6f },
+            { reverbOn, 1 }, { reverbType, spring }, { reverbMix, 0.2f } }),
+
+        // A slow phaser sweep and a soft echo.
+        make ("Phaser Dream", E, 6, "Modulation,Psychedelic", {
+            { rigLevel, 3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { modOn, 1 }, { modType, phaser }, { modRate, 0.3f }, { modDepth, 0.6f }, { modMix, 0.5f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.15f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.2f } }),
+
+        // A jet flanger: the voice whooshing through it.
+        make ("Jet Voice", E, 7, "Modulation,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.2f }, { modDepth, 0.7f }, { modMix, 0.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.15f } }),
+
+        // The voice panning from side to side in time with the song.
+        make ("Wide Pan", E, 8, "Modulation,Stereo", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { modOn, 1 }, { modType, autoPan }, { modSync, quarter }, { modDepth, 0.7f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbMix, 0.2f } }),
+
+        // A pulsing tremolo in time, into a spring: haunting, vintage.
+        make ("Tremolo Ghost", E, 9, "Modulation,Vintage", {
+            { rigLevel, 3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { modOn, 1 }, { modType, harmonicTremolo }, { modSync, eighth }, { modDepth, 0.6f },
+            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.55f }, { reverbMix, 0.28f } }),
+
+        // On the phone: a thin, boxy line for an intro or a verse.
+        make ("Telephone", E, 10, "Lo-Fi", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 6 }, { lofiNoise, 3 }, { lofiLevel, 3 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),
+
+        // An old valve radio: crackle, a narrow band, a spring.
+        make ("Old Radio", E, 11, "Lo-Fi,Vintage", {
+            { rigLevel, -5 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 5 }, { lofiNoise, 5 }, { lofiLevel, 2 },
+            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.5f }, { reverbMix, 0.25f } }),
+
+        // A worn tape: wobble, hiss and a soft echo.
+        make ("Cassette Memory", E, 12, "Lo-Fi,Dream Pop", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { modOn, 1 }, { modType, chorus }, { modRate, 0.35f }, { modDepth, 0.4f }, { modMix, 0.35f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.2f },
+            { delayAnalog, hiss },
+            { reverbOn, 1 }, { reverbType, digital }, { reverbSize, 0.7f }, { reverbMix, 0.3f },
             { lofiOn, 1 }, { lofiType, cassette }, { lofiAmount, 5 }, { lofiNoise, 4 } }),
 
-        make ("8-Bit Crunch", D, 8, "Lo-Fi,Drive", {
-            { driveOn, 1 }, { driveGain, 3 },
-            { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 6 }, { lofiNoise, 0 }, { lofiMix, 0.8f } }),
+        // A metallic, robotic edge: a fast flanger, crushed bits and a tight echo.
+        // (Not a vocoder: our own take with what's here.)
+        make ("Metallic Voice", E, 13, "Lo-Fi,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.1f }, { modDepth, 0.9f }, { modMix, 0.6f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 25 }, { delayFeedback, 0.6f },
+            { delayMix, 0.3f },
+            { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.6f } }),
 
-        // A reverse reverb: each note swells up out of nowhere.
-        make ("Reverse Swell", C, 8, "Ambient,Reverb", {
-            { compOn, 1 }, { compThreshold, -24 }, { compRatio, 3 },
-            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.15f },
-            { reverbOn, 1 }, { reverbType, reverse }, { reverbSize, 0.5f }, { reverbMix, 0.55f }, { reverbPreDelay, 0 } }),
+        // A voice through a broken transmitter: MARS crushes its highs to bits
+        // (its lows left alone), with a slap behind it.
+        make ("Broken Transmission", E, 15, "Lo-Fi,Saturation,Mars,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 900 },
+            { "mb1On", 0 },
+            { "mb2Style", destroyStyle }, { "mb2Drive", 0.55f }, { "mb2Mix", 0.7f }, { "mb2Feedback", 0.3f }, { "mb2FbFreq", 2200 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 140 }, { delayFeedback, 0.25f },
+            { delayMix, 0.2f } }),
 
-        // Delays to try: a rising shimmer pad, and reverse echoes.
-        make ("Shimmer Pad", D, 9, "Ambient,Delay,Clean", {
-            { compOn, 1 }, { compThreshold, -26 }, { compRatio, 4 }, { compLevel, 3 },
-            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.65f }, { delayMix, 0.4f },
-            { delayTone, 6 }, { delayPingPong, 1 },
-            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.4f } }),
-
-        make ("Backwards Echo", C, 9, "Psychedelic,Delay", {
-            { driveOn, 1 }, { driveGain, 3 },
-            { delayOn, 1 }, { delayType, reverseDelay }, { delaySync, eighth }, { delayFeedback, 0.4f }, { delayMix, 0.5f },
-            { reverbOn, 1 }, { reverbType, plate }, { reverbMix, 0.2f } }),
-
-        // These two follow the tempo (tapped, or the DAW's).
-        make ("Brownface Trem", C, 4, "Modulation,Clean,Vintage", {
-            { modOn, 1 }, { modType, harmonicTremolo }, { modSync, eighth }, { modDepth, 0.7f },
-            { reverbOn, 1 }, { reverbType, spring }, { reverbSize, 0.55f }, { reverbTone, 6 }, { reverbMix, 0.3f } }),
-
-        make ("Wide Pan", C, 5, "Modulation,Ambient", {
-            { compOn, 1 }, { compThreshold, -24 }, { compRatio, 3 },
-            { modOn, 1 }, { modType, autoPan }, { modSync, quarter }, { modDepth, 0.8f },
-            { delayOn, 1 }, { delayType, multiTap }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.2f },
-            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.8f }, { reverbMix, 0.35f } }),
+        // Sixteenth-note echoes for rap and trap ad-libs, kept tight.
+        make ("Trap Ad-Lib", E, 14, "Rap,Delay", {
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq125", -2 }, { "eq4k", 2 }, { "eq8k", 2 },
+            { delayOn, 1 }, { delaySync, sixteenth }, { delayFeedback, 0.35f }, { delayMix, 0.2f }, { delayPingPong, 1 },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
     };
 }

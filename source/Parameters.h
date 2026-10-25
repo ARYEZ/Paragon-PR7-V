@@ -23,7 +23,10 @@ namespace ParamIDs
     inline constexpr auto compLevel      = "compLevel";
     inline constexpr auto gateThreshold  = "gateThreshold";
 
-    inline constexpr auto driveOn        = "driveOn";
+    inline constexpr auto driveOn        = "driveOn";   // SATURATION (MARS) on
+    // The pedal drive's DRIVE, TONE and LEVEL: no longer parameters since
+    // 0.14.0, when MARS replaced the pedal models. Read from older rigs and
+    // projects only, which convertOldDrive turns into MARS. Never reuse these IDs.
     inline constexpr auto driveGain      = "driveGain";
     inline constexpr auto driveTone      = "driveTone";
     inline constexpr auto driveLevel     = "driveLevel";
@@ -70,8 +73,9 @@ namespace ParamIDs
     // Modulation tempo sync: Off, or a note length at the tapped or host tempo.
     inline constexpr auto modSync = "modSync";
 
-    // Version 10: the drive's model (Tube Screamer or the original), and
-    // the FILTER / PITCH block: auto-wah and pitch shifter.
+    // Version 10: the drive's model (Classic, Screamer, Muff, Face, and MARS
+    // from 0.13.0; legacy since 0.14.0, like driveGain), and the FILTER /
+    // PITCH block: auto-wah and pitch shifter.
     inline constexpr auto driveModel    = "driveModel";
     inline constexpr auto fpOn          = "fpOn";
     inline constexpr auto fpType        = "fpType";
@@ -187,6 +191,45 @@ namespace ParamIDs
     inline constexpr auto revivalGate        = "revivalGate";
     inline constexpr auto revivalCompression = "revivalCompression";
     inline constexpr auto revivalGain        = "revivalGain";
+    // Version 33: the delay's controls inspired by Waves H-Delay.
+    inline constexpr auto delayDual       = "delayDual";
+    inline constexpr auto delayTimeRight  = "delayTimeRight";
+    inline constexpr auto delaySyncRight  = "delaySyncRight";
+    inline constexpr auto delayPingStart  = "delayPingStart";
+    inline constexpr auto delayPhaseLeft  = "delayPhaseLeft";
+    inline constexpr auto delayPhaseRight = "delayPhaseRight";
+    inline constexpr auto delayLowCut     = "delayLowCut";
+    inline constexpr auto delayHighCut    = "delayHighCut";
+    inline constexpr auto delayModDepth   = "delayModDepth";
+    inline constexpr auto delayModRate    = "delayModRate";
+    inline constexpr auto delayAnalog     = "delayAnalog";
+    inline constexpr auto delayLoFi       = "delayLoFi";
+    // Version 34: the reverb's controls inspired by the Lexicon LXP reverbs.
+    inline constexpr auto reverbDecay     = "reverbDecay";
+    inline constexpr auto reverbBassRt    = "reverbBassRt";
+    inline constexpr auto reverbCrossover = "reverbCrossover";
+    inline constexpr auto reverbRolloff   = "reverbRolloff";
+    inline constexpr auto reverbDiffusion = "reverbDiffusion";
+    inline constexpr auto reverbEarly     = "reverbEarly";
+    inline constexpr auto reverbLevel     = "reverbLevel";
+    inline constexpr auto reverbSpread    = "reverbSpread";
+    inline constexpr auto reverbShape     = "reverbShape";
+    inline constexpr auto reverbSpin      = "reverbSpin";
+    inline constexpr auto reverbWander    = "reverbWander";
+    // Version 35: MARS, SATURATION's multi-band MODEL (inspired by FabFilter Saturn 2).
+    inline constexpr auto marsBands   = "marsBands";
+    inline constexpr auto marsCross1  = "marsCross1";
+    inline constexpr auto marsCross2  = "marsCross2";
+    inline constexpr auto marsCross3  = "marsCross3";
+    inline constexpr auto marsSlope   = "marsSlope";
+    inline constexpr auto marsInput   = "marsInput";
+    inline constexpr auto marsOutput  = "marsOutput";
+    inline constexpr auto marsMix     = "marsMix";
+    inline constexpr auto marsQuality = "marsQuality";
+    // Each of the four bands: "mb1Drive", "mb3Style"... (band 1 to 4).
+    inline const juce::StringArray marsBandParts { "On", "Style", "Drive", "Dynamics", "Feedback", "FbFreq",
+                                                   "Bass", "Mid", "Treble", "Presence", "Mix", "Level" };
+    inline juce::String marsBand (int band, const juce::String& part) { return "mb" + juce::String (band + 1) + part; }
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     // Drift (version 32) is appended: only ever add to the end.
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };
@@ -233,6 +276,14 @@ void moveOldDoublerSettings (const std::function<std::optional<float> (const cha
 // Settings saved with 0.7.0's or 0.8.0's DOUBLER (before its DRIFT and
 // stronger starting settings in 0.9.0): no DRIFT, and any voice setting not
 // saved keeps the value it started with then, so they sound as they did.
+// Settings saved before 0.14.0 with one of the pedal drive models (Classic,
+// Screamer, Muff Fuzz, Face Fuzz): sets MARS up to sound close to it, its
+// DRIVE, TONE and LEVEL carried over (a different engine: close, not the
+// same). Nothing changes if MARS was already picked, or if the drive was
+// off and never touched.
+void convertOldDrive (const std::function<std::optional<float> (const juce::String&)>& get,
+                      const std::function<void (const juce::String&, float)>& set);
+
 void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,
                          const std::function<void (const juce::String&, float)>& set);
 

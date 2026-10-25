@@ -189,6 +189,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       eqPanel (processorToShow.getParameters()),
       harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); }),
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
+      marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); }),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
             juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
@@ -343,7 +344,12 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (2, "SATURATION", { ParamIDs::driveOn }, driveBlock, [this]
     {
-        return valueText (ParamIDs::driveModel) + "  Drive " + valueText (ParamIDs::driveGain);
+        // MARS: its bands' styles, low to high.
+        const auto numBands = juce::roundToInt (rawValue (ParamIDs::marsBands)) + 1;
+        juce::StringArray styles;
+        for (int band = 0; band < numBands; ++band)
+            styles.add (effects::Mars::styleNames[juce::roundToInt (rawValue (ParamIDs::marsBand (band, "Style").toRawUTF8()))]);
+        return "Mars  " + styles.joinIntoString (" / ");
     });
     addStomp (3, "DOUBLER", { ParamIDs::doublerOn }, doublerBlock, [this]
     {
@@ -375,7 +381,10 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (7, "REVERB", { ParamIDs::reverbOn }, reverbBlock, [this]
     {
-        return valueText (ParamIDs::reverbType) + "  Mix " + valueText (ParamIDs::reverbMix);
+        // The tail's length in seconds, from TYPE, SIZE and DECAY together (as LXP's display shows it).
+        const auto type = (effects::Reverb::Type) juce::roundToInt (rawValue (ParamIDs::reverbType));
+        const auto seconds = effects::Reverb::decaySeconds (type, rawValue (ParamIDs::reverbSize), rawValue (ParamIDs::reverbDecay));
+        return valueText (ParamIDs::reverbType) + "  " + juce::String (seconds, seconds < 10.0f ? 1 : 0) + " s  Mix " + valueText (ParamIDs::reverbMix);
     });
 
     addAndMakeVisible (pedal);   // first, so everything on the pedal sits on top of it
@@ -439,24 +448,50 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                               { ParamIDs::fpInterval, "INTERVAL", fpIs (effects::FilterPitch::Type::pitchShifter) },
                               { ParamIDs::fpXpProgram, "PROGRAM", fpIs (effects::FilterPitch::Type::whammyWah) },
                               { ParamIDs::fpMix, "MIX" } } } });
-    panels[driveBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "SATURATION", { { ParamIDs::driveOn, "ON" }, { ParamIDs::driveModel, "MODEL" }, { ParamIDs::driveGain, "DRIVE" }, { ParamIDs::driveTone, "TONE" },
-                         { ParamIDs::driveLevel, "LEVEL" } } } });
+    // SATURATION has MARS's own panel (panels[driveBlock] stays empty).
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
                           { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
                           { ParamIDs::modDepth, "DEPTH" },
                           { ParamIDs::modMix, "MIX", [this] {
                               return effects::Modulation::usesMix ((effects::Modulation::Type) juce::roundToInt (rawValue (ParamIDs::modType))); } } } } });
+    // DELAY's three pages (since 0.10.0, with the controls inspired by
+    // H-Delay): MAIN as it always was; STEREO (DUAL's right-hand time, the
+    // ping-pong's START, each side's PHASE); COLOUR (the filters, MOD,
+    // ANALOG and LO-FI).
+    const auto dual = [this] { return rawValue (ParamIDs::delayDual) > 0.5f && rawValue (ParamIDs::delayPingPong) < 0.5f; };
     panels[delayBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "DELAY", { { ParamIDs::delayOn, "ON" }, { ParamIDs::delayType, "TYPE" }, { ParamIDs::delaySync, "SYNC" },
                      { ParamIDs::delayTime, "TIME", [this] { return rawValue (ParamIDs::delaySync) < 0.5f; } },
                      { ParamIDs::delayFeedback, "FEEDBACK" }, { ParamIDs::delayTone, "TONE" }, { ParamIDs::delayMix, "MIX" }, { ParamIDs::delayDuck, "DUCK" },
-                     { ParamIDs::delayPingPong, "PING-PONG" } } } });
+                     { ParamIDs::delayPingPong, "PING-PONG" } } },
+        { "DUAL", { { ParamIDs::delayDual, "DUAL", [this] { return rawValue (ParamIDs::delayPingPong) < 0.5f; } },
+                    { ParamIDs::delaySyncRight, "RIGHT SYNC", dual },
+                    { ParamIDs::delayTimeRight, "RIGHT TIME", [this, dual] { return dual() && rawValue (ParamIDs::delaySyncRight) < 0.5f; } } }, 1 },
+        { "PING-PONG", { { ParamIDs::delayPingStart, "START", [this] { return rawValue (ParamIDs::delayPingPong) > 0.5f; } } }, 1 },
+        { "PHASE", { { ParamIDs::delayPhaseLeft, "FLIP LEFT" }, { ParamIDs::delayPhaseRight, "FLIP RIGHT" } }, 1 },
+        { "FILTERS", { { ParamIDs::delayLowCut, "LOW CUT" }, { ParamIDs::delayHighCut, "HIGH CUT" } }, 2 },
+        { "MODULATION", { { ParamIDs::delayModDepth, "DEPTH" }, { ParamIDs::delayModRate, "RATE" } }, 2 },
+        { "CHARACTER", { { ParamIDs::delayAnalog, "ANALOG" }, { ParamIDs::delayLoFi, "LO-FI" } }, 2 } });
+    panels[delayBlock]->setPages ({ "MAIN", "STEREO", "COLOUR" });
+    // REVERB's four pages (since 0.11.0, with the controls inspired by the
+    // Lexicon LXP reverbs, for every type but Classic and Spring, which grey
+    // them out): MAIN; DECAY (BASS RT and its CROSSOVER, ROLLOFF); SPACE
+    // (DIFFUSION, the EARLY and REVERB levels, SPREAD and SHAPE); MOTION
+    // (SPIN and WANDER).
+    const auto lxp = [this] { return effects::Reverb::hasNetworkControls ((effects::Reverb::Type) juce::roundToInt (rawValue (ParamIDs::reverbType))); };
     panels[reverbBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "REVERB", { { ParamIDs::reverbOn, "ON" }, { ParamIDs::reverbType, "TYPE" }, { ParamIDs::reverbSize, "SIZE" },
+                      { ParamIDs::reverbDecay, "DECAY", lxp },
                       { ParamIDs::reverbPreDelay, "PRE-DELAY" }, { ParamIDs::reverbTone, "TONE" }, { ParamIDs::reverbMix, "MIX" },
-                      { ParamIDs::reverbDuck, "DUCK" } } } });
+                      { ParamIDs::reverbDuck, "DUCK" } } },
+        { "BASS", { { ParamIDs::reverbBassRt, "BASS RT", lxp }, { ParamIDs::reverbCrossover, "CROSSOVER", lxp } }, 1 },
+        { "OUTPUT", { { ParamIDs::reverbRolloff, "ROLLOFF", lxp } }, 1 },
+        { "DIFFUSION", { { ParamIDs::reverbDiffusion, "DIFFUSION", lxp } }, 2 },
+        { "LEVELS", { { ParamIDs::reverbEarly, "EARLY", lxp }, { ParamIDs::reverbLevel, "REVERB", lxp } }, 2 },
+        { "BUILD", { { ParamIDs::reverbSpread, "SPREAD", lxp }, { ParamIDs::reverbShape, "SHAPE", lxp } }, 2 },
+        { "MOTION", { { ParamIDs::reverbSpin, "SPIN", lxp }, { ParamIDs::reverbWander, "WANDER", lxp } }, 3 } });
+    panels[reverbBlock]->setPages ({ "MAIN", "DECAY", "SPACE", "MOTION" });
     // GLITCH's LENGTH is a time, or a note value while synced: the one that
     // applies shows.
     const auto glitchSynced = [this] { return rawValue (ParamIDs::glitchSync) > 0.5f; };
@@ -490,6 +525,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
     addChildComponent (doublerPanel);
+    addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })
     {
         view->setClickingTogglesState (true);
@@ -563,6 +599,7 @@ void MainView::selectBlock (int block)
     const auto showingPitch = block == pitchBlock && onProcessorPage;
     harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
     doublerPanel.setVisible (block == doublerBlock && onProcessorPage);
+    marsPanel.setVisible (block == driveBlock && onProcessorPage);
     harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
     octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
     for (auto* view : { &harmonyView, &octaveView })
@@ -623,6 +660,7 @@ void MainView::timerCallback()
 
 void MainView::refreshPerformance()
 {
+
     // Tempo: the tapped tempo in orange, or the DAW's.
     const auto tapped = audioProcessor.getTappedBpm() > 0.0;
     const auto tempo = juce::String (audioProcessor.getTempoBpm(), 1) + " BPM";
@@ -868,6 +906,7 @@ void MainView::resized()
     eqPanel.setBounds (summaryArea);
     harmonyPanel.setBounds (summaryArea);
     doublerPanel.setBounds (summaryArea);
+    marsPanel.setBounds (summaryArea);
     // PITCH's view tabs sit in its header, after the icon and name.
     harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
     octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);

@@ -49,7 +49,19 @@ namespace effects
 
         // Time changes glide over 100 ms (a short pitch bend, like turning
         // the time knob on a tape delay) instead of jumping with a click.
-        delaySamples.reset (sampleRate, 0.1);
+        for (auto& side : delaySamples)
+            side.reset (sampleRate, 0.1);
+        const juce::dsp::ProcessSpec mono { sampleRate, (juce::uint32) maxBlockSize, 1 };
+        for (auto* filters : { &lowCutFilters, &highCutFilters })
+            for (auto& filter : *filters)
+            {
+                filter.prepare (mono);
+                filter.setResonance (1.0f / juce::MathConstants<float>::sqrt2);
+            }
+        for (auto& filter : lowCutFilters)
+            filter.setType (juce::dsp::StateVariableTPTFilterType::highpass);
+        for (auto& filter : highCutFilters)
+            filter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
         send.reset (sampleRate, 0.02);
         feedback.reset (sampleRate, 0.05);
         mix.reset (sampleRate, 0.05);
@@ -73,6 +85,13 @@ namespace effects
         wowPhase = flutterPhase = drift = driftTarget = 0.0f;
         driftCountdown = 0;
         ducker.reset();
+        for (auto* filters : { &lowCutFilters, &highCutFilters })
+            for (auto& filter : *filters)
+                filter.reset();
+        std::fill (std::begin (analogTone), std::end (analogTone), 0.0f);
+        for (auto& state : loFiState)
+            state[0] = state[1] = 0.0f;
+        modPhase = 0.0f;
     }
 
     float Delay::delaySeconds (const Settings& settings, double bpm) noexcept
@@ -84,6 +103,16 @@ namespace effects
         return juce::jlimit (0.001f, maxDelaySeconds, seconds);
     }
 
+    float Delay::delaySecondsRight (const Settings& settings, double bpm) noexcept
+    {
+        if (! settings.dual)
+            return delaySeconds (settings, bpm);
+        auto right = settings;
+        right.timeMs = settings.timeRightMs;
+        right.syncIndex = settings.syncRightIndex;
+        return delaySeconds (right, bpm);
+    }
+
     void Delay::process (juce::dsp::AudioBlock<float> block, const Settings& settings, double bpm) noexcept
     {
         if (settings.on && ! running)
@@ -93,7 +122,8 @@ namespace effects
             // opens fully at once: there are no echoes yet to click against,
             // and fading it in would swallow a note played on the switch.
             resetState();
-            delaySamples.setCurrentAndTargetValue (delaySeconds (settings, bpm) * (float) sampleRate);
+            delaySamples[0].setCurrentAndTargetValue (delaySeconds (settings, bpm) * (float) sampleRate);
+            delaySamples[1].setCurrentAndTargetValue (delaySecondsRight (settings, bpm) * (float) sampleRate);
             feedback.setCurrentAndTargetValue (settings.feedback);
             mix.setCurrentAndTargetValue (settings.mix);
             send.setCurrentAndTargetValue (1.0f);
@@ -113,9 +143,13 @@ namespace effects
             lastType = settings.type;
         }
 
-        delaySamples.setTargetValue (delaySeconds (settings, bpm) * (float) sampleRate);
+        const auto numChannels = (int) block.getNumChannels();
+        const auto pingPong = settings.pingPong && numChannels == 2;
+        delaySamples[0].setTargetValue (delaySeconds (settings, bpm) * (float) sampleRate);
+        // Ping-pong bounces at one time: DUAL is for plain stereo echoes.
+        delaySamples[1].setTargetValue ((pingPong ? delaySeconds (settings, bpm) : delaySecondsRight (settings, bpm)) * (float) sampleRate);
         send.setTargetValue (settings.on ? 1.0f : 0.0f);
-        feedback.setTargetValue (juce::jlimit (0.0f, 0.95f, settings.feedback));
+        feedback.setTargetValue (juce::jlimit (0.0f, maxFeedback, settings.feedback));
         mix.setTargetValue (settings.mix);
 
         const auto type = settings.type;
@@ -142,13 +176,41 @@ namespace effects
         // DUCK: the Ducking type has it at least at 93% (about 18 dB).
         const auto duckAmount = type == Type::ducking ? juce::jmax (settings.duck, 0.934f) : juce::jlimit (0.0f, 1.0f, settings.duck);
 
-        const auto numChannels = (int) block.getNumChannels();
         const auto numSamples = (int) block.getNumSamples();
-        const auto pingPong = settings.pingPong && numChannels == 2;
+
+        // H-Delay's controls.
+        const auto lowCutOn = settings.lowCutHz > cutOffLowHz + 0.5f;
+        const auto highCutOn = settings.highCutHz < cutOffHighHz - 1.0f;
+        const auto nyquistSafe = [this] (float hz) { return juce::jlimit (cutOffLowHz, (float) sampleRate * 0.45f, hz); };
+        for (auto& filter : lowCutFilters)
+            filter.setCutoffFrequency (nyquistSafe (settings.lowCutHz));
+        for (auto& filter : highCutFilters)
+            filter.setCutoffFrequency (nyquistSafe (settings.highCutHz));
+        const auto modSamples = juce::jlimit (0.0f, 1.0f, settings.modDepth) * maxModMs * ms;
+        const auto modStep = juce::jlimit (0.01f, 50.0f, settings.modRateHz) / (float) sampleRate;
+        // ANALOG: how hard it drives, how lopsided (the second harmonic's
+        // warmth), how dark it gets and how much hiss (our own four).
+        struct Character { float drive, asymmetry, toneHz, hiss; };
+        constexpr Character characters[] = { { 1.0f, 0.0f, 0.0f, 0.0f }, { 1.15f, 0.025f, 12000.0f, 0.0f }, { 1.5f, 0.06f, 8500.0f, 0.0f },
+                                             { 1.5f, 0.06f, 8500.0f, 0.0012f }, { 2.4f, 0.12f, 5000.0f, 0.003f } };
+        const auto& character = characters[juce::jlimit (0, 4, (int) settings.analog)];
+        const auto analogOn = settings.analog != Analog::off;
+        const auto analogCoefficient = analogOn ? onePole (sampleRate, character.toneHz) : 1.0f;
+        const auto loFiCoefficient = onePole (sampleRate, 5500.0f);
+        // FLIP: each side's echoes' polarity, as a gain.
+        const float flipGain[maxChannels] { settings.phaseLeft ? -1.0f : 1.0f, settings.phaseRight ? -1.0f : 1.0f };
+        const auto startSide = settings.startRight ? 1 : 0;
 
         for (int i = 0; i < numSamples; ++i)
         {
-            const auto delayNow = delaySamples.getNextValue();
+            float delayBoth[maxChannels] {};
+            for (int ch = 0; ch < maxChannels; ++ch)
+                delayBoth[ch] = delaySamples[(size_t) ch].getNextValue();
+            // MOD: a triangle wave sweeping the time, both sides together.
+            modPhase += modStep;
+            modPhase -= std::floor (modPhase);
+            const auto modOffset = modSamples * (4.0f * std::abs (modPhase - 0.5f) - 1.0f);
+            const auto delayNow = delayBoth[0];
             const auto sendNow = send.getNextValue();
             const auto feedbackNow = feedback.getNextValue();
             const auto mixNow = mix.getNextValue();
@@ -174,7 +236,7 @@ namespace effects
                 // recorded backwards, cross-fading so there are no gaps.
                 // A new time takes effect as each chunk starts, so a chunk
                 // never changes length part-way through.
-                const auto length = juce::jmax (64, juce::roundToInt (delayNow));
+                const auto length = juce::jmax (64, juce::roundToInt (delayNow));   // the left side's time
                 if (reverseHeads[0].length == 0)
                 {
                     reverseHeads[0] = { reverseRings[0].write, 0, length };
@@ -197,12 +259,13 @@ namespace effects
             {
                 for (int ch = 0; ch < numChannels; ++ch)
                 {
+                    const auto sideDelay = juce::jmax (1.0f, delayBoth[ch] + modOffset);
                     for (int tap = 0; tap < 3; ++tap)
                     {
                         const auto pan = numChannels == 2 ? (ch == 0 ? 1.0f - tapPan[tap] : tapPan[tap]) * 2.0f : 1.0f;
-                        heard[ch] += delayLine.popSample (ch, juce::jmax (1.0f, delayNow * tapPosition[tap]), false) * tapGain[tap] * pan;
+                        heard[ch] += delayLine.popSample (ch, juce::jmax (1.0f, sideDelay * tapPosition[tap]), false) * tapGain[tap] * pan;
                     }
-                    looped[ch] = delayLine.popSample (ch, delayNow, true);
+                    looped[ch] = delayLine.popSample (ch, sideDelay, true);
                     heard[ch] += looped[ch] * tapGain[3];
                 }
             }
@@ -215,7 +278,7 @@ namespace effects
                     const auto wobble = wowDepth * std::sin (twoPi * phase) + flutterDepth * std::sin (twoPi * flutterPhase)
                                       + driftDepth * drift;
                     looped[ch] = delayLine.popSample (ch, juce::jlimit (1.0f, (float) (delayLine.getMaximumDelayInSamples() - 2),
-                                                                        delayNow + wobble + wowDepth + driftDepth));
+                                                                        delayBoth[ch] + modOffset + wobble + wowDepth + driftDepth));
                     heard[ch] = looped[ch];
                 }
             }
@@ -276,15 +339,45 @@ namespace effects
                 float toLine = 0.0f;
                 if (pingPong)
                 {
-                    // Feed the mono guitar into the left line only, and each
-                    // line's repeats into the other: echoes alternate L, R, L...
+                    // Feed the mono voice into one line only (START's side),
+                    // and each line's repeats into the other: echoes alternate L, R, L...
                     const auto monoIn = 0.5f * (block.getChannelPointer (0)[i] + block.getChannelPointer (1)[i]);
-                    toLine = (ch == 0 ? monoIn * sendNow : 0.0f) + filtered[1 - ch] * feedbackNow;
+                    toLine = (ch == startSide ? monoIn * sendNow : 0.0f) + filtered[1 - ch] * feedbackNow;
                 }
                 else
                 {
                     toLine = input * sendNow + filtered[ch] * feedbackNow;
                 }
+
+                // Past 100% FEEDBACK the repeats build: a soft limit holds
+                // them at about full level rather than letting them run away.
+                if (feedbackNow > 1.0f)
+                    toLine = std::tanh (toLine);
+
+                // What goes into the delay: through the filters, ANALOG and
+                // LO-FI, so each repeat goes through them again.
+                if (lowCutOn)
+                    toLine = lowCutFilters[(size_t) ch].processSample (0, toLine);
+                if (highCutOn)
+                    toLine = highCutFilters[(size_t) ch].processSample (0, toLine);
+                if (analogOn)
+                {
+                    // A little asymmetric (a touch of the second harmonic), then rounded off.
+                    const auto driven = character.drive * toLine;
+                    toLine = std::tanh (driven + character.asymmetry * driven * driven) / character.drive;
+                    analogTone[ch] += analogCoefficient * (toLine - analogTone[ch]);
+                    toLine = analogTone[ch];
+                    // Hiss on what you hear, not fed round; it stops with the delay
+                    // switched off, so the trails can end.
+                    heard[ch] += sendNow * character.hiss * (random.nextFloat() * 2.0f - 1.0f);
+                }
+                if (settings.loFi)
+                {
+                    loFiState[ch][0] += loFiCoefficient * (toLine - loFiState[ch][0]);
+                    loFiState[ch][1] += loFiCoefficient * (loFiState[ch][0] - loFiState[ch][1]);
+                    toLine = std::round (loFiState[ch][1] * 2048.0f) / 2048.0f;   // 12 bits
+                }
+                heard[ch] *= flipGain[ch];
 
                 if (type == Type::reverse)
                     reverseRings[(size_t) ch].push (toLine);

@@ -1,3 +1,5 @@
+#include "ui/EffectPanel.h"
+#include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 
 #include "Parameters.h"
@@ -64,7 +66,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         processor.saveCurrentRigAs ("Cyber Drive");
         processor.saveCurrentRigAs ("Sunday Worship Clean");
         processor.loadRig (*processor.getRigLibrary().find (rigFolder.getChildFile (juce::String ("Cyber Drive") + Rig::fileExtension)));
-        processor.getParameters().getParameter ("driveGain")->setValueNotifyingHost (0.8f);   // shows the * marker
+        processor.getParameters().getParameter ("lofiAmount")->setValueNotifyingHost (0.8f);   // shows the * marker
     }
 
     // PARAGON_SNAPSHOT_TUNER=1: the tuner on, hearing an A string 4 cents
@@ -171,6 +173,23 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         for (auto* button : buttons)
             if (button->getButtonText() == "OCTAVE / FREEZE")
                 button->onClick();
+    }
+    // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
+    // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2).
+    if (const auto page = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PANELPAGE", {}); page.isNotEmpty())
+    {
+        std::function<void (juce::Component&)> turn = [&] (juce::Component& parent)
+        {
+            for (auto* child : parent.getChildren())
+            {
+                if (auto* panel = dynamic_cast<EffectPanel*> (child); panel != nullptr && panel->isVisible())
+                    panel->showPage (page.getIntValue());
+                if (auto* mars = dynamic_cast<MarsPanel*> (child); mars != nullptr && mars->isVisible())
+                    mars->showPage (page.getIntValue());
+                turn (*child);
+            }
+        };
+        turn (*editor);
     }
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);

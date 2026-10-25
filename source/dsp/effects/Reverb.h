@@ -16,6 +16,8 @@ namespace effects
     //   spring     an amp's spring tank: dispersive, drippy, with the boing
     //   digital    an 80s rack reverb: clean, with a lush chorused tail
     //   reverse    the reverb played backwards, swelling into each note
+    //   chamber    an echo chamber: a small, hard, irregular room that turns
+    //              dense at once, with no slap off its walls (since 0.11.0)
     //
     // Room, hall, cathedral, plate, digital and reverse share one engine: a
     // feedback delay network (eight delay lines feeding back into each
@@ -28,13 +30,35 @@ namespace effects
     // each reversed swell); PRE-DELAY the gap before the reverb starts;
     // TONE how bright it is; DUCK how far it tucks under your playing.
     // Switching off lets the tail ring out.
+    //
+    // Since 0.11.0, for the network's types (all but Classic and Spring),
+    // controls inspired by the Lexicon LXP reverbs (the owner's reference,
+    // from their manual; our own design). Each starts where it changes
+    // nothing:
+    //
+    //   DECAY      the tail's length, as a multiple of what TYPE and SIZE give
+    //   BASS RT    the lows' tail as a multiple of the rest, below CROSSOVER
+    //   ROLLOFF    a high cut on the way out
+    //   DIFFUSION  how fast the first echoes smear into a dense wash
+    //   EARLY and REVERB  the early reflections' and the tail's levels
+    //   SPREAD and SHAPE  the sound fed into the tail over a window (SPREAD
+    //              long) rather than at once: early in it (SHAPE low), evenly
+    //              (middle) or late (high). With a short DECAY: gated and
+    //              inverse reverbs.
+    //   SPIN and WANDER   how fast and how far the tail's lines drift
     class Reverb
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Type { classic, room, hall, cathedral, plate, spring, digital, reverse };
-        static inline const juce::StringArray typeNames { "Classic", "Room", "Hall", "Cathedral", "Plate", "Spring", "Digital", "Reverse" };
+        enum class Type { classic, room, hall, cathedral, plate, spring, digital, reverse, chamber };
+        static inline const juce::StringArray typeNames { "Classic", "Room", "Hall", "Cathedral", "Plate", "Spring", "Digital", "Reverse", "Chamber" };
         static constexpr float maxPreDelayMs = 250.0f;
+        static constexpr float maxSpreadMs = 300.0f;
+        static constexpr float rolloffOffHz = 20000.0f;   // ROLLOFF at (or above) this: off
+        static constexpr float levelOffDb = -48.0f;       // EARLY and REVERB at (or below) this: silent
+
+        // Whether a type has the controls inspired by LXP (the network's types).
+        static bool hasNetworkControls (Type type) noexcept { return type != Type::classic && type != Type::spring; }
 
         struct Settings
         {
@@ -45,13 +69,23 @@ namespace effects
             float mix = 0.28f;        // 0 to 1
             float preDelayMs = 20.0f;
             float duck = 0.0f;        // 0 to 1: DUCK
+            float decay = 1.0f;       // DECAY: x the type's own
+            float bassRt = 1.0f;      // BASS RT: x DECAY, below CROSSOVER
+            float crossoverHz = 300.0f;
+            float rolloffHz = rolloffOffHz;
+            float diffusion = 1.0f;   // x the type's own
+            float earlyDb = 0.0f, reverbDb = 0.0f;
+            float spreadMs = 0.0f;
+            float shape = 0.5f;       // 0 early, 0.5 even, 1 late
+            float spin = 1.0f, wander = 1.0f;   // x the type's own drift rate and depth
         };
 
         void prepare (double sampleRate, int maxBlockSize);
         void process (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
 
-        // Exposed for tests: how long the tail lasts (to -60 dB), in seconds.
-        static float decaySeconds (Type type, float size) noexcept;
+        // Exposed for tests (and the stomp): how long the tail lasts (to
+        // -60 dB), in seconds; `decay` is DECAY's multiple.
+        static float decaySeconds (Type type, float size, float decay = 1.0f) noexcept;
 
     private:
         static constexpr int numLines = 8;
@@ -91,7 +125,9 @@ namespace effects
 
         // The network
         std::array<Line, numLines> lines;
-        std::array<float, numLines> lineDamping {}, linePhase {};
+        std::array<float, numLines> lineDamping {}, linePhase {}, lineBass {};
+        std::array<Line, maxChannels> spreadLines;     // SPREAD: the input, read at taps across its window
+        float rolloffState[maxChannels][2] {};
         std::array<Line, maxChannels * 4> diffusers;   // input diffusion: four all-passes per channel
         std::array<Line, maxChannels> earlyTaps;       // early reflections, read from the pre-delayed input
         float outputLowCut[maxChannels] {};

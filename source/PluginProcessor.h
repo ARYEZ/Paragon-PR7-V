@@ -9,13 +9,13 @@
 #include "dsp/effects/DeEsser.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
-#include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
+#include "dsp/effects/Mars.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/PitchBlock.h"
 #include "dsp/effects/TalkBox.h"
@@ -161,6 +161,8 @@ public:
     float getHarmonySungNote() const noexcept { return harmony.getSungNote(); }
     // DOUBLER's MOD RESET: start every voice's wobble together.
     void resetDoublerModulation() noexcept { doubler.resetModulation(); }
+    // How hard MARS's band is being driven, for its panel's display.
+    float getMarsBandDrive (int band) const noexcept { return mars.getBandDrive (band); }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -223,7 +225,9 @@ private:
     effects::CompGate compGate;
     effects::DeEsser deEsser;           // DYNAMICS' de-esser, after the compressor
     effects::FilterPitch filterPitch;   // after the compressor, before the drive
-    effects::Drive drive;
+    effects::Mars mars;   // SATURATION
+    struct MarsBandParameters { std::atomic<float>* parts[12] {}; };   // in marsBandParts' order
+    std::array<MarsBandParameters, effects::Mars::maxBands> marsBandParameters {};
     effects::Presence presence;
     effects::Harmony harmony;   // HARMONY: first in the stereo part, before the doubler
     juce::AudioBuffer<float> cleanVoice;   // the voice just after LOW CUT, for HARMONY to read the note from

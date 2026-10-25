@@ -3,13 +3,13 @@
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
-#include "dsp/effects/Drive.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/Limiter.h"
+#include "dsp/effects/Mars.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Reverb.h"
@@ -109,10 +109,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::gateThreshold, "Gate Threshold", { effects::CompGate::gateOffDb, -20.0f, 1.0f },
                            effects::CompGate::gateOffDb, v3, asGate));
 
-    layout.add (makeSwitch (ParamIDs::driveOn, "Drive On", v3, false));
-    layout.add (makeFloat (ParamIDs::driveGain, "Drive", { 0.0f, 10.0f, 0.1f }, 5.0f, v3, asKnob));
-    layout.add (makeFloat (ParamIDs::driveTone, "Drive Tone", { 0.0f, 10.0f, 0.1f }, 5.0f, v3, asKnob));
-    layout.add (makeFloat (ParamIDs::driveLevel, "Drive Level", { -24.0f, 12.0f, 0.1f }, 0.0f, v3, asDb));
+    layout.add (makeSwitch (ParamIDs::driveOn, "Drive On", v3, false));   // SATURATION: MARS's settings are version 35
 
     layout.add (makeSwitch (ParamIDs::modOn, "Mod On", v3, false));
     layout.add (makeChoice (ParamIDs::modType, "Mod Type", v3, effects::Modulation::typeNames, 0));
@@ -124,7 +121,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::delayTime, "Delay Time", skewed (1.0f, effects::Delay::maxDelaySeconds * 1000.0f, 400.0f, 1.0f),
                            375.0f, v3, asMs));
     layout.add (makeChoice (ParamIDs::delaySync, "Delay Sync", v3, effects::Delay::syncNames, 3));   // 1/4, as in the mockup
-    layout.add (makeFloat (ParamIDs::delayFeedback, "Delay Feedback", { 0.0f, 0.95f, 0.01f }, 0.35f, v3, asPercent));
+    // Up to 200% since 0.10.0 (was 95%): saved by value, so saved settings sound the same.
+    layout.add (makeFloat (ParamIDs::delayFeedback, "Delay Feedback", { 0.0f, effects::Delay::maxFeedback, 0.01f }, 0.35f, v3, asPercent));
     layout.add (makeFloat (ParamIDs::delayTone, "Delay Tone", { 0.0f, 10.0f, 0.1f }, 7.0f, v3, asKnob));
     layout.add (makeFloat (ParamIDs::delayMix, "Delay Mix", { 0.0f, 1.0f, 0.01f }, 0.25f, v3, asPercent));
     layout.add (makeSwitch (ParamIDs::delayPingPong, "Delay Ping-Pong", v3, false));
@@ -169,12 +167,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // added to the end of Mod Type's list, so saved choices keep their meaning.)
     layout.add (makeChoice (ParamIDs::modSync, "Mod Sync", 9, effects::Delay::syncNames, 0));
 
-    // Added in plugin version 10. The drive defaults to the Tube Screamer
-    // model; projects and rigs saved before it existed are given the
-    // original model when they load (see ParagonX1AudioProcessor::setStateInformation
-    // and Rig::fromXml), so they sound as they did.
+    // Added in plugin version 10 (its drive MODEL went in 0.14.0, MARS replacing the pedals).
     constexpr int v10 = 10;
-    layout.add (makeChoice (ParamIDs::driveModel, "Drive Model", v10, effects::Drive::modelNames, (int) effects::Drive::Model::screamer));
     layout.add (makeSwitch (ParamIDs::fpOn, "Filter/Pitch On", v10, false));
     layout.add (makeChoice (ParamIDs::fpType, "Filter/Pitch Type", v10, effects::FilterPitch::typeNames, 0));
     layout.add (makeFloat (ParamIDs::fpSensitivity, "Auto-Wah Sensitivity", { 0.0f, 10.0f, 0.1f }, 5.0f, v10, asKnob));
@@ -375,6 +369,98 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                            effects::CompGate::revivalGateOffDb, v31, asRevivalGate));
     layout.add (makeFloat (ParamIDs::revivalCompression, "Revival Compression", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, -12.0f, v31, asDb));
     layout.add (makeFloat (ParamIDs::revivalGain, "Revival Gain", { effects::CompGate::revivalMinDb, 0.0f, 0.1f }, 0.0f, v31, asDb));
+
+    // Added in plugin version 33: the delay's controls inspired by Waves
+    // H-Delay. Each starts where it does nothing (filters off, no MOD,
+    // ANALOG off...), so saved settings sound as they did.
+    constexpr int v33 = 33;
+    const ToText asCut = [] (float hz, int)
+    {
+        if (hz <= effects::Delay::cutOffLowHz + 0.5f || hz >= effects::Delay::cutOffHighHz - 1.0f)
+            return juce::String ("Off");
+        return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz";
+    };
+    const auto cutRange = skewed (effects::Delay::cutOffLowHz, effects::Delay::cutOffHighHz, 800.0f, 1.0f);
+    layout.add (makeSwitch (ParamIDs::delayDual, "Delay Dual", v33, false));
+    layout.add (makeFloat (ParamIDs::delayTimeRight, "Delay Time Right", skewed (1.0f, effects::Delay::maxDelaySeconds * 1000.0f, 400.0f, 1.0f),
+                           280.0f, v33, asMs));
+    layout.add (makeChoice (ParamIDs::delaySyncRight, "Delay Sync Right", v33, effects::Delay::syncNames, 7));   // 1/8 dotted: with 1/4 on the left, a classic pair
+    layout.add (makeChoice (ParamIDs::delayPingStart, "Delay Ping-Pong Start", v33, effects::Delay::pingStartNames, 0));
+    layout.add (makeSwitch (ParamIDs::delayPhaseLeft, "Delay Phase Left", v33, false));
+    layout.add (makeSwitch (ParamIDs::delayPhaseRight, "Delay Phase Right", v33, false));
+    layout.add (makeFloat (ParamIDs::delayLowCut, "Delay Low Cut", cutRange, effects::Delay::cutOffLowHz, v33, asCut));
+    layout.add (makeFloat (ParamIDs::delayHighCut, "Delay High Cut", cutRange, effects::Delay::cutOffHighHz, v33, asCut));
+    layout.add (makeFloat (ParamIDs::delayModDepth, "Delay Mod Depth", { 0.0f, 1.0f, 0.01f }, 0.0f, v33, asPercent));
+    layout.add (makeFloat (ParamIDs::delayModRate, "Delay Mod Rate", skewed (0.05f, 20.0f, 1.0f, 0.01f), 0.5f, v33, asHz));
+    layout.add (makeChoice (ParamIDs::delayAnalog, "Delay Analog", v33, effects::Delay::analogNames, 0));
+    layout.add (makeSwitch (ParamIDs::delayLoFi, "Delay Lo-Fi", v33, false));
+
+    // Added in plugin version 34: the reverb's controls inspired by the
+    // Lexicon LXP reverbs. Each starts where it changes nothing (DECAY,
+    // DIFFUSION, SPIN and WANDER at 100% of the type's own; BASS RT 1.0x;
+    // ROLLOFF off; EARLY and REVERB at 0 dB; no SPREAD), so saved settings
+    // sound as they did.
+    constexpr int v34 = 34;
+    const ToText asTimes = [] (float value, int) { return juce::String (value, 2) + "x"; };
+    const ToText asRolloff = [] (float hz, int)
+    {
+        if (hz >= effects::Reverb::rolloffOffHz - 1.0f)
+            return juce::String ("Off");
+        return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz";
+    };
+    const ToText asReverbLevel = [] (float db, int)
+    {
+        return db <= effects::Reverb::levelOffDb ? juce::String ("Off") : juce::String (db, 1) + " dB";
+    };
+    layout.add (makeFloat (ParamIDs::reverbDecay, "Reverb Decay", skewed (0.1f, 8.0f, 1.0f, 0.01f), 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbBassRt, "Reverb Bass RT", skewed (0.25f, 4.0f, 1.0f, 0.01f), 1.0f, v34, asTimes));
+    layout.add (makeFloat (ParamIDs::reverbCrossover, "Reverb Bass Crossover", skewed (50.0f, 2000.0f, 300.0f, 1.0f), 300.0f, v34,
+                           [] (float hz, int) { return juce::String (juce::roundToInt (hz)) + " Hz"; }));
+    layout.add (makeFloat (ParamIDs::reverbRolloff, "Reverb Rolloff", skewed (500.0f, effects::Reverb::rolloffOffHz, 5000.0f, 1.0f),
+                           effects::Reverb::rolloffOffHz, v34, asRolloff));
+    layout.add (makeFloat (ParamIDs::reverbDiffusion, "Reverb Diffusion", { 0.0f, 1.25f, 0.01f }, 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbEarly, "Reverb Early Level", { effects::Reverb::levelOffDb, 6.0f, 0.1f }, 0.0f, v34, asReverbLevel));
+    layout.add (makeFloat (ParamIDs::reverbLevel, "Reverb Tail Level", { effects::Reverb::levelOffDb, 6.0f, 0.1f }, 0.0f, v34, asReverbLevel));
+    layout.add (makeFloat (ParamIDs::reverbSpread, "Reverb Spread", { 0.0f, effects::Reverb::maxSpreadMs, 1.0f }, 0.0f, v34, asMs));
+    layout.add (makeFloat (ParamIDs::reverbShape, "Reverb Shape", { 0.0f, 1.0f, 0.01f }, 0.5f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbSpin, "Reverb Spin", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
+    layout.add (makeFloat (ParamIDs::reverbWander, "Reverb Wander", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
+
+    // Added in plugin version 35: MARS, the multi-band saturator, inspired by
+    // FabFilter Saturn 2. One band of Warm Tape to start, as a gentle warmth.
+    constexpr int v35 = 35;
+    const ToText asCrossover = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 2) + " kHz"; };
+    const ToText asDynamics = [] (float value, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (value) * 100.0f);
+        return amount == 0 ? juce::String ("Off") : (value < 0.0f ? "Gate " : "Comp ") + juce::String (amount) + "%";
+    };
+    const ToText asMarsLevel = [] (float db, int) { return db <= effects::Mars::minLevelDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+    const ToText asSignedDb = [] (float db, int) { return (db > 0.0f ? "+" : "") + juce::String (db, 1) + " dB"; };
+    layout.add (makeChoice (ParamIDs::marsBands, "Mars Bands", v35, { "1", "2", "3", "4" }, 0));
+    layout.add (makeFloat (ParamIDs::marsCross1, "Mars Crossover 1", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 250.0f, v35, asCrossover));
+    layout.add (makeFloat (ParamIDs::marsCross2, "Mars Crossover 2", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 2500.0f, v35, asCrossover));
+    layout.add (makeFloat (ParamIDs::marsCross3, "Mars Crossover 3", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 7000.0f, v35, asCrossover));
+    layout.add (makeChoice (ParamIDs::marsSlope, "Mars Crossover Slope", v35, effects::Mars::slopeNames, (int) effects::Mars::Slope::db24));
+    layout.add (makeFloat (ParamIDs::marsInput, "Mars Input", { -24.0f, 24.0f, 0.1f }, 0.0f, v35, asSignedDb));
+    layout.add (makeFloat (ParamIDs::marsOutput, "Mars Output", { -24.0f, 24.0f, 0.1f }, 0.0f, v35, asSignedDb));
+    layout.add (makeFloat (ParamIDs::marsMix, "Mars Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v35, asPercent));
+    layout.add (makeChoice (ParamIDs::marsQuality, "Mars Quality", v35, effects::Mars::qualityNames, (int) effects::Mars::Quality::good));
+    for (int band = 0; band < effects::Mars::maxBands; ++band)
+    {
+        const auto id = [band] (const char* part) { return ParamIDs::marsBand (band, part); };
+        const auto name = "Mars Band " + juce::String (band + 1) + " ";
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v35, true));
+        layout.add (makeChoice (id ("Style").toRawUTF8(), name + "Style", v35, effects::Mars::styleNames, (int) effects::Mars::Style::warmTape));
+        layout.add (makeFloat (id ("Drive").toRawUTF8(), name + "Drive", { 0.0f, 1.0f, 0.01f }, 0.3f, v35, asPercent));
+        layout.add (makeFloat (id ("Dynamics").toRawUTF8(), name + "Dynamics", { -1.0f, 1.0f, 0.01f }, 0.0f, v35, asDynamics));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v35, asPercent));
+        layout.add (makeFloat (id ("FbFreq").toRawUTF8(), name + "Feedback Frequency", skewed (50.0f, 10000.0f, 1000.0f, 1.0f), 1000.0f, v35, asCrossover));
+        for (const auto* tone : { "Bass", "Mid", "Treble", "Presence" })
+            layout.add (makeFloat (id (tone).toRawUTF8(), name + tone, { -12.0f, 12.0f, 0.1f }, 0.0f, v35, asSignedDb));
+        layout.add (makeFloat (id ("Mix").toRawUTF8(), name + "Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v35, asPercent));
+        layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Mars::minLevelDb, 12.0f, 0.1f }, 0.0f, v35, asMarsLevel));
+    }
     return layout;
 }
 
@@ -450,3 +536,63 @@ void moveOldDoublerSettings (const std::function<std::optional<float> (const cha
     set (ParamIDs::modOn, 0.0f);
     set (ParamIDs::modType, (float) effects::Modulation::Type::chorus);
 }
+
+void convertOldDrive (const std::function<std::optional<float> (const juce::String&)>& get,
+                      const std::function<void (const juce::String&, float)>& set)
+{
+    // The old models, by their saved number: Classic, Screamer, Muff, Face, and MARS.
+    constexpr int classic = 0, screamer = 1, muff = 2, face = 3, mars = 4;
+    const auto savedModel = get (ParamIDs::driveModel);
+    const auto model = savedModel.has_value() ? juce::roundToInt (*savedModel) : screamer;   // the old default
+    if (model == mars)
+        return;
+    const auto gain = get (ParamIDs::driveGain).value_or (5.0f);
+    const auto tone = get (ParamIDs::driveTone).value_or (5.0f);
+    const auto level = get (ParamIDs::driveLevel).value_or (0.0f);
+    const auto wasOn = get (ParamIDs::driveOn).value_or (0.0f) > 0.5f;
+    const auto touched = model != screamer || std::abs (gain - 5.0f) > 0.01f || std::abs (tone - 5.0f) > 0.01f || std::abs (level) > 0.01f;
+    if (! wasOn && ! touched)
+        return;   // never used: MARS as it starts
+
+    using Style = effects::Mars::Style;
+    const auto band = [&] (int index, const char* part, float value) { set (ParamIDs::marsBand (index, part), value); };
+    const auto drive = juce::jlimit (0.0f, 1.0f, 0.15f + 0.07f * gain);   // DRIVE 0-10 onto MARS's 0-100%
+    const auto treble = juce::jlimit (-12.0f, 12.0f, (tone - 5.0f) * 2.0f);   // TONE onto TREBLE
+    const auto bandLevel = juce::jlimit (effects::Mars::minLevelDb, 12.0f, level);
+    set (ParamIDs::marsBands, 0.0f);
+    switch (model)
+    {
+        case screamer:
+            // The TS trick: the bass stays clean, only the mids up are driven
+            // (its clipping path starts at about 720 Hz), with a mid push.
+            set (ParamIDs::marsBands, 1.0f);
+            set (ParamIDs::marsCross1, 720.0f);
+            band (0, "On", 0.0f);
+            band (0, "Level", bandLevel);
+            band (1, "Style", (float) Style::saturatedTube);
+            band (1, "Drive", drive);
+            band (1, "Mid", 3.0f);
+            band (1, "Treble", treble);
+            band (1, "Level", bandLevel);
+            return;
+        case muff:
+            // Long, smooth fuzz with the mids scooped.
+            band (0, "Style", (float) Style::americanAmp);
+            band (0, "Drive", juce::jmin (1.0f, drive + 0.15f));
+            band (0, "Mid", -4.0f);
+            break;
+        case face:
+            // A raspy, lopsided fuzz.
+            band (0, "Style", (float) Style::brokenTube);
+            band (0, "Drive", drive);
+            break;
+        case classic:
+        default:
+            band (0, "Style", (float) Style::saturatedTube);
+            band (0, "Drive", drive);
+            break;
+    }
+    band (0, "Treble", treble);
+    band (0, "Level", bandLevel);
+}
+

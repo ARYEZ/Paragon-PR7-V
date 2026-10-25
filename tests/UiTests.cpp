@@ -1,3 +1,4 @@
+#include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -144,15 +145,20 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: ten EffectPanels, with the
-    // graphic EQ's own panel as block 5 (after SATURATION) and DOUBLER's as 7.
+    // The knob panels in signal-chain order: nine EffectPanels, with
+    // SATURATION's own (MARS) as block 4, the graphic EQ's as 5 and
+    // DOUBLER's as 7.
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 10);
+    REQUIRE (effectPanels.size() == 9);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
     std::vector<juce::Component*> panels (effectPanels.begin(), effectPanels.end());
+    std::vector<MarsPanel*> marsPanels;
+    findAll (*editor, marsPanels);
+    REQUIRE (marsPanels.size() == 1);
+    panels.insert (panels.begin() + 4, marsPanels[0]);
     constexpr int eqIndex = 5;
     panels.insert (panels.begin() + eqIndex, eqPanels[0]);
     std::vector<DoublerPanel*> doublerPanels;
@@ -249,7 +255,7 @@ TEST_CASE ("BYPASS passes the clean voice, on both channels", "[ui][bypass]")
 
     // Make the processed sound very different from the input...
     set (processor, ParamIDs::driveOn, 1.0f);
-    set (processor, ParamIDs::driveGain, 10.0f);
+    set (processor, ParamIDs::lofiAmount, 10.0f);
     set (processor, ParamIDs::inputGain, 12.0f);
     set (processor, ParamIDs::bypass, 1.0f);
 
@@ -293,7 +299,7 @@ TEST_CASE ("BYPASS is global: rigs don't change it and it doesn't mark them modi
     const auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("ParagonX1UiTests").getChildFile (juce::Uuid().toString());
     processor.useRigFolder (folder);
 
-    processor.loadRig (*processor.getRigLibrary().findFactory ("Studio Clean"));
+    processor.loadRig (*processor.getRigLibrary().findFactory ("Studio Vocal"));
     set (processor, ParamIDs::bypass, 1.0f);
     CHECK_FALSE (processor.isRigModified());
 
@@ -537,3 +543,41 @@ TEST_CASE ("The PITCH stomp: first press HARMONY; then it brings back whatever w
     CHECK_FALSE (on (ParamIDs::harmonyOn));
     CHECK (on (ParamIDs::octOn));
 }
+
+TEST_CASE ("MARS's display: double-click splits a band (the new one copies it), right-click removes one", "[ui][mars]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    const auto value = [&] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    const auto setValue = [&] (const juce::String& id, float plain)
+    {
+        auto* parameter = parameters.getParameter (id);
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (plain));
+    };
+    MarsPanel panel (parameters, [] (int) { return 0.0f; });
+    panel.setBounds (0, 0, 672, 254);
+
+    setValue (ParamIDs::marsBand (0, "Style"), (float) effects::Mars::Style::britishAmp);
+    setValue (ParamIDs::marsBand (0, "Drive"), 0.7f);
+    panel.splitBand (0, 1000.0f);
+    CHECK (juce::roundToInt (value (ParamIDs::marsBands)) == 1);   // 2 bands
+    CHECK_THAT (value (ParamIDs::marsCross1), Catch::Matchers::WithinAbs (1000.0, 1.0));
+    CHECK (juce::roundToInt (value (ParamIDs::marsBand (1, "Style"))) == (int) effects::Mars::Style::britishAmp);
+    CHECK_THAT (value (ParamIDs::marsBand (1, "Drive")), Catch::Matchers::WithinAbs (0.7, 0.01));
+    CHECK (panel.getSelectedBand() == 1);
+
+    // Split the top band again, then remove the middle one: the top one moves down.
+    setValue (ParamIDs::marsBand (1, "Style"), (float) effects::Mars::Style::warmTube);
+    panel.splitBand (1, 4000.0f);
+    CHECK (juce::roundToInt (value (ParamIDs::marsBands)) == 2);   // 3 bands
+    CHECK_THAT (value (ParamIDs::marsCross2), Catch::Matchers::WithinAbs (4000.0, 1.0));
+    setValue (ParamIDs::marsBand (2, "Style"), (float) effects::Mars::Style::foldback);
+    panel.removeBand (1);
+    CHECK (juce::roundToInt (value (ParamIDs::marsBands)) == 1);
+    CHECK (juce::roundToInt (value (ParamIDs::marsBand (1, "Style"))) == (int) effects::Mars::Style::foldback);
+    CHECK_THAT (value (ParamIDs::marsCross1), Catch::Matchers::WithinAbs (1000.0, 1.0));
+
+    // The display's frequency scale runs both ways.
+    CHECK_THAT (panel.frequencyAt (panel.xFor (2500.0f)), Catch::Matchers::WithinRel (2500.0f, 0.001f));
+}
+

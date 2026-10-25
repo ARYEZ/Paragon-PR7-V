@@ -13,7 +13,7 @@ namespace
     // 15: the reverb's TYPE, defaulting to HALL.
     // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
     // 30: the four-voice DOUBLER, replacing its RATE, DEPTH and MIX.
-    constexpr int parameterVersion = 32;
+    constexpr int parameterVersion = 36;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
@@ -100,6 +100,13 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     // ...and 0.7.0's DOUBLER, before DRIFT and its stronger start.
     else if (savedWith < 32)
         keepDoublerAsSaved (get, set);
+    // Saved with a pedal drive model: now MARS, set up to sound close to it.
+    if (savedWith < 36)
+    {
+        convertOldDrive (get, set);
+        for (const auto* gone : { ParamIDs::driveModel, ParamIDs::driveGain, ParamIDs::driveTone, ParamIDs::driveLevel })
+            rig.parameters.erase (gone);
+    }
 
     return rig;
 }
