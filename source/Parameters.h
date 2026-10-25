@@ -172,6 +172,7 @@ namespace ParamIDs
     inline constexpr auto harmonyLevel          = "harmonyLevel";          // dB: all the harmony voices
     inline constexpr auto harmonyCorrectFormant = "harmonyCorrectFormant"; // 0 to 1
     inline constexpr auto harmonySpread         = "harmonySpread";         // 0 to 1
+    inline constexpr auto harmonyCorrect        = "harmonyCorrect";        // version 38: CORRECT, Off / Natural / Hard
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }

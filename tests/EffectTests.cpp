@@ -3354,6 +3354,185 @@ TEST_CASE ("MARS with all 16 slots busy still runs comfortably faster than real 
     CHECK (fraction < 0.3);
 }
 
+
+//==============================================================================
+// HARMONY stage 2: CORRECT, pitch correction of the singer's own voice.
+namespace
+{
+    struct CorrectRig : EffectRig
+    {
+        explicit CorrectRig (effects::Harmony::Correct mode, int key = 0, Scales::Scale scale = Scales::Scale::major)
+        {
+            set (ParamIDs::harmonyCorrect, (float) mode);
+            set (ParamIDs::harmonyKey, (float) key);
+            set (ParamIDs::harmonyScale, (float) scale);
+            processor.updateLatency();   // the timer's job in a DAW
+        }
+    };
+
+    double cents (double hz, double reference) { return 1200.0 * std::log2 (hz / reference); }
+
+    // When a signal first gets loud (seconds), or -1.
+    double onsetOf (const std::vector<float>& samples, float threshold = 0.01f)
+    {
+        for (size_t i = 0; i < samples.size(); ++i)
+            if (std::abs (samples[i]) > threshold)
+                return (double) i / sampleRate;
+        return -1.0;
+    }
+}
+
+TEST_CASE ("HARMONY CORRECT: your voice tuned to the nearest note in the key", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    const auto A3 = 220.0, D4 = 293.665;
+    const auto flatA = A3 * std::pow (2.0, -30.0 / 1200.0);
+
+    SECTION ("A singer 30 cents flat on an A comes out on the A, NATURAL or HARD; OFF leaves them flat")
+    {
+        for (const auto mode : { Correct::natural, Correct::hard })
+        {
+            CorrectRig rig (mode);
+            const auto out = pitchOf (rig.runMono (sungVowel (flatA, 1.0)));
+            CAPTURE ((int) mode, out);
+            CHECK (std::abs (cents (out, A3)) < 5.0);
+        }
+        CorrectRig off (Correct::off);
+        CHECK (std::abs (cents (pitchOf (off.runMono (sungVowel (flatA, 1.0))), flatA)) < 3.0);
+    }
+
+    SECTION ("A note outside the key goes to the nearest one in it: C# (a little sharp) in C major becomes D")
+    {
+        CorrectRig rig (Correct::hard);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 10.0 / 1200.0), 1.0)));
+        CAPTURE (out);
+        CHECK (std::abs (cents (out, D4)) < 5.0);
+    }
+
+    SECTION ("The KEY decides: the same C# in A major is in the key, so it's only pulled to C# itself")
+    {
+        CorrectRig rig (Correct::hard, 9 /* A */);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 25.0 / 1200.0), 1.0)));
+        CAPTURE (out);
+        CHECK (std::abs (cents (out, 277.183)) < 5.0);
+    }
+
+    SECTION ("SCALE Chromatic (no key needed): every note counts, so C# is only pulled onto C# itself")
+    {
+        CorrectRig rig (Correct::hard, 0, Scales::Scale::chromatic);
+        const auto out = pitchOf (rig.runMono (sungVowel (277.183 * std::pow (2.0, 25.0 / 1200.0), 1.0)));
+        CHECK (std::abs (cents (out, 277.183)) < 5.0);
+    }
+
+    SECTION ("The voice keeps its vowel: the resonance stays where it was")
+    {
+        // A strong resonance at 800 Hz: after a 40-cent correction, the
+        // overtones near it are still the loudest (as they would be if the
+        // formants moved too, but 40 cents moves them only 2%: so check the
+        // level around 800 Hz holds rather than dropping).
+        CorrectRig rig (Correct::hard);
+        const auto out = rig.runMono (sungVowel (flatA, 1.0, 800.0));
+        const auto in = sungVowel (flatA, 1.0, 800.0);
+        const auto bandLevel = [] (const std::vector<float>& s, double fundamental)
+        {
+            auto sum = 0.0f;
+            for (int h = 3; h <= 4; ++h)   // the overtones either side of 800 Hz
+                sum += levelAt (s, h * fundamental, 0.5);
+            return sum;
+        };
+        CHECK_THAT (dB (bandLevel (out, A3) / bandLevel (in, flatA)), WithinAbs (0.0, 2.0));
+    }
+}
+
+TEST_CASE ("HARMONY CORRECT: NATURAL glides to the note, HARD jumps", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    // How long the correction takes from first moving to 90% of the way (seconds).
+    const auto settleTime = [] (Correct mode)
+    {
+        effects::Harmony harmony;
+        harmony.prepare (sampleRate, blockSize);
+        effects::Harmony::Settings settings;
+        settings.correct = mode;
+        settings.latency = (int) (effects::Harmony::correctLatencySeconds * sampleRate);
+        const auto voice = sungVowel (220.0 * std::pow (2.0, -40.0 / 1200.0), 1.0);
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        std::vector<float> trace;
+        for (size_t start = 0; start + blockSize <= voice.size(); start += blockSize)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                buffer.copyFrom (ch, 0, voice.data() + start, blockSize);
+            juce::dsp::AudioBlock<float> block (buffer);
+            harmony.process (block, voice.data() + start, settings);
+            trace.push_back (harmony.getCorrection());
+        }
+        const auto final = trace.back();
+        int first = -1, reached = -1;
+        for (int i = 0; i < (int) trace.size(); ++i)
+        {
+            if (first < 0 && std::abs (trace[(size_t) i]) > 0.01f)
+                first = i;
+            if (reached < 0 && std::abs (trace[(size_t) i]) >= 0.9f * std::abs (final))
+                reached = i;
+        }
+        CAPTURE (final, first, reached);
+        CHECK_THAT (final, WithinAbs (0.4, 0.03));   // 40 cents up, onto the A
+        return (reached - first) * blockSize / sampleRate;
+    };
+    const auto hard = settleTime (Correct::hard), natural = settleTime (Correct::natural);
+    CAPTURE (hard, natural);
+    CHECK (hard < 0.02);
+    CHECK (natural > 0.08);
+    CHECK (natural < 0.3);
+}
+
+TEST_CASE ("HARMONY CORRECT: the plugin runs 40 ms late only while it's on, and says so", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    std::vector<float> input ((size_t) (0.2 * sampleRate), 0.0f);
+    const auto note = sungVowel (220.0, 0.5);
+    input.insert (input.end(), note.begin(), note.end());
+
+    CorrectRig off (Correct::off);
+    CHECK (off.processor.getLatencySamples() == 0);
+    CHECK_THAT (onsetOf (off.runMono (input)), WithinAbs (0.2, 0.002));
+
+    CorrectRig on (Correct::natural);
+    CHECK (on.processor.getLatencySamples() == juce::roundToInt (0.04 * sampleRate));
+    // Within one vocal pulse (4.5 ms at 220 Hz) of the 40 ms it reports.
+    CHECK_THAT (onsetOf (on.runMono (input)), WithinAbs (0.24, 0.006));
+
+    // Switched back off: no delay again.
+    on.set (ParamIDs::harmonyCorrect, (float) Correct::off);
+    on.processor.updateLatency();
+    CHECK (on.processor.getLatencySamples() == 0);
+}
+
+TEST_CASE ("HARMONY CORRECT: works with HARMONY off, and harmonies stay in tune with it", "[effects][harmony][correct]")
+{
+    using Correct = effects::Harmony::Correct;
+    const auto flatA = 220.0 * std::pow (2.0, -30.0 / 1200.0);
+
+    SECTION ("HARMONY off: only your voice, tuned, at full level")
+    {
+        CorrectRig rig (Correct::natural);
+        rig.set (ParamIDs::harmonyOn, 0.0f);
+        const auto input = sungVowel (flatA, 1.0);
+        const auto out = rig.runMono (input);
+        CHECK (std::abs (cents (pitchOf (out), 220.0)) < 5.0);
+        CHECK_THAT (dB (rms (out, 0.5) / rms (input, 0.5)), WithinAbs (0.0, 1.0));
+    }
+
+    SECTION ("HARMONY on: a fifth above the tuned voice, in tune, in time with it")
+    {
+        HarmonyRig rig (7.0f);
+        rig.set (ParamIDs::harmonyCorrect, (float) Correct::natural);
+        rig.processor.updateLatency();
+        const auto out = rig.runMono (sungVowel (flatA, 1.0));
+        CHECK (std::abs (cents (pitchOf (out), 329.628)) < 5.0);
+    }
+}
+
 TEST_CASE ("AEON: the flanger follows the BF-2's circuit and specifications", "[effects][modulation]")
 {
     using effects::Aeon;

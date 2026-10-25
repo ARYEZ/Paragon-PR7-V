@@ -2,8 +2,9 @@
 
 Each version's notes appear on its GitHub Release page.
 
-## Next (not released yet: waits for the TUNE VOICE release, then goes out with it)
+## 0.18.0
 
+- **Everything in one build:** AEON, plus TUNE VOICE (0.17.0), MARS modulation, the vocal EQ presets and bank F (0.15.0 to 0.16.0).
 - **AEON replaces the generic flanger:** a flanger modelled on the Boss BF-2, built stage by stage from its schematic with the real component values. It's the same model as in PR7-B 0.11.0, and the first in a plan to model a specific pedal for each modulation effect.
   - **The pedal's four knobs:** MANUAL (the delay time), DEPTH, RATE and RES (resonance). MIX is greyed out, because the pedal always mixes dry and wet 50/50, which makes the notches deep.
   - **The delay:** a bucket-brigade chip (BBD) model, 13 ms down to 1 ms across MANUAL, the pedal's specified range. The old flanger only reached 0.5 to 5.5 ms, so AEON sweeps much lower and deeper. At full DEPTH, MANUAL does nothing, as the pedal's manual says.
@@ -13,6 +14,20 @@ Each version's notes appear on its GitHub Release page.
   - **Your sound:** rigs and projects that used the old flanger now get AEON, with MANUAL and RES at 5. Expect it to be louder (up to about 6 dB on the comb's peaks), because dry and wet add at full level.
   - **Two details are estimates,** because the schematic can't show them: how much signal the BBD chip and its output stage lose, and where the factory set the RES trimmer. Both are set so full RES rings hard without howling.
 - **Jet Voice (E7) and Metallic Voice (E13)** now use AEON: RES well up for the whoosh, nearly full with a short delay for the metallic edge.
+
+## 0.17.0
+
+- **Pitch correction for your voice: TUNE VOICE (HARMONY stage 2).** Inspired by the CORRECT button in Waves Harmony. It's in the HARMONY panel's header (the PITCH stomp's panel) and tunes your own voice to the nearest note in the song's **KEY** and **SCALE**:
+  - **Natural:** glides to the note, so vibrato, slides and expression mostly survive. A gentle tidy-up.
+  - **Hard:** jumps straight to the note, turning slides into steps: the robotic tuned-vocal sound.
+  - **Off:** as before.
+- **Set the key first.** A note outside the KEY and SCALE goes to the nearest one inside it. If you don't know the key, choose SCALE **Chromatic**: every note counts, and the voice just goes to the nearest semitone.
+- **It works with HARMONY off too,** so you can use it purely to tune your voice. With HARMONY on, the harmony voices stay in time with your tuned voice.
+- **SINGING** now also shows the note it's tuning you to.
+- **Your vowels stay yours:** it moves the pitch, not the voice's character.
+- **The trade-off: a 40 ms delay while it's on.** Tuning needs a moment of your voice to work with. PR7-V tells your DAW, which lines the vocal back up on playback. Singing live through it, you'll hear yourself 40 ms late. With TUNE VOICE off there's no delay at all, as before.
+- **Two new factory rigs:** **Tuned Lead** (A08, Natural) and **Hard Tune** (E21, the robotic sound).
+- **Our design where the guide doesn't say:** the glide speeds (Natural about 60 ms, Hard about 3 ms) and how a note is held so a voice right between two notes doesn't flicker. Waves' NOTES mode (tuning to played or generated notes) comes with MIDI input and Generate Notes in a later stage.
 
 ## 0.16.0
 

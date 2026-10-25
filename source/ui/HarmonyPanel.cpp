@@ -42,9 +42,11 @@ namespace
     }
 }
 
-HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::function<float()> sungNoteSource)
+HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::function<float()> sungNoteSource,
+                            std::function<float()> correctNoteSource)
     : parameters (state), sungNote (std::move (sungNoteSource))
 {
+    correctNote = std::move (correctNoteSource);
     setUp (harmonyOn, "HARMONY");
     harmonyOn.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, ParamIDs::harmonyOn, harmonyOn.button);
     setUp (voiceOn, "ON");
@@ -52,7 +54,8 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     voiceCorrect.button.setTooltip ("Keep this voice in the key and scale");
 
     for (auto [label, box, id, text] : { std::tuple { &keyLabel, &key, ParamIDs::harmonyKey, "KEY" },
-                                         std::tuple { &scaleLabel, &scale, ParamIDs::harmonyScale, "SCALE" } })
+                                         std::tuple { &scaleLabel, &scale, ParamIDs::harmonyScale, "SCALE" },
+                                         std::tuple { &correctLabel, &correct, ParamIDs::harmonyCorrect, "TUNE VOICE" } })
     {
         styleLabel (*label, text);
         addAndMakeVisible (*label);
@@ -66,6 +69,9 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     keyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyKey, key);
     scaleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyScale, scale);
     key.setTooltip ("The song's key: harmony voices are kept in it");
+    correctAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyCorrect, correct);
+    correct.setTooltip ("Tune your own voice to the nearest note in the KEY and SCALE. Natural glides to it; Hard jumps (the robotic sound). "
+                        "Works with HARMONY off too. While it's on, the plugin runs 40 ms late (your DAW lines it back up)");
 
     setUp (pitch, "PITCH");
     setUp (fine, "FINE");
@@ -298,9 +304,17 @@ void HarmonyPanel::timerCallback()
         const auto named = PitchDetector::toNote (Scales::hzFromMidi (note));
         text = named.name + juce::String (named.octave);
     }
-    if (text != shownSung)
+    // ...and, with CORRECT on, the note it's tuning to.
+    juce::String tuned;
+    if (const auto target = correctNote ? correctNote() : -1.0f; target >= 0.0f && juce::roundToInt (value (ParamIDs::harmonyCorrect)) > 0)
+    {
+        const auto named = PitchDetector::toNote (Scales::hzFromMidi (target));
+        tuned = juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92 ")) + named.name + juce::String (named.octave);
+    }
+    if (text != shownSung || tuned != shownTuned)
     {
         shownSung = text;
+        shownTuned = tuned;
         repaint (sungArea.getSmallestIntegerContainer());
     }
     repaint (graph.expanded (2.0f).getSmallestIntegerContainer());
@@ -324,6 +338,13 @@ void HarmonyPanel::resized()
     scale.setBounds (left.removeFromTop (26).reduced (4, 0));
     left.removeFromTop (4);
     sungArea = left.toFloat();
+
+    // CORRECT (Waves Harmony puts it by SOURCE; here there's room in the
+    // header, left of the GRAPHIC EQ button the main view places).
+    // (MainView puts that button 130 px in from the right edge.)
+    auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).withRight (getWidth() - 130 - 8);
+    correct.setBounds (header.removeFromRight (78).reduced (0, 1));
+    correctLabel.setBounds (header.removeFromRight (62));
 
     // Middle: the graph, and the picked voice's pan and level under it.
     auto middle = area.removeFromLeft (212);
@@ -392,7 +413,14 @@ void HarmonyPanel::paint (juce::Graphics& g)
         g.drawText ("SINGING", area.removeFromTop (14.0f), juce::Justification::centred, false);
         g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : ParagonColours::pitch);
         g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
+        const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
         g.drawText (shownSung, area, juce::Justification::centred, false);
+        if (shownTuned.isNotEmpty())
+        {
+            g.setColour (ParagonColours::accent);
+            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.drawText (shownTuned, tunedLine, juce::Justification::centred, false);
+        }
     }
 
     // The graph: level lines across, the middle line down, L and R.

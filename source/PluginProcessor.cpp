@@ -116,7 +116,26 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     expressionVolume.setCurrentAndTargetValue (1.0f);
     tunerOpen.reset (sampleRate, gainRampSeconds);
     tunerOpen.setCurrentAndTargetValue (isOn (ParamIDs::tunerOn) && isOn (ParamIDs::tunerMute) ? 0.0f : 1.0f);
-    setLatencySamples (0);   // nothing in the chain looks ahead
+    // Nothing in the chain looks ahead, except HARMONY's CORRECT while it's on.
+    correctLatency = wantedLatency();
+    setLatencySamples (correctLatency.load());
+}
+
+int ParagonX1AudioProcessor::wantedLatency() const noexcept
+{
+    const auto correcting = juce::roundToInt (param (ParamIDs::harmonyCorrect)) != (int) effects::Harmony::Correct::off;
+    return correcting ? juce::roundToInt (effects::Harmony::correctLatencySeconds * getSampleRate()) : 0;
+}
+
+void ParagonX1AudioProcessor::updateLatency()
+{
+    // The audio thread switches CORRECT's delay only once the DAW has been
+    // told, so what it reports and what it does always agree.
+    if (const auto wanted = wantedLatency(); wanted != getLatencySamples())
+    {
+        setLatencySamples (wanted);
+        correctLatency = wanted;
+    }
 }
 
 juce::AudioProcessorParameter* ParagonX1AudioProcessor::getBypassParameter() const
@@ -470,6 +489,8 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     harmonySettings.harmonyDb = param (ParamIDs::harmonyLevel);
     harmonySettings.correctFormant = param (ParamIDs::harmonyCorrectFormant);
     harmonySettings.spread = param (ParamIDs::harmonySpread);
+    harmonySettings.correct = (effects::Harmony::Correct) juce::roundToInt (param (ParamIDs::harmonyCorrect));
+    harmonySettings.latency = correctLatency.load();
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
@@ -637,6 +658,7 @@ void ParagonX1AudioProcessor::timerCallback()
 {
     syncMidiExpressionToParameter();
     recordCheckpointIfReady();
+    updateLatency();
 }
 
 //==============================================================================
