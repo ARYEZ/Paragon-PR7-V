@@ -112,6 +112,7 @@ namespace effects
                 case Model::muff:     processMuff (block, settings); break;
                 case Model::face:     processFace (block, settings); break;
                 case Model::classic:  processClassic (block, settings); break;
+                case Model::mars:     break;   // run by effects::Mars instead
             }
         });
     }

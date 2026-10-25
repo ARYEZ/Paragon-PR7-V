@@ -2,6 +2,22 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.13.0
+
+- **MARS: a multi-band saturator for SATURATION.** Pick MARS as SATURATION's MODEL. Inspired by FabFilter Saturn 2: our own design, following how its manual describes it.
+  - **Up to four bands.** Your voice is split by frequency, and each band is saturated its own way: for example, clean lows so nothing gets muddy, gritty mids for bite, smooth tape on the highs. The bands add back up exactly when nothing is done to them.
+  - **The display:** each band is a column, its DRIVE a bar. Click a band to edit it, drag a crossover line to move it, drag up or down in a band for its DRIVE, double-click to split a band (the new one copies it), right-click to remove one. BANDS sets how many.
+  - **21 STYLES**, in Saturn 2's families: **Tube** (Clean, Warm, Saturated, Broken), **Tape** (Clean, Warm, Saturated, Extreme), **Transformer** (Subtle, Warm, Lush), **Amp** (American, British, Smooth, Crunchy, Screaming) and **FX** (Smudge: the sound smeared and stretched; Breakdown: pitched down and crushed; Foldback; Rectify; Destroy: bits and sample rate crushed).
+  - **Each band:** DRIVE (its level stays about the same as you turn it up, so you hear the character, not just louder), DYNAMICS (left: a gate; right: pumping compression), FEEDBACK and FB FREQ (the band rings, like a mic near its speaker; it stops when you stop singing), BASS, MID, TREBLE, PRESENCE, MIX (clean against saturated) and LEVEL.
+  - **GLOBAL page:** INPUT, OUTPUT, MIX, QUALITY (oversampling: Off, Good 4x, Superb 8x; cleaner highs on heavy drive, for more CPU) and the crossovers' SLOPE (6 to 48 dB per octave). Still no latency.
+  - **Three new factory rigs:** Tape Warmth (A07), Multiband Grit (B06) and Broken Transmission (E15).
+- **Honest limits:**
+  - Saturn 2's manual describes what each style family is for, not how it's built, so all 21 curves are our own.
+  - Its modulation system (LFOs, envelopes, XY pads) isn't built yet: that's the next stage. Nor are band solo/mute and linear-phase mode.
+  - SATURATION sits in the mono part of the vocal chain, so there are no pan or mid/side controls.
+  - At the heaviest (four bands of the most complex styles, Superb), it uses about a fifth of one CPU core; one or two bands at Good, far less.
+- The four pedal models are unchanged, and rigs that use them sound the same.
+
 ## 0.12.0
 
 - **42 factory rigs for the voice.** The guitar rigs PR7-V started with are gone; your own saved rigs are untouched. They show off the new delay, reverb, doubler and Revival compressor. Most start with a compressor and the de-esser, as a vocal chain would. Five banks:

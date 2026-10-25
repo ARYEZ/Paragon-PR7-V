@@ -36,6 +36,9 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
     for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::harmonyVoiceParts.size(); ++part)
             harmonyVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::harmonyVoice (voice, ParamIDs::harmonyVoiceParts[part]));
+    for (int band = 0; band < effects::Mars::maxBands; ++band)
+        for (int part = 0; part < ParamIDs::marsBandParts.size(); ++part)
+            marsBandParameters[(size_t) band].parts[part] = parameters.getRawParameterValue (ParamIDs::marsBand (band, ParamIDs::marsBandParts[part]));
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
@@ -89,6 +92,7 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     filterPitch.prepare (sampleRate, preparedBlockSize);
     deEsser.prepare (sampleRate, preparedBlockSize);
     drive.prepare (sampleRate, preparedBlockSize);
+    mars.prepare (sampleRate, preparedBlockSize);
     presence.prepare (sampleRate, preparedBlockSize);
     lowCut.prepare (sampleRate, preparedBlockSize);
     lowCut.reset (param (ParamIDs::inputLowCut));
@@ -300,8 +304,39 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
-    drive.process (monoBlock, { isOn (ParamIDs::driveOn), (effects::Drive::Model) (int) param (ParamIDs::driveModel),
+    // SATURATION: the pedal models, or MARS. Each fades itself in or out, so
+    // changing MODEL doesn't click.
+    const auto driveModel = (effects::Drive::Model) (int) param (ParamIDs::driveModel);
+    const auto marsPicked = driveModel == effects::Drive::Model::mars;
+    drive.process (monoBlock, { isOn (ParamIDs::driveOn) && ! marsPicked, driveModel,
                                 param (ParamIDs::driveGain), param (ParamIDs::driveTone), param (ParamIDs::driveLevel) });
+    effects::Mars::Settings marsSettings;
+    marsSettings.on = isOn (ParamIDs::driveOn) && marsPicked;
+    marsSettings.numBands = (int) param (ParamIDs::marsBands) + 1;
+    marsSettings.crossoverHz = { param (ParamIDs::marsCross1), param (ParamIDs::marsCross2), param (ParamIDs::marsCross3) };
+    marsSettings.slope = (effects::Mars::Slope) (int) param (ParamIDs::marsSlope);
+    marsSettings.inputDb = param (ParamIDs::marsInput);
+    marsSettings.outputDb = param (ParamIDs::marsOutput);
+    marsSettings.mix = param (ParamIDs::marsMix);
+    marsSettings.quality = (effects::Mars::Quality) (int) param (ParamIDs::marsQuality);
+    for (size_t b = 0; b < marsSettings.bands.size(); ++b)
+    {
+        const auto& parts = marsBandParameters[b].parts;
+        auto& band = marsSettings.bands[b];
+        band.on = parts[0]->load() > 0.5f;
+        band.style = (effects::Mars::Style) (int) parts[1]->load();
+        band.drive = parts[2]->load();
+        band.dynamics = parts[3]->load();
+        band.feedback = parts[4]->load();
+        band.feedbackHz = parts[5]->load();
+        band.bassDb = parts[6]->load();
+        band.midDb = parts[7]->load();
+        band.trebleDb = parts[8]->load();
+        band.presenceDb = parts[9]->load();
+        band.mix = parts[10]->load();
+        band.levelDb = parts[11]->load();
+    }
+    mars.process (monoBlock, marsSettings);
 
     presence.process (monoBlock, param (ParamIDs::presence));
 

@@ -49,7 +49,10 @@ descriptions below still talk about guitar.
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
     what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
-  - **2 Saturation:** four models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
+  - **2 Saturation:** **MARS**, a multi-band saturator inspired by FabFilter Saturn 2: up to four frequency bands,
+    each with its own STYLE (21: tubes, tapes, transformers, amps and effects like Smudge, Breakdown and Destroy), DRIVE
+    (its level kept even), DYNAMICS, FEEDBACK, a four-band TONE, MIX and LEVEL; click and drag the bands on its display.
+    And four pedal models: **Screamer**, modelled on the Ibanez TS808 Tube Screamer's circuit;
     **Classic**, Paragon's original overdrive; **Muff Fuzz**, following the Big Muff's two clipping stages and
     mid-scooping tone stack; and **Face Fuzz**, following the silicon Fuzz Face's uneven clipping. Drive, tone,
     level; 8x oversampled to avoid harsh aliasing.

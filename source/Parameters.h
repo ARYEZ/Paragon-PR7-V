@@ -212,6 +212,20 @@ namespace ParamIDs
     inline constexpr auto reverbShape     = "reverbShape";
     inline constexpr auto reverbSpin      = "reverbSpin";
     inline constexpr auto reverbWander    = "reverbWander";
+    // Version 35: MARS, SATURATION's multi-band MODEL (inspired by FabFilter Saturn 2).
+    inline constexpr auto marsBands   = "marsBands";
+    inline constexpr auto marsCross1  = "marsCross1";
+    inline constexpr auto marsCross2  = "marsCross2";
+    inline constexpr auto marsCross3  = "marsCross3";
+    inline constexpr auto marsSlope   = "marsSlope";
+    inline constexpr auto marsInput   = "marsInput";
+    inline constexpr auto marsOutput  = "marsOutput";
+    inline constexpr auto marsMix     = "marsMix";
+    inline constexpr auto marsQuality = "marsQuality";
+    // Each of the four bands: "mb1Drive", "mb3Style"... (band 1 to 4).
+    inline const juce::StringArray marsBandParts { "On", "Style", "Drive", "Dynamics", "Feedback", "FbFreq",
+                                                   "Bass", "Mid", "Treble", "Presence", "Mix", "Level" };
+    inline juce::String marsBand (int band, const juce::String& part) { return "mb" + juce::String (band + 1) + part; }
     // Each of the four voices: "dv1Gain", "dv2Detune"... (voice 1 to 4).
     // Drift (version 32) is appended: only ever add to the end.
     inline const juce::StringArray doublerVoiceParts { "On", "Gain", "Pan", "Delay", "Feedback", "Octave", "Detune", "Depth", "Rate", "Drift" };

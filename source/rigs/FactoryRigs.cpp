@@ -31,6 +31,9 @@ namespace
                     reverse = 7, chamber = 8;                                            // REVERB's TYPE
     constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
     constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
+    constexpr float mars = 4;                                                            // SATURATION's MARS model
+    // MARS's styles (index into effects::Mars::styleNames).
+    constexpr float cleanTubeStyle = 0, warmTapeStyle = 5, britishAmpStyle = 12, destroyStyle = 20;
 }
 
 // The factory rigs, all for the voice (since 0.12.0; the guitar rigs PR7-V
@@ -94,6 +97,13 @@ std::vector<Rig> makeFactoryRigs()
             { deessOn, 1 }, { deessAmount, 5 },
             { eqOn, 1 }, { "eq63", -8 }, { "eq250", -1 }, { "eq4k", 1 } }),
 
+        // MARS on one band of warm tape: the glue and warmth of a voice recorded to tape.
+        make ("Tape Warmth", A, 7, "Studio,Saturation,Mars", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { driveModel, mars }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", 1.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
         // ---- B: rock and grit ----------------------------------------------
         // A rock lead: a little Screamer edge, a tape slap and a plate.
         make ("Rock Lead", B, 1, "Rock,Drive,Delay", {
@@ -140,6 +150,18 @@ std::vector<Rig> makeFactoryRigs()
             { delayFeedback, 0.3f }, { delayMix, 0.15f }, { delayDuck, 0.5f }, { delayHighCut, 5000 },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.22f }, { reverbPreDelay, 50 },
             { reverbDecay, 1.2f }, { reverbBassRt, 0.7f } }),
+
+        // MARS in three bands: clean lows (no mud), amp-driven mids for bite,
+        // tape on the highs so the grit stays smooth.
+        make ("Multiband Grit", B, 6, "Rock,Saturation,Mars", {
+            { rigLevel, -6 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { driveOn, 1 }, { driveModel, mars }, { marsBands, 2 }, { marsCross1, 250 }, { marsCross2, 3000 },
+            { "mb1Style", cleanTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", britishAmpStyle }, { "mb2Drive", 0.55f }, { "mb2Dynamics", 0.3f },
+            { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
 
         // ---- C: delays and throws ------------------------------------------
         // The 50s slap: one quick tape repeat.
@@ -359,6 +381,16 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 25 }, { delayFeedback, 0.6f },
             { delayMix, 0.3f },
             { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.6f } }),
+
+        // A voice through a broken transmitter: MARS crushes its highs to bits
+        // (its lows left alone), with a slap behind it.
+        make ("Broken Transmission", E, 15, "Lo-Fi,Saturation,Mars,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { driveOn, 1 }, { driveModel, mars }, { marsBands, 1 }, { marsCross1, 900 },
+            { "mb1On", 0 },
+            { "mb2Style", destroyStyle }, { "mb2Drive", 0.55f }, { "mb2Mix", 0.7f }, { "mb2Feedback", 0.3f }, { "mb2FbFreq", 2200 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 140 }, { delayFeedback, 0.25f },
+            { delayMix, 0.2f } }),
 
         // Sixteenth-note echoes for rap and trap ad-libs, kept tight.
         make ("Trap Ad-Lib", E, 14, "Rap,Delay", {

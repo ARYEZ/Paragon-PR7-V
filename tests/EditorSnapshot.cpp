@@ -1,4 +1,5 @@
 #include "ui/EffectPanel.h"
+#include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 
 #include "Parameters.h"
@@ -183,6 +184,8 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             {
                 if (auto* panel = dynamic_cast<EffectPanel*> (child); panel != nullptr && panel->isVisible())
                     panel->showPage (page.getIntValue());
+                if (auto* mars = dynamic_cast<MarsPanel*> (child); mars != nullptr && mars->isVisible())
+                    mars->showPage (page.getIntValue());
                 turn (*child);
             }
         };

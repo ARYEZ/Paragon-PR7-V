@@ -51,8 +51,10 @@ namespace effects
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Model { classic, screamer, muff, face };
-        static inline const juce::StringArray modelNames { "Classic", "Screamer (TS)", "Muff Fuzz", "Face Fuzz" };
+        // MARS (since 0.13.0) is effects::Mars, the multi-band saturator: the
+        // plugin runs it instead of this when it's picked.
+        enum class Model { classic, screamer, muff, face, mars };
+        static inline const juce::StringArray modelNames { "Classic", "Screamer (TS)", "Muff Fuzz", "Face Fuzz", "Mars" };
 
         struct Settings
         {

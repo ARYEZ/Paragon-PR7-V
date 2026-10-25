@@ -190,6 +190,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       eqPanel (processorToShow.getParameters()),
       harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); }),
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
+      marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); }),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
             juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
@@ -344,6 +345,15 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     });
     addStomp (2, "SATURATION", { ParamIDs::driveOn }, driveBlock, [this]
     {
+        if (juce::roundToInt (rawValue (ParamIDs::driveModel)) == (int) effects::Drive::Model::mars)
+        {
+            // MARS: its bands' styles, low to high.
+            const auto numBands = juce::roundToInt (rawValue (ParamIDs::marsBands)) + 1;
+            juce::StringArray styles;
+            for (int band = 0; band < numBands; ++band)
+                styles.add (effects::Mars::styleNames[juce::roundToInt (rawValue (ParamIDs::marsBand (band, "Style").toRawUTF8()))]);
+            return "Mars  " + styles.joinIntoString (" / ");
+        }
         return valueText (ParamIDs::driveModel) + "  Drive " + valueText (ParamIDs::driveGain);
     });
     addStomp (3, "DOUBLER", { ParamIDs::doublerOn }, doublerBlock, [this]
@@ -522,6 +532,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
     addChildComponent (doublerPanel);
+    addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })
     {
         view->setClickingTogglesState (true);
@@ -590,11 +601,13 @@ void MainView::selectBlock (int block)
     const auto onProcessorPage = page == Page::processor;
     for (size_t i = 0; i < panels.size(); ++i)
         if (panels[i] != nullptr)
-            panels[i]->setVisible ((int) i == block && onProcessorPage && ! (block == pitchBlock && pitchShowsHarmony));
+            panels[i]->setVisible ((int) i == block && onProcessorPage && ! (block == pitchBlock && pitchShowsHarmony)
+                                   && ! (block == driveBlock && driveShowsMars));
     eqPanel.setVisible (block == eqBlock && onProcessorPage);
     const auto showingPitch = block == pitchBlock && onProcessorPage;
     harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
     doublerPanel.setVisible (block == doublerBlock && onProcessorPage);
+    marsPanel.setVisible (block == driveBlock && onProcessorPage && driveShowsMars);
     harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
     octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
     for (auto* view : { &harmonyView, &octaveView })
@@ -655,6 +668,14 @@ void MainView::timerCallback()
 
 void MainView::refreshPerformance()
 {
+    // SATURATION's panel follows its MODEL: MARS has its own.
+    const auto marsPicked = juce::roundToInt (rawValue (ParamIDs::driveModel)) == (int) effects::Drive::Model::mars;
+    if (marsPicked != driveShowsMars)
+    {
+        driveShowsMars = marsPicked;
+        selectBlock (selectedBlock);
+    }
+
     // Tempo: the tapped tempo in orange, or the DAW's.
     const auto tapped = audioProcessor.getTappedBpm() > 0.0;
     const auto tempo = juce::String (audioProcessor.getTempoBpm(), 1) + " BPM";
@@ -901,6 +922,7 @@ void MainView::resized()
     eqPanel.setBounds (summaryArea);
     harmonyPanel.setBounds (summaryArea);
     doublerPanel.setBounds (summaryArea);
+    marsPanel.setBounds (summaryArea);
     // PITCH's view tabs sit in its header, after the icon and name.
     harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
     octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);

@@ -10,6 +10,7 @@
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/Limiter.h"
+#include "dsp/effects/Mars.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Reverb.h"
@@ -432,6 +433,42 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::reverbShape, "Reverb Shape", { 0.0f, 1.0f, 0.01f }, 0.5f, v34, asPercent));
     layout.add (makeFloat (ParamIDs::reverbSpin, "Reverb Spin", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
     layout.add (makeFloat (ParamIDs::reverbWander, "Reverb Wander", { 0.0f, 4.0f, 0.01f }, 1.0f, v34, asPercent));
+
+    // Added in plugin version 35: MARS, the multi-band saturator, inspired by
+    // FabFilter Saturn 2. One band of Warm Tape to start, as a gentle warmth.
+    constexpr int v35 = 35;
+    const ToText asCrossover = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 2) + " kHz"; };
+    const ToText asDynamics = [] (float value, int)
+    {
+        const auto amount = juce::roundToInt (std::abs (value) * 100.0f);
+        return amount == 0 ? juce::String ("Off") : (value < 0.0f ? "Gate " : "Comp ") + juce::String (amount) + "%";
+    };
+    const ToText asMarsLevel = [] (float db, int) { return db <= effects::Mars::minLevelDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+    const ToText asSignedDb = [] (float db, int) { return (db > 0.0f ? "+" : "") + juce::String (db, 1) + " dB"; };
+    layout.add (makeChoice (ParamIDs::marsBands, "Mars Bands", v35, { "1", "2", "3", "4" }, 0));
+    layout.add (makeFloat (ParamIDs::marsCross1, "Mars Crossover 1", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 250.0f, v35, asCrossover));
+    layout.add (makeFloat (ParamIDs::marsCross2, "Mars Crossover 2", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 2500.0f, v35, asCrossover));
+    layout.add (makeFloat (ParamIDs::marsCross3, "Mars Crossover 3", skewed (30.0f, 16000.0f, 1000.0f, 1.0f), 7000.0f, v35, asCrossover));
+    layout.add (makeChoice (ParamIDs::marsSlope, "Mars Crossover Slope", v35, effects::Mars::slopeNames, (int) effects::Mars::Slope::db24));
+    layout.add (makeFloat (ParamIDs::marsInput, "Mars Input", { -24.0f, 24.0f, 0.1f }, 0.0f, v35, asSignedDb));
+    layout.add (makeFloat (ParamIDs::marsOutput, "Mars Output", { -24.0f, 24.0f, 0.1f }, 0.0f, v35, asSignedDb));
+    layout.add (makeFloat (ParamIDs::marsMix, "Mars Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v35, asPercent));
+    layout.add (makeChoice (ParamIDs::marsQuality, "Mars Quality", v35, effects::Mars::qualityNames, (int) effects::Mars::Quality::good));
+    for (int band = 0; band < effects::Mars::maxBands; ++band)
+    {
+        const auto id = [band] (const char* part) { return ParamIDs::marsBand (band, part); };
+        const auto name = "Mars Band " + juce::String (band + 1) + " ";
+        layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v35, true));
+        layout.add (makeChoice (id ("Style").toRawUTF8(), name + "Style", v35, effects::Mars::styleNames, (int) effects::Mars::Style::warmTape));
+        layout.add (makeFloat (id ("Drive").toRawUTF8(), name + "Drive", { 0.0f, 1.0f, 0.01f }, 0.3f, v35, asPercent));
+        layout.add (makeFloat (id ("Dynamics").toRawUTF8(), name + "Dynamics", { -1.0f, 1.0f, 0.01f }, 0.0f, v35, asDynamics));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v35, asPercent));
+        layout.add (makeFloat (id ("FbFreq").toRawUTF8(), name + "Feedback Frequency", skewed (50.0f, 10000.0f, 1000.0f, 1.0f), 1000.0f, v35, asCrossover));
+        for (const auto* tone : { "Bass", "Mid", "Treble", "Presence" })
+            layout.add (makeFloat (id (tone).toRawUTF8(), name + tone, { -12.0f, 12.0f, 0.1f }, 0.0f, v35, asSignedDb));
+        layout.add (makeFloat (id ("Mix").toRawUTF8(), name + "Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v35, asPercent));
+        layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Mars::minLevelDb, 12.0f, 0.1f }, 0.0f, v35, asMarsLevel));
+    }
     return layout;
 }
 

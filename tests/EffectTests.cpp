@@ -6,6 +6,8 @@
 #include "PluginProcessor.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Delay.h"
+#include "dsp/effects/Drive.h"
+#include "dsp/effects/Mars.h"
 #include "dsp/effects/Reverb.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/TalkBox.h"
@@ -327,6 +329,220 @@ TEST_CASE ("Revival compressor: GATE, COMPRESSION and GAIN do what they say", "[
         rig.set (ParamIDs::compLevel, 12.0f);
         const auto input = sine (440.0, juce::Decibels::decibelsToGain (-40.0f), 1.0);
         CHECK_THAT (dB (rms (rig.runMono (input), 0.5) / rms (input, 0.5)), WithinAbs (0.0, 0.05));
+    }
+}
+
+namespace
+{
+    // SATURATION on its MARS model, the master limiter out of the way.
+    struct MarsRig : EffectRig
+    {
+        MarsRig()
+        {
+            set (ParamIDs::driveOn, 1.0f);
+            set (ParamIDs::driveModel, (float) effects::Drive::Model::mars);
+            set (ParamIDs::outputLimiter, effects::Limiter::offDb);
+        }
+        void band (int index, const char* part, float value) { set (ParamIDs::marsBand (index, part).toRawUTF8(), value); }
+    };
+}
+
+TEST_CASE ("MARS: the bands split and add back up, and off is off", "[effects][drive][mars]")
+{
+    SECTION ("Switched off, it's exactly the input")
+    {
+        MarsRig rig;
+        rig.set (ParamIDs::driveOn, 0.0f);
+        const auto input = sine (440.0, 0.3f, 0.5);
+        CHECK (maxAbsDifference (input, rig.runMono (input)) < 1.0e-6f);
+    }
+
+    SECTION ("MIX at 0: your voice as it was (in level and tone)")
+    {
+        for (const auto hz : { 100.0, 1000.0, 8000.0 })
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsMix, 0.0f);
+            rig.band (0, "Drive", 1.0f);
+            const auto input = sine (hz, 0.3f, 0.5);
+            CHECK_THAT (dB (rms (rig.runMono (input), 0.2) / rms (input, 0.2)), WithinAbs (0.0, 0.1));
+        }
+    }
+
+    SECTION ("At every slope, four bands with their saturation off add back up flat")
+    {
+        for (int slope = 0; slope < effects::Mars::slopeNames.size(); ++slope)
+            for (const auto hz : { 60.0, 250.0, 700.0, 2500.0, 5000.0, 12000.0 })
+            {
+                MarsRig rig;
+                rig.set (ParamIDs::marsBands, 3.0f);   // 4 bands
+                rig.set (ParamIDs::marsSlope, (float) slope);
+                for (int b = 0; b < 4; ++b)
+                    rig.band (b, "On", 0.0f);
+                const auto input = sine (hz, 0.3f, 0.5);
+                INFO (effects::Mars::slopeNames[slope] << " at " << hz << " Hz");
+                CHECK_THAT (dB (rms (rig.runMono (input), 0.25) / rms (input, 0.25)), WithinAbs (0.0, 0.3));
+            }
+    }
+
+    SECTION ("Each band is its own: drive the highs, and a low note stays clean")
+    {
+        const auto harmonicsOf = [] (double hz, int drivenBand)
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsBands, 1.0f);   // 2 bands
+            rig.set (ParamIDs::marsCross1, 600.0f);
+            for (int b = 0; b < 2; ++b)
+            {
+                rig.band (b, "Style", (float) effects::Mars::Style::saturatedTube);
+                rig.band (b, "Drive", 1.0f);
+                rig.band (b, "On", b == drivenBand ? 1.0f : 0.0f);   // the other band passes clean
+            }
+            const auto output = rig.runMono (sine (hz, 0.3f, 0.5));
+            return dB ((levelAt (output, 2.0 * hz, 0.2) + levelAt (output, 3.0 * hz, 0.2)) / levelAt (output, hz, 0.2));
+        };
+        CHECK (harmonicsOf (2000.0, 1) > -30.0f);   // the high band, driven: rich
+        CHECK (harmonicsOf (150.0, 1) < -40.0f);    // a low note, in the clean low band: clean
+        CHECK (harmonicsOf (150.0, 0) > -30.0f);    // unless the low band is driven
+    }
+}
+
+TEST_CASE ("MARS: every style saturates more with DRIVE, its level kept even", "[effects][drive][mars]")
+{
+    for (int style = 0; style < effects::Mars::numStyles; ++style)
+    {
+        INFO (effects::Mars::styleNames[style]);
+        const auto run = [style] (float drive)
+        {
+            MarsRig rig;
+            rig.band (0, "Style", (float) style);
+            rig.band (0, "Drive", drive);
+            return rig.runMono (sine (330.0, 0.3f, 0.6));
+        };
+        const auto light = run (0.1f), heavy = run (1.0f);
+        REQUIRE (allFinite (heavy));
+        // What isn't the note itself: the harmonics (and, for the FX styles, whatever else they make).
+        const auto other = [] (const std::vector<float>& output)
+        {
+            const auto total = rms (output, 0.3), fundamental = levelAt (output, 330.0, 0.3) / std::sqrt (2.0f);
+            return std::sqrt (std::max (0.0f, total * total - fundamental * fundamental)) / total;
+        };
+        CHECK (other (heavy) > other (light) + 0.02f);
+        // Level matching: full DRIVE is within a few dB of the input, not 36 dB louder.
+        CHECK (std::abs (dB (rms (heavy, 0.3) / rms (sine (330.0, 0.3f, 0.6), 0.3))) < 8.0f);
+    }
+
+    SECTION ("Breakdown pitches the voice down: an octave at full DRIVE")
+    {
+        MarsRig rig;
+        rig.band (0, "Style", (float) effects::Mars::Style::breakdown);
+        rig.band (0, "Drive", 1.0f);
+        const auto output = rig.runMono (sine (440.0, 0.3f, 0.8));
+        CHECK (levelAt (output, 220.0, 0.4) > 0.2f * levelAt (output, 440.0, 0.4));
+    }
+}
+
+TEST_CASE ("MARS: DYNAMICS, FEEDBACK, TONE, LEVEL and QUALITY do what they say", "[effects][drive][mars]")
+{
+    const auto clean = [] (MarsRig& rig)
+    {
+        rig.band (0, "Style", (float) effects::Mars::Style::cleanTube);
+        rig.band (0, "Drive", 0.0f);
+    };
+
+    SECTION ("DYNAMICS right compresses: loud and soft come out closer")
+    {
+        const auto spread = [&] (float dynamics)
+        {
+            const auto levelFor = [&] (float amplitude)
+            {
+                MarsRig rig;
+                clean (rig);
+                rig.band (0, "Dynamics", dynamics);
+                return rms (rig.runMono (sine (440.0, amplitude, 0.8)), 0.4);
+            };
+            return dB (levelFor (0.5f) / levelFor (0.02f));
+        };
+        CHECK (spread (1.0f) < spread (0.0f) - 10.0f);
+    }
+
+    SECTION ("DYNAMICS left gates: quiet sounds taken well down, loud ones through")
+    {
+        const auto through = [&] (float amplitude, float dynamics)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.band (0, "Dynamics", dynamics);
+            const auto input = sine (440.0, amplitude, 0.8);
+            return dB (rms (rig.runMono (input), 0.4) / rms (input, 0.4));
+        };
+        CHECK (through (0.003f, -1.0f) < through (0.003f, 0.0f) - 15.0f);
+        CHECK_THAT (through (0.3f, -1.0f) - through (0.3f, 0.0f), WithinAbs (0.0, 1.0));
+    }
+
+    SECTION ("FEEDBACK rings at FEEDBACK FREQ")
+    {
+        const auto ringAt = [&] (float feedback)
+        {
+            MarsRig rig;
+            rig.band (0, "Style", (float) effects::Mars::Style::warmTape);
+            rig.band (0, "Feedback", feedback);
+            rig.band (0, "FbFreq", 2000.0f);
+            juce::Random random (7);
+            std::vector<float> noise ((size_t) (0.8 * sampleRate));
+            for (auto& sample : noise)
+                sample = 0.1f * (random.nextFloat() * 2.0f - 1.0f);
+            const auto output = rig.runMono (noise);
+            return dB (levelAt (output, 2000.0, 0.3) / levelAt (output, 500.0, 0.3));
+        };
+        CHECK (ringAt (1.0f) > ringAt (0.0f) + 6.0f);
+    }
+
+    SECTION ("TONE: BASS and TREBLE shape what comes out")
+    {
+        const auto levelWith = [&] (const char* part, float db, double hz)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.band (0, part, db);
+            return levelAt (rig.runMono (sine (hz, 0.1f, 0.5)), hz, 0.2);
+        };
+        CHECK_THAT (dB (levelWith ("Bass", 12.0f, 50.0) / levelWith ("Bass", 0.0f, 50.0)), WithinAbs (11.0, 1.5));
+        CHECK_THAT (dB (levelWith ("Treble", -12.0f, 16000.0) / levelWith ("Treble", 0.0f, 16000.0)), WithinAbs (-11.0, 1.5));
+        CHECK_THAT (dB (levelWith ("Treble", -12.0f, 300.0) / levelWith ("Treble", 0.0f, 300.0)), WithinAbs (0.0, 0.5));
+    }
+
+    SECTION ("LEVEL: a band all the way down is silent; OUTPUT moves everything")
+    {
+        MarsRig off;
+        off.band (0, "Level", effects::Mars::minLevelDb);
+        CHECK (rms (off.runMono (sine (440.0, 0.3f, 0.5)), 0.2) < 1.0e-4f);
+
+        const auto outputLevel = [&] (float db)
+        {
+            MarsRig rig;
+            clean (rig);
+            rig.set (ParamIDs::marsOutput, db);
+            return rms (rig.runMono (sine (440.0, 0.1f, 0.5)), 0.2);
+        };
+        CHECK_THAT (dB (outputLevel (-6.0f) / outputLevel (0.0f)), WithinAbs (-6.0, 0.2));
+    }
+
+    SECTION ("QUALITY: oversampling keeps the fold-back (aliasing) down")
+    {
+        // A 9 kHz note folded hard: its 5th harmonic, 45 kHz, folds back
+        // down to 3 kHz without oversampling.
+        const auto aliasAt3k = [&] (float quality)
+        {
+            MarsRig rig;
+            rig.set (ParamIDs::marsQuality, quality);
+            rig.band (0, "Style", (float) effects::Mars::Style::foldback);
+            rig.band (0, "Drive", 0.7f);
+            const auto output = rig.runMono (sine (9000.0, 0.3f, 0.5));
+            return dB (levelAt (output, 3000.0, 0.2) / levelAt (output, 9000.0, 0.2));
+        };
+        CHECK (aliasAt3k (1.0f) < aliasAt3k (0.0f) - 15.0f);   // Good (4x) against Off
+        CHECK (aliasAt3k (2.0f) <= aliasAt3k (1.0f) + 1.0f);   // Superb (8x) at least as clean
     }
 }
 
@@ -1844,6 +2060,33 @@ TEST_CASE ("Full chain runs comfortably faster than real time", "[effects][perfo
 
     WARN ("Full chain uses " << juce::String (realtimeFraction * 100.0, 1) << "% of one core in real time");
     CHECK (realtimeFraction < 0.5);
+}
+
+TEST_CASE ("MARS at its heaviest still runs comfortably faster than real time", "[effects][performance][mars]")
+{
+    // Four bands of the costliest styles, with DYNAMICS and FEEDBACK on, at each QUALITY.
+    for (const auto quality : { effects::Mars::Quality::off, effects::Mars::Quality::good, effects::Mars::Quality::superb })
+    {
+        MarsRig rig;
+        rig.set (ParamIDs::marsBands, 3.0f);
+        rig.set (ParamIDs::marsQuality, (float) quality);
+        const effects::Mars::Style styles[] = { effects::Mars::Style::breakdown, effects::Mars::Style::smudge,
+                                                effects::Mars::Style::screamingAmp, effects::Mars::Style::extremeTape };
+        for (int b = 0; b < 4; ++b)
+        {
+            rig.band (b, "Style", (float) styles[b]);
+            rig.band (b, "Drive", 0.8f);
+            rig.band (b, "Dynamics", 0.5f);
+            rig.band (b, "Feedback", 0.3f);
+            rig.band (b, "Bass", 3.0f);
+        }
+        const auto input = sine (220.0, 0.3f, 4.0);
+        const auto startMs = juce::Time::getMillisecondCounterHiRes();
+        rig.runMono (input);
+        const auto fraction = (juce::Time::getMillisecondCounterHiRes() - startMs) / 1000.0 / 4.0;
+        WARN ("MARS, 4 bands, " << effects::Mars::qualityNames[(int) quality] << ": " << juce::String (fraction * 100.0, 1) << "% of one core");
+        CHECK (fraction < (quality == effects::Mars::Quality::superb ? 0.4 : 0.25));
+    }
 }
 
 TEST_CASE ("Graphic EQ: flat is transparent, each band moves only its octave", "[effects][eq]")
