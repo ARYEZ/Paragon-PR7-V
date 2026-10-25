@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "dsp/Scales.h"
 
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
@@ -599,6 +600,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // played keys become note voices.
     constexpr int v41 = 41;
     layout.add (makeChoice (ParamIDs::harmonyMidiMap, "Harmony MIDI Notes", v41, effects::Harmony::midiMapNames, 0));
+    // Added in plugin version 42: the Note Map Editor (HARMONY stage 5).
+    // The map's parts aren't for automating: they're edited on the keyboard.
+    constexpr int v42 = 42;
+    for (int note = 0; note < 12; ++note)
+        for (int part = 0; part < 3; ++part)
+            layout.add (std::make_unique<juce::AudioParameterFloat> (
+                juce::ParameterID { ParamIDs::harmonyMap (note, part), v42 }, "Harmony Map " + Scales::keyNames[note] + " " + juce::String (part + 1),
+                juce::NormalisableRange<float> { 0.0f, 65535.0f, 1.0f }, 0.0f, juce::AudioParameterFloatAttributes().withAutomatable (false)));
+    layout.add (makeSwitch (ParamIDs::harmonyMapFold, "Harmony Map Fold", v42, false));
+    for (int note = 0; note < 12; ++note)
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { ParamIDs::harmonyScaleNote (note), v42 }, "Harmony Custom Scale " + juce::String (note + 1),
+            ParamIDs::scaleNoteChoices, 0, juce::AudioParameterChoiceAttributes().withAutomatable (false)));
     return layout;
 }
 

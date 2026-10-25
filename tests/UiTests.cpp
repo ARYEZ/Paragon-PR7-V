@@ -671,3 +671,51 @@ TEST_CASE ("HARMONY's NOTES tab: the note controls in place of the voice's", "[u
     panel.showNotes (false);
     CHECK_FALSE ((*chordBox)->isVisible());
 }
+
+TEST_CASE ("HARMONY's Note Map Editor: EDIT, keys, SCALE boxes and DONE", "[ui][harmony][notemap]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    HarmonyPanel panel (parameters, [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    panel.showNotes (true);
+    const auto plain = [&parameters] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    auto& editor = panel.getNoteMap();
+    const auto mapOfA = [&editor] { return editor.mapOf (9); };
+    const auto bit = [] (int offset) { return std::uint64_t { 1 } << (offset + effects::Harmony::mapSpan); };
+
+    // EDIT: CHORD becomes Custom, starting from the map that was playing
+    // (3rd + 5th Above in C major: A plays C and E above).
+    CHECK_FALSE (panel.isShowingNoteMap());
+    panel.openNoteMap();
+    CHECK (panel.isShowingNoteMap());
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyChord)) == effects::Harmony::customChord);
+    CHECK (mapOfA() == (bit (3) | bit (7)));
+
+    // A key click adds or removes what the picked note plays.
+    editor.selectNote (9);
+    editor.toggleKey (60 + 9 + 12);   // A4: an octave above
+    CHECK (mapOfA() == (bit (3) | bit (7) | bit (12)));
+    CHECK (plain (ParamIDs::harmonyMap (9, 1)) > 0.0f);
+    editor.toggleKey (60 + 9 + 3);    // C5 off
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+
+    // SCALE boxes: only with SCALE Custom; In → Up → Down → In.
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 0);
+    auto* scale = parameters.getParameter (ParamIDs::harmonyScale);
+    scale->setValueNotifyingHost (scale->convertTo0to1 ((float) Scales::Scale::custom));
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 1);
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 2);
+
+    // A second EDIT keeps your map; ERASE clears it; DONE (or leaving NOTES) closes.
+    panel.closeNoteMap();
+    panel.openNoteMap();
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+    editor.erase();
+    CHECK (mapOfA() == 0);
+    panel.showNotes (false);
+    CHECK_FALSE (panel.isShowingNoteMap());
+}

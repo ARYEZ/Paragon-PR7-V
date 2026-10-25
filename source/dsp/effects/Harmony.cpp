@@ -137,6 +137,47 @@ namespace effects
         return names;
     }
 
+    int Harmony::customNotes (const NoteMap& map, bool fold, int incoming, std::array<int, mapBits>& out) noexcept
+    {
+        auto count = 0;
+        const auto noteClass = ((incoming % 12) + 12) % 12;
+        const auto bits = map[(size_t) noteClass];
+        const auto from = fold ? foldOctave + noteClass : incoming;
+        for (int bit = 0; bit < mapBits; ++bit)
+            if ((bits >> bit) & 1u)
+            {
+                // FOLD can ask for more than a voice can shift (two octaves):
+                // the same note, an octave nearer, until it fits.
+                auto note = from + bit - mapSpan;
+                while (note - incoming > maxShift)
+                    note -= 12;
+                while (incoming - note > maxShift)
+                    note += 12;
+                out[(size_t) count++] = note;
+            }
+        return count;
+    }
+
+    template <typename Want>
+    void Harmony::mapNote (const Settings& settings, int incoming, bool, Want&& want)
+    {
+        const auto chord = juce::jlimit (0, (int) chordMaps.size() - 1, settings.notes.chord);
+        if (chord == customChord)
+        {
+            // Your own map: each note it plays, put into the scale.
+            std::array<int, mapBits> notes {};
+            const auto count = customNotes (settings.notes.customMap, settings.notes.fold, incoming, notes);
+            for (int i = 0; i < count; ++i)
+                want (Scales::nearest (notes[(size_t) i], settings.key, settings.scale, &settings.customScale));
+            return;
+        }
+        // A built-in map: the note into the key, then each interval from it (a third stays a third).
+        const auto& map = chordMaps[(size_t) chord];
+        const auto root = Scales::nearest (incoming, settings.key, settings.scale, &settings.customScale);
+        for (int i = 0; i < map.count; ++i)
+            want (Scales::harmonyNote (root, map.intervals[(size_t) i], settings.key, settings.scale, &settings.customScale));
+    }
+
     void Harmony::generateNotes (const Settings& settings, double sung) noexcept
     {
         // GENERATE NOTES: hold a note until the voice has been more than
@@ -174,9 +215,8 @@ namespace effects
 
         // The note in the key, then the CHORD map's notes from it, kept in
         // the key too (a third stays a third). Then the MIDI keys held.
-        const auto root = heldNote >= 0 ? Scales::nearest (heldNote, settings.key, settings.scale) : -1;
+        const auto root = heldNote >= 0 ? Scales::nearest (heldNote, settings.key, settings.scale, &settings.customScale) : -1;
         generatedNote = root;
-        const auto& map = chordMaps[(size_t) juce::jlimit (0, (int) chordMaps.size() - 1, notes.chord)];
         std::array<std::pair<int, float>, numNoteVoices> playing {};   // note, velocity
         auto count = 0;
         const auto want = [&playing, &count] (int note, float velocity)
@@ -201,13 +241,10 @@ namespace effects
                         want (key, velocity);
                         continue;
                     }
-                    const auto keyRoot = Scales::nearest (key, settings.key, settings.scale);
-                    for (int i = 0; i < map.count; ++i)
-                        want (Scales::harmonyNote (keyRoot, map.intervals[(size_t) i], settings.key, settings.scale), velocity);
+                    mapNote (settings, key, true, [&want, velocity] (int note) { want (note, velocity); });
                 }
-        if (notes.generate && root >= 0)
-            for (int i = 0; i < map.count; ++i)
-                want (Scales::harmonyNote (root, map.intervals[(size_t) i], settings.key, settings.scale), 1.0f);
+        if (notes.generate && heldNote >= 0)
+            mapNote (settings, heldNote, true, [&want] (int note) { want (note, 1.0f); });
 
         // Each voice keeps its note while it's still playing (no restart);
         // the rest let go, and new notes take free voices.
@@ -321,8 +358,8 @@ namespace effects
         }
         else if (settings.correct != Correct::off && voiced)
         {
-            const auto nearestNote = Scales::nearest (sung, settings.key, settings.scale);
-            if (correctTarget < 0 || ! Scales::isIn (correctTarget, settings.key, settings.scale)
+            const auto nearestNote = Scales::nearest (sung, settings.key, settings.scale, &settings.customScale);
+            if (correctTarget < 0 || ! Scales::isIn (correctTarget, settings.key, settings.scale, &settings.customScale)
                 || (nearestNote != correctTarget && std::abs (sung - nearestNote) + 0.2 < std::abs (sung - correctTarget)))
                 correctTarget = nearestNote;
             wanted = juce::jlimit (-6.0, 6.0, (double) correctTarget - sung);
@@ -348,8 +385,8 @@ namespace effects
                 {
                     // The note the singer is aiming at, then the harmony
                     // note in the key, sung exactly in tune.
-                    const auto aimedAt = Scales::nearest (sung, settings.key, settings.scale);
-                    const auto target = Scales::harmonyNote (aimedAt, juce::roundToInt (setting.semitones), settings.key, settings.scale);
+                    const auto aimedAt = Scales::nearest (sung, settings.key, settings.scale, &settings.customScale);
+                    const auto target = Scales::harmonyNote (aimedAt, juce::roundToInt (setting.semitones), settings.key, settings.scale, &settings.customScale);
                     shift = (double) target + setting.cents / 100.0 - sung;
                 }
                 else

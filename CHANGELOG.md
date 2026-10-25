@@ -2,6 +2,20 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.21.0
+
+- **HARMONY stage 5: the Note Map Editor.** Inspired by Waves Harmony's Note Map Editor. Click **EDIT** beside CHORD on the NOTES tab to make your own map of what each note plays.
+  - **CHORD** gains a 19th map, **Custom**: yours. The first time you click EDIT it starts as a copy of the map you were using, so you change it rather than starting from nothing.
+  - **PLAYS:** pick a note (C to B), then click keys on the keyboard to add or remove what that note plays (a purple dot). Each note can play anything up to just under two octaves above or below, any number of notes. A sung note that's out of the key has its own row too, so it can have a different harmony.
+  - **SPREAD / FOLD:** SPREAD (to start) moves the harmony with the octave you sing in. FOLD keeps the notes where you set them on the keyboard, whatever octave you sing.
+  - **SCALE Custom** (a new scale): the SCALE row sets each note In, **>** (moved up to the next note in the scale) or **<** (moved down). It's kept relative to KEY, so it follows a key change. With any other scale, the row shows what that scale does.
+  - **FROM CHORD** starts from any built-in map, and **ERASE** clears the map. A blue ring shows each note as it will sound once the scale is applied. Keys held on a MIDI keyboard light up pink.
+  - Played MIDI keys set to **Through Chord** go through your map as well.
+- **Our design where the guide doesn't say:** the range (±23 semitones from the note), and that FOLD moves a note an octave nearer when it's more than two octaves from what you sing. That's the most a harmony voice can shift, and past it the note would come out wrong.
+- **Saved with your rig/project:** the map and SPREAD/FOLD. The Custom scale boxes are global, like KEY and SCALE, so changing rigs keeps your scale.
+- **Not built yet:** per-note velocity and level in the map, and named, saved maps.
+- **Also:** CHORD on the NOTES tab is a little narrower to make room for EDIT, so long map names are cut short in the box; the full names are in its list.
+
 ## 0.20.0
 
 - **HARMONY stage 4: MIDI notes.** Inspired by Waves Harmony's MIDI keyboard input. Send MIDI to PR7-V (a MIDI track or keyboard routed to it in your DAW) and the keys you play become harmony voices made from your own voice.

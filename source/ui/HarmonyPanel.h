@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "dsp/effects/Harmony.h"
+#include "ui/NoteMapEditor.h"
 
 // HARMONY's knobs, shown when the PITCH block is picked: laid out after
 // Waves Harmony's (the owner's reference), to fit the dock.
@@ -40,6 +41,12 @@ public:
     // Which MIDI keys are held, for the NOTES graph's keyboard strip.
     void setMidiKeys (std::function<bool (int)> isKeyHeld) { midiKeyHeld = std::move (isKeyHeld); }
     bool isShowingNotes() const noexcept { return notesShown; }
+    // The Note Map Editor (EDIT on the NOTES tab): CHORD becomes Custom; a
+    // built-in map is copied in first if the Custom map is empty.
+    void openNoteMap();
+    void closeNoteMap();
+    bool isShowingNoteMap() const noexcept { return noteMap.isVisible(); }
+    NoteMapEditor& getNoteMap() noexcept { return noteMap; }
 
     // Where a voice with this pan and level sits on the graph, and back. Public for tests.
     juce::Point<float> pointFor (float pan, float levelDb) const;
@@ -98,6 +105,8 @@ private:
     juce::ComboBox chord;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> chordAttachment;
     Knob minNote, tolerance, toleranceTime, noteLevel, noteWidth, noteFormant, noteAttack, noteRelease;
+    juce::TextButton editMap { "EDIT" };
+    NoteMapEditor noteMap;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;

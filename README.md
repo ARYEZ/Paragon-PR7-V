@@ -33,7 +33,8 @@ descriptions below still talk about guitar.
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
 | V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
 | V7 | Harmony stage 4: MIDI note input (As Played / Through Chord, velocity, sustain) | ✅ Done (0.20.0) |
-| V8 | Harmony: Note Map Editor, per-voice delay/filter, snapshots, modulators | Next |
+| V8 | Harmony stage 5: Note Map Editor (CHORD Custom, SCALE Custom, Spread/Fold) | ✅ Done (0.21.0) |
+| V9 | Harmony: per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -98,6 +99,10 @@ descriptions below still talk about guitar.
       become note voices too: **As Played** (exactly the keys) or **Through Chord** (each key through the CHORD map);
       velocity sets their level and the sustain pedal holds them, and TUNE VOICE's Notes then follows the nearest held
       key. A keyboard strip under the graph shows the keys held (pink) and the generated note (blue).
+      **EDIT** (beside CHORD) opens the **Note Map Editor**: CHORD becomes **Custom**, starting as a copy of the map
+      you had. Pick a note in **PLAYS**, then click keys to set what it plays; **SPREAD** moves the harmony with the octave
+      you sing, **FOLD** keeps it where it's set. **SCALE Custom** lets each note of the scale row be In, moved up
+      (**>**) or down (**<**). **FROM CHORD** starts from a built-in map, **ERASE** clears it, **DONE** closes it.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

@@ -62,6 +62,10 @@ namespace effects
     // (soft keys quieter: our curve, 30% to 100%); the sustain pedal holds
     // them. CORRECT's NOTES state then tunes the singer to the nearest held
     // key (in whichever octave is nearest), the played "robot" effect.
+    //
+    // NOTE MAP EDITOR (stage 5): CHORD Custom plays your own map, note by
+    // note (SPREAD or FOLD), and SCALE Custom your own scale, each note in it
+    // or sent up or down to the next one that is.
     class Harmony
     {
     public:
@@ -95,7 +99,7 @@ namespace effects
             std::array<int, 8> intervals;
             int count;
         };
-        static inline const std::array<ChordMap, 18> chordMaps { {
+        static inline const std::array<ChordMap, 19> chordMaps { {
             { "3rd Above",            "A harmony a third above every note",                    { 4 }, 1 },
             { "3rd Below",            "A harmony a third below every note",                    { -4 }, 1 },
             { "5th Above",            "A fifth above every note",                              { 7 }, 1 },
@@ -114,7 +118,19 @@ namespace effects
             { "Add9",                 "A major or minor chord with a ninth on top",            { 4, 7, 14 }, 3 },
             { "Open Fifths",          "An octave below and a fifth above: hollow and wide",    { -12, 7 }, 2 },
             { "Gospel Stack",         "A wide chord under and over you: low root, third, fifth, octave", { -12, -8, 4, 7, 12 }, 5 },
+            { "Custom",               "Your own note map: click EDIT to make it",              {}, 0 },
         } };
+        static constexpr int customChord = 18;
+
+        // The Custom chord map (the Note Map Editor, inspired by Waves
+        // Harmony's Note Mapper): for each of the 12 notes, which notes it
+        // plays, as a bit per semitone from 23 below it (bit 0) to 23 above
+        // (bit 46). SPREAD: they move with the octave sung or played; FOLD:
+        // they stay where they were set, in the octave from middle C (C4).
+        static constexpr int mapSpan = 23, mapBits = 2 * mapSpan + 1;
+        static constexpr int maxShift = 24;   // semitones a voice can move (its pitch ratio is kept within 0.25-4)
+        static constexpr int foldOctave = 60;   // C4
+        using NoteMap = std::array<std::uint64_t, 12>;
         static juce::StringArray chordMapNames();
 
         static constexpr int numNoteVoices = 8;
@@ -133,6 +149,8 @@ namespace effects
             float formant = 0.0f;
             float attackMs = 20.0f, releaseMs = 150.0f;
             int midiMap = 0;                 // MIDI: 0 As Played, 1 Through Chord
+            NoteMap customMap {};            // CHORD Custom
+            bool fold = false;
         };
         static inline const juce::StringArray midiMapNames { "As Played", "Through Chord" };
 
@@ -163,6 +181,7 @@ namespace effects
             std::array<Voice, numVoices> voices;
             Notes notes;
             const MidiKeys* midi = nullptr;
+            Scales::Custom customScale {};      // SCALE Custom (global, like KEY and SCALE)
         };
 
         void prepare (double sampleRate, int maxBlockSize);
@@ -235,6 +254,13 @@ namespace effects
         double awayFor = 0.0;
         std::atomic<int> generatedNote { -1 };
         void generateNotes (const Settings&, double sung) noexcept;
+        // What one incoming note (sung or played) becomes through the CHORD map, in the key.
+        template <typename Want> static void mapNote (const Settings&, int incoming, bool inKeyFirst, Want&& want);
+    public:
+        // The notes the Custom map plays for `incoming` (before the scale), into
+        // `out`; returns how many. No allocation: it runs on the audio thread.
+        static int customNotes (const NoteMap&, bool fold, int incoming, std::array<int, mapBits>& out) noexcept;
+    private:
 
         struct NoteVoice
         {
