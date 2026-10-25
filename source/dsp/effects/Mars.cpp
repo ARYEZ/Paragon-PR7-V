@@ -253,7 +253,7 @@ namespace effects
         // The modulation moves the knobs about 3000 times a second.
         tickLength = juce::jmax (1, juce::roundToInt (sampleRate / 3000.0));
         untilTick = 0;
-        wasModulated = false;
+        wasModulated = knobsSet = false;
         modulation.prepare (sampleRate);
         currentQuality = -1;
         setRate ((int) Quality::good);
@@ -505,6 +505,12 @@ namespace effects
         for (int part = 0; part < 6; ++part)
             knobs[(size_t) MarsModulation::globalTarget (part)] = globals[part];
 
+        // The first time after prepare, the knobs start where they're set
+        // (not gliding up from 0, as they did when a slot was busy from the start).
+        const auto first = ! knobsSet;
+        if (first)
+            smoothedKnobs = knobs;
+        knobsSet = true;
         if (modulated)
         {
             const auto glide = (float) (1.0 - std::exp (-(double) tickLength / (0.02 * baseRate)));
@@ -599,6 +605,16 @@ namespace effects
         inputGain.set (juce::Decibels::decibelsToGain (global (MarsModulation::input)), steps);
         outputGain.set (juce::Decibels::decibelsToGain (global (MarsModulation::output)), steps);
         mix.set (juce::jlimit (0.0f, 1.0f, global (MarsModulation::globalMix)), steps);
+
+        // ...and the gains too: no fade up from 0 the first time.
+        if (first)
+        {
+            for (auto& state : bandStates)
+                for (auto* ramp : { &state.preGain, &state.makeUp, &state.mix, &state.level })
+                    ramp->jump();
+            for (auto* ramp : { &inputGain, &outputGain, &mix })
+                ramp->jump();
+        }
     }
 
     void Mars::runSegment (juce::dsp::AudioBlock<float> block) noexcept

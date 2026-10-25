@@ -222,7 +222,7 @@ namespace effects
     bool MarsModulation::isActive (const Settings& settings) noexcept
     {
         for (const auto& slot : settings.slots)
-            if (slot.source > none && slot.source < numSources && slot.target > 0 && slot.target < numTargets && ! juce::exactlyEqual (slot.amount, 0.0f))
+            if (slot.source > none && slot.source < numSources && slot.target > 0 && slot.target < numTargets && std::abs (slot.amount) >= minimumAmount)
                 return true;
         return false;
     }

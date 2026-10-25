@@ -17,6 +17,7 @@ Each version's notes appear on its GitHub Release page.
 - **A modulated knob shows it:** a thin ring in the source's colour (yellow when more than one kind moves it), with a bright arc to where the knob is right now. The band display's drive bars and crossovers move too.
 - **Our design, where the manual doesn't say:** the curves, how the followers read level (-48 dB to 0 dB), what TRANSIENT listens for, and the fixed number of sources (Saturn adds as many as you like). Not built: XLFO Snap (Saturn's arpeggiator), renaming sources, the external side-chain trigger, and dragging sources onto knobs.
 - **Five new factory rigs** (bank E): **Breathing Tape** (louder singing pushes the tape harder), **Throb** (a saturated tube pulsing in eighth notes), **Sweeping Radio** (a slow tempo sweep of MARS's crossover), **Pedal Grit** (the expression pedal turns the grit up) and **Stutter Steps** (an eight-step rhythmic gate).
+- **MARS starts where its knobs are set.** When the plugin loaded, MARS's levels used to fade up from silence over the first 50 ms, and with a slot in use its knobs glided up from zero. Now they start at their settings.
 - **CPU:** the modulation moves the knobs about 3000 times a second. With all 16 slots busy on four heavy bands, MARS used about 7% of one core in our tests. Without modulation it runs exactly as before.
 
 ## 0.14.1

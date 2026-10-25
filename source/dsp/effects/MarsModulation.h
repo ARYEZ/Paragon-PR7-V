@@ -198,7 +198,10 @@ namespace effects
         void reset() noexcept;
         void setListenRate (double workingRate) noexcept;
 
-        // Any slot that does something.
+        // Any slot that does something. An AMOUNT under 0.01% counts as 0:
+        // a knob set to 0% can be stored a hair off it after rounding (it
+        // was, on macOS), and that mustn't switch the modulation on.
+        static constexpr float minimumAmount = 1.0e-4f;
         static bool isActive (const Settings&) noexcept;
 
         // Called for every sample MARS works on: the input and the bands, for

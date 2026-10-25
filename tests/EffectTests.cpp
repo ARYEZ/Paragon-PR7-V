@@ -3245,6 +3245,21 @@ TEST_CASE ("MARS modulation: empty slots change nothing", "[effects][mars][modul
     CHECK (maxAbsDifference (reference, noAmount.runMono (input)) == 0.0f);
 }
 
+TEST_CASE ("MARS modulation: busy from the first moment, the knobs start where they're set", "[effects][mars][modulation]")
+{
+    // A slot that moves LEVEL by at most half a dB: the start must sound like
+    // the unmodulated band, not glide up from every knob at 0 (as 0.15.0 did
+    // at first, which also made a hair-off-0% slot audible on macOS).
+    const auto input = sine (440.0, 0.3f, 0.1);
+    ModulatedMarsRig plain;
+    plain.band (0, "Mix", 0.8f);
+    const auto reference = plain.runMono (input);
+    ModulatedMarsRig busy;
+    busy.band (0, "Mix", 0.8f);
+    busy.slot (0, Mod::lfo1, Mod::bandTarget (0, Mod::level), 0.01f);
+    CHECK (maxAbsDifference (reference, busy.runMono (input)) < 0.02f);
+}
+
 TEST_CASE ("MARS modulation: an envelope follower on DRIVE saturates the loud parts harder", "[effects][mars][modulation]")
 {
     // The third harmonic against the note, in dB.

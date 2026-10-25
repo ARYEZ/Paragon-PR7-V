@@ -396,6 +396,10 @@ TEST_CASE ("MARS slots: AMOUNT scales the source; a slot can turn another slot u
     empty.slots[1] = { Mod::none, Mod::bandTarget (0, Mod::drive), 1.0f };
     empty.slots[2] = { Mod::lfo1, Mod::bandTarget (0, Mod::drive), 0.0f };
     CHECK_FALSE (Mod::isActive (empty));
+    empty.slots[2].amount = 1.0e-8f;   // 0% stored a hair off
+    CHECK_FALSE (Mod::isActive (empty));
+    empty.slots[2].amount = 0.01f;     // 1%: on
+    CHECK (Mod::isActive (empty));
 }
 
 TEST_CASE ("MARS modulation: every target's range is its knob's, and every part has a parameter", "[mars][modulation][parameters]")

@@ -178,6 +178,7 @@ namespace effects
                 return current;
             }
             double getCurrentValue() const noexcept { return current; }
+            void jump() noexcept { current = target; left = 0; }
         };
 
         struct BandState
@@ -233,7 +234,7 @@ namespace effects
         // The modulation, and the knobs it moves.
         MarsModulation modulation;
         int tickLength = 16, untilTick = 0;
-        bool wasModulated = false;
+        bool wasModulated = false, knobsSet = false;   // knobsSet: setKnobs has run since prepare
         int liveBands = 1;
         std::array<Band, maxBands> live;
         static constexpr int numKnobTargets = MarsModulation::firstLfoTarget;   // the bands' and the global knobs
