@@ -14,12 +14,17 @@
 //           change its interval, right-click to remove it.
 //   right   voice tabs 1-8; the picked voice's ON, CORRECT, PITCH, FINE and
 //           FORMANT; then the mix: SOURCE, HARMONY, SPREAD, CORRECT FORMANT.
+//           The NOTES tab (stage 3) shows GENERATE NOTES, the CHORD map, MIN
+//           NOTE, TOLERANCE and TIME, and the note voices' LEVEL, WIDTH,
+//           FORMANT, ATTACK and RELEASE. Note voices show on the graph in
+//           blue, labelled with their notes, while they sound.
 class HarmonyPanel final : public juce::Component,
                            private juce::Timer
 {
 public:
     // `sungNote` returns the note being sung (a MIDI number), or -1.
-    HarmonyPanel (juce::AudioProcessorValueTreeState&, std::function<float()> sungNote, std::function<float()> correctNote = {});
+    HarmonyPanel (juce::AudioProcessorValueTreeState&, std::function<float()> sungNote, std::function<float()> correctNote = {},
+                  const effects::Harmony* harmony = nullptr);
     ~HarmonyPanel() override;
 
     void paint (juce::Graphics&) override;
@@ -31,6 +36,8 @@ public:
 
     void selectVoice (int voice);
     int getSelectedVoice() const noexcept { return selected; }
+    void showNotes (bool show);
+    bool isShowingNotes() const noexcept { return notesShown; }
 
     // Where a voice with this pan and level sits on the graph, and back. Public for tests.
     juce::Point<float> pointFor (float pan, float levelDb) const;
@@ -76,6 +83,14 @@ private:
     juce::ComboBox correct;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> correctAttachment;
     std::function<float()> correctNote;   // the note CORRECT is tuning to, or -1
+    const effects::Harmony* harmonyEngine = nullptr;
+    bool notesShown = false;
+    juce::TextButton notesTab { "NOTES" };
+    Switch generate;
+    juce::Label chordLabel;
+    juce::ComboBox chord;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> chordAttachment;
+    Knob minNote, tolerance, toleranceTime, noteLevel, noteWidth, noteFormant, noteAttack, noteRelease;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;

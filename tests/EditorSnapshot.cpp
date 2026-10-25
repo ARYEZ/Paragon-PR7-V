@@ -1,4 +1,5 @@
 #include "ui/EffectPanel.h"
+#include "ui/HarmonyPanel.h"
 #include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 
@@ -189,6 +190,10 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             if (button->getButtonText() == "OCTAVE / FREEZE")
                 button->onClick();
     }
+    // PARAGON_SNAPSHOT_HARMONYNOTES=1: the HARMONY panel's NOTES tab.
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYNOTES", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->showNotes (true);
     // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
     // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2; MARS's
     // BANDS, GLOBAL, MOD, SLOTS: 0-3).

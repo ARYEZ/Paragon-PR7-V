@@ -188,7 +188,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       expressionPanel (processorToShow.getParameters()),
       eqPanel (processorToShow.getParameters()),
       harmonyPanel (processorToShow.getParameters(), [&processorToShow] { return processorToShow.getHarmonySungNote(); },
-                    [&processorToShow] { return processorToShow.getHarmonyCorrectNote(); }),
+                    [&processorToShow] { return processorToShow.getHarmonyCorrectNote(); }, &processorToShow.getHarmony()),
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
       marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); },
                  &processorToShow.getMars()),

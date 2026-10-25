@@ -562,6 +562,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // correction of the singer's own voice. Off to start: no delay.
     constexpr int v38 = 38;
     layout.add (makeChoice (ParamIDs::harmonyCorrect, "Harmony Correct", v38, effects::Harmony::correctNames, 0));
+    // Added in plugin version 39: HARMONY's GENERATE NOTES and CHORD maps
+    // (stage 3). Off to start; CORRECT's NOTES state is appended to its list.
+    constexpr int v39 = 39;
+    const effects::Harmony::Notes noteDefaults;
+    const ToText asNote = [] (float midi, int)
+    {
+        static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const auto note = juce::roundToInt (midi);
+        return juce::String (names[((note % 12) + 12) % 12]) + juce::String (note / 12 - 1);
+    };
+    const ToText asTolerance = [] (float cents, int)
+    {
+        return cents > 200.0f ? juce::String ("Off") : juce::String (juce::roundToInt (cents)) + " ct";
+    };
+    layout.add (makeSwitch (ParamIDs::harmonyGenerate, "Harmony Generate Notes", v39, noteDefaults.generate));
+    layout.add (makeChoice (ParamIDs::harmonyChord, "Harmony Chord Map", v39, effects::Harmony::chordMapNames(), noteDefaults.chord));
+    layout.add (makeFloat (ParamIDs::harmonyMinNote, "Harmony Min Note",
+                           { (float) effects::Harmony::minNoteLowest, (float) effects::Harmony::minNoteHighest, 1.0f }, noteDefaults.minNote, v39, asNote));
+    layout.add (makeFloat (ParamIDs::harmonyTolerance, "Harmony Tolerance", { 50.0f, effects::Harmony::toleranceOff, 1.0f },
+                           noteDefaults.toleranceCents, v39, asTolerance));
+    layout.add (makeFloat (ParamIDs::harmonyToleranceTime, "Harmony Tolerance Time", skewed (1.0f, 1000.0f, 100.0f, 1.0f),
+                           noteDefaults.toleranceMs, v39, asMs));
+    layout.add (makeFloat (ParamIDs::harmonyNoteLevel, "Harmony Note Level", { effects::Harmony::silentDb, 6.0f, 0.1f }, noteDefaults.levelDb, v39, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyNoteWidth, "Harmony Note Width", { 0.0f, 1.0f, 0.01f }, noteDefaults.width, v39, asPercent));
+    layout.add (makeFloat (ParamIDs::harmonyNoteFormant, "Harmony Note Formant", { -12.0f, 12.0f, 0.1f }, noteDefaults.formant, v39, asSemitoneShift));
+    layout.add (makeFloat (ParamIDs::harmonyNoteAttack, "Harmony Note Attack", skewed (1.0f, 2000.0f, 100.0f, 1.0f), noteDefaults.attackMs, v39, asTime));
+    layout.add (makeFloat (ParamIDs::harmonyNoteRelease, "Harmony Note Release", skewed (1.0f, 5000.0f, 300.0f, 1.0f), noteDefaults.releaseMs, v39, asTime));
     return layout;
 }
 

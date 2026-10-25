@@ -161,6 +161,8 @@ public:
     float getHarmonySungNote() const noexcept { return harmony.getSungNote(); }
     // The note HARMONY's CORRECT is tuning the voice to (a MIDI number), or -1. For its panel.
     float getHarmonyCorrectNote() const noexcept { return harmony.getCorrectNote(); }
+    // HARMONY itself, for its panel to show the note voices (its getters are safe from the message thread).
+    const effects::Harmony& getHarmony() const noexcept { return harmony; }
 
     // CORRECT needs the plugin to run a little late; this tells the DAW
     // (from the message thread: the timer calls it, and tests can).

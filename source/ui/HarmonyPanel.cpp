@@ -7,6 +7,8 @@
 
 namespace
 {
+    // The note voices' colour, as Waves Harmony's note harmonies are blue.
+    const juce::Colour noteBlue { 0xff4fa3ff };
     constexpr float dotRadius = 12.0f;
     const auto maxGain = juce::Decibels::decibelsToGain (6.0f);
 
@@ -43,10 +45,11 @@ namespace
 }
 
 HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::function<float()> sungNoteSource,
-                            std::function<float()> correctNoteSource)
+                            std::function<float()> correctNoteSource, const effects::Harmony* harmonyToShow)
     : parameters (state), sungNote (std::move (sungNoteSource))
 {
     correctNote = std::move (correctNoteSource);
+    harmonyEngine = harmonyToShow;
     setUp (harmonyOn, "HARMONY");
     harmonyOn.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, ParamIDs::harmonyOn, harmonyOn.button);
     setUp (voiceOn, "ON");
@@ -106,11 +109,53 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
             if (! isActive (voice))
                 addVoiceAt (voice, 0.0f, 0.0f);
             selectVoice (voice);
+            showNotes (false);
         };
         addAndMakeVisible (tab);
     }
 
+    // NOTES: GENERATE NOTES, the CHORD map and the note voices.
+    notesTab.setClickingTogglesState (true);
+    notesTab.setRadioGroupId (4210);
+    notesTab.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    notesTab.setColour (juce::TextButton::textColourOnId, noteBlue);
+    notesTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    notesTab.setTooltip ("GENERATE NOTES: harmonies from chord maps, made from the notes you sing");
+    notesTab.onClick = [this] { showNotes (true); };
+    addAndMakeVisible (notesTab);
+    setUp (generate, "GENERATE");
+    generate.button.setTooltip ("Turn your singing into notes, and each note into the CHORD map's harmonies");
+    generate.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, ParamIDs::harmonyGenerate, generate.button);
+    styleLabel (chordLabel, "CHORD");
+    addAndMakeVisible (chordLabel);
+    chord.addItemList (effects::Harmony::chordMapNames(), 1);
+    chord.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
+    chord.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
+    chord.setColour (juce::ComboBox::textColourId, noteBlue);
+    chord.setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
+    chord.setTooltip ("What each note becomes: the same intervals on every note, or a chord from it (kept in the KEY and SCALE)");
+    addAndMakeVisible (chord);
+    chordAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyChord, chord);
+    const std::tuple<Knob*, const char*, const char*, const char*> noteKnobs[] = {
+        { &minNote, "MIN NOTE", ParamIDs::harmonyMinNote, "The lowest note listened for: lower sounds don't make notes" },
+        { &tolerance, "TOLERANCE", ParamIDs::harmonyTolerance, "How far (cents) your pitch must move for a new note. Off: only a silence starts one" },
+        { &toleranceTime, "TIME", ParamIDs::harmonyToleranceTime, "How long your pitch must stay moved for a new note: longer ignores slides and embellishments" },
+        { &noteLevel, "LEVEL", ParamIDs::harmonyNoteLevel, "The note voices' level" },
+        { &noteWidth, "WIDTH", ParamIDs::harmonyNoteWidth, "How far apart the note voices are panned, low notes left" },
+        { &noteFormant, "FORMANT", ParamIDs::harmonyNoteFormant, "The note voices' character: lower for a bigger singer, higher for a smaller one" },
+        { &noteAttack, "ATTACK", ParamIDs::harmonyNoteAttack, "How quickly the note voices fade in" },
+        { &noteRelease, "RELEASE", ParamIDs::harmonyNoteRelease, "How quickly they fade out" } };
+    for (const auto& [knob, label, id, tip] : noteKnobs)
+    {
+        setUp (*knob, label);
+        knob->attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id, knob->slider);
+        auto* parameter = parameters.getParameter (id);
+        knob->slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
+        knob->slider.setTooltip (tip);
+    }
+
     selectVoice (0);
+    showNotes (false);
     refreshTabs();
     shownSung = "--";
     startTimerHz (20);
@@ -155,6 +200,36 @@ void HarmonyPanel::selectVoice (int voice)
     selected = juce::jlimit (0, (int) tabs.size() - 1, voice);
     tabs[(size_t) selected].setToggleState (true, juce::dontSendNotification);
     bindVoiceControls();
+    repaint();
+}
+
+void HarmonyPanel::showNotes (bool show)
+{
+    notesShown = show;
+    if (show)
+        notesTab.setToggleState (true, juce::dontSendNotification);
+    else
+        tabs[(size_t) selected].setToggleState (true, juce::dontSendNotification);
+    for (auto* knob : { &pitch, &fine, &formant, &source, &harmony, &spread, &correctFormant })
+    {
+        knob->label.setVisible (! show);
+        knob->slider.setVisible (! show);
+    }
+    for (auto* control : { &voiceOn, &voiceCorrect })
+    {
+        control->label.setVisible (! show);
+        control->button.setVisible (! show);
+    }
+    for (auto* knob : { &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
+    {
+        knob->label.setVisible (show);
+        knob->slider.setVisible (show);
+    }
+    generate.label.setVisible (show);
+    generate.button.setVisible (show);
+    chordLabel.setVisible (show);
+    chord.setVisible (show);
+    resized();
     repaint();
 }
 
@@ -355,6 +430,8 @@ void HarmonyPanel::resized()
     // Right: voice tabs, the picked voice, then the mix.
     auto right = area;
     auto tabRow = right.removeFromTop (22);
+    notesTab.setBounds (tabRow.removeFromRight (56));
+    tabRow.removeFromRight (6);
     const auto tabWidth = (tabRow.getWidth() - 3 * ((int) tabs.size() - 1)) / (int) tabs.size();
     for (auto& tab : tabs)
     {
@@ -363,6 +440,36 @@ void HarmonyPanel::resized()
     }
     right.removeFromTop (6);
     const auto rowHeight = (right.getHeight() - 6) / 2;
+
+    if (notesShown)
+    {
+        // NOTES: what makes the notes, then how the note voices sound.
+        auto top = right.removeFromTop (rowHeight);
+        const auto unit = (float) top.getWidth() / 6.0f;   // GENERATE 0.8, CHORD 1.7, the knobs 1.17 each
+        generate.label.setBounds (top.removeFromLeft (juce::roundToInt (unit * 0.8f)).removeFromTop (14));
+        generate.button.setBounds (juce::Rectangle<int> (generate.label.getX(), generate.label.getBottom(), generate.label.getWidth(), top.getHeight() - 14)
+                                       .withSizeKeepingCentre (26, 26));
+        auto chordCell = top.removeFromLeft (juce::roundToInt (unit * 1.7f)).reduced (2, 0);
+        chordLabel.setBounds (chordCell.removeFromTop (14));
+        chord.setBounds (chordCell.withSizeKeepingCentre (chordCell.getWidth(), 24).translated (0, -8));
+        const auto knobWidth = top.getWidth() / 3;
+        for (auto* knob : { &minNote, &tolerance, &toleranceTime })
+        {
+            auto cell = top.removeFromLeft (knobWidth);
+            knob->label.setBounds (cell.removeFromTop (14));
+            knob->slider.setBounds (cell.reduced (1, 0));
+        }
+        right.removeFromTop (6);
+        auto bottom = right;
+        const auto width = bottom.getWidth() / 5;
+        for (auto* knob : { &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
+        {
+            auto cell = bottom.removeFromLeft (width);
+            knob->label.setBounds (cell.removeFromTop (14));
+            knob->slider.setBounds (cell.reduced (1, 0));
+        }
+        return;
+    }
 
     auto voiceRow = right.removeFromTop (rowHeight);
     const auto place = [] (juce::Label& label, juce::Component& widget, juce::Rectangle<int> cell, bool isSwitch)
@@ -480,6 +587,38 @@ void HarmonyPanel::paint (juce::Graphics& g)
         g.setColour (ParagonColours::textDim);
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawFittedText ("Click to add a voice", graph.reduced (8.0f).toNearestInt(), juce::Justification::centredTop, 1);
+    }
+
+    // The note voices, in blue, while they sound.
+    if (harmonyEngine != nullptr)
+    {
+        static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const auto noteDb = value (ParamIDs::harmonyNoteLevel);
+        for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+        {
+            const auto note = harmonyEngine->getNoteVoiceNote (v);
+            if (note < 0)
+                continue;
+            const auto envelope = harmonyEngine->getNoteVoiceLevel (v);
+            const auto centre = pointFor (harmonyEngine->getNoteVoicePan (v), noteDb + juce::Decibels::gainToDecibels (envelope, -60.0f));
+            const auto dot = juce::Rectangle<float> (dotRadius * 2.0f, dotRadius * 2.0f).withCentre (centre);
+            g.setColour (noteBlue.withAlpha (0.25f));
+            g.fillEllipse (dot.expanded (3.0f));
+            g.setColour (noteBlue);
+            g.fillEllipse (dot);
+            g.setColour (juce::Colour (0xff0b1420));
+            g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+            g.drawText (juce::String (names[note % 12]) + juce::String (note / 12 - 1), dot, juce::Justification::centred, false);
+        }
+    }
+
+    if (notesShown)
+    {
+        g.setColour (ParagonColours::textDim);
+        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+        const auto on = value (ParamIDs::harmonyGenerate) > 0.5f;
+        g.drawText (on ? "NOTES   " + chord.getText().toUpperCase() : juce::String ("NOTES   GENERATE IS OFF"), readoutArea, juce::Justification::centred, false);
+        return;
     }
 
     // The picked voice's pan and level, exactly.

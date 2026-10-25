@@ -169,7 +169,18 @@ namespace ParamIDs
     inline constexpr auto harmonyLevel          = "harmonyLevel";          // dB: all the harmony voices
     inline constexpr auto harmonyCorrectFormant = "harmonyCorrectFormant"; // 0 to 1
     inline constexpr auto harmonySpread         = "harmonySpread";         // 0 to 1
-    inline constexpr auto harmonyCorrect        = "harmonyCorrect";        // version 38: CORRECT, Off / Natural / Hard
+    inline constexpr auto harmonyCorrect        = "harmonyCorrect";        // version 38: CORRECT, Off / Natural / Hard (/ Notes, 39)
+    // Version 39: GENERATE NOTES and CHORD maps, and the note voices.
+    inline constexpr auto harmonyGenerate       = "harmonyGenerate";
+    inline constexpr auto harmonyChord          = "harmonyChord";
+    inline constexpr auto harmonyMinNote        = "harmonyMinNote";        // MIDI note
+    inline constexpr auto harmonyTolerance      = "harmonyTolerance";      // cents (above 200: off)
+    inline constexpr auto harmonyToleranceTime  = "harmonyToleranceTime";  // ms
+    inline constexpr auto harmonyNoteLevel      = "harmonyNoteLevel";      // dB
+    inline constexpr auto harmonyNoteWidth      = "harmonyNoteWidth";      // 0 to 1
+    inline constexpr auto harmonyNoteFormant    = "harmonyNoteFormant";    // semitones
+    inline constexpr auto harmonyNoteAttack     = "harmonyNoteAttack";     // ms
+    inline constexpr auto harmonyNoteRelease    = "harmonyNoteRelease";    // ms
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }

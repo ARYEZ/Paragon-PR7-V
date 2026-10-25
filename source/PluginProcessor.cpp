@@ -491,6 +491,17 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     harmonySettings.spread = param (ParamIDs::harmonySpread);
     harmonySettings.correct = (effects::Harmony::Correct) juce::roundToInt (param (ParamIDs::harmonyCorrect));
     harmonySettings.latency = correctLatency.load();
+    auto& notes = harmonySettings.notes;
+    notes.generate = isOn (ParamIDs::harmonyGenerate);
+    notes.chord = juce::roundToInt (param (ParamIDs::harmonyChord));
+    notes.minNote = param (ParamIDs::harmonyMinNote);
+    notes.toleranceCents = param (ParamIDs::harmonyTolerance);
+    notes.toleranceMs = param (ParamIDs::harmonyToleranceTime);
+    notes.levelDb = param (ParamIDs::harmonyNoteLevel);
+    notes.width = param (ParamIDs::harmonyNoteWidth);
+    notes.formant = param (ParamIDs::harmonyNoteFormant);
+    notes.attackMs = param (ParamIDs::harmonyNoteAttack);
+    notes.releaseMs = param (ParamIDs::harmonyNoteRelease);
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
