@@ -156,11 +156,11 @@ TEST_CASE ("Undoing a rig change brings back the previous rig and its name", "[u
     TestRig rig;
     rig.turn (ParamIDs::reverbMix, 0.5f);
 
-    const auto* surf = rig.processor.getRigLibrary().findFactory ("Surf Tremolo");
+    const auto* surf = rig.processor.getRigLibrary().findFactory ("Tremolo Ghost");
     REQUIRE (surf != nullptr);
     rig.processor.loadRig (*surf);
     rig.processor.flushUndoStep();
-    CHECK (rig.processor.getCurrentRig().name == "Surf Tremolo");
+    CHECK (rig.processor.getCurrentRig().name == "Tremolo Ghost");
     CHECK_FALSE (rig.processor.isRigModified());
 
     rig.processor.undo();
@@ -169,7 +169,7 @@ TEST_CASE ("Undoing a rig change brings back the previous rig and its name", "[u
     CHECK (rig.processor.isRigModified());   // it was edited before the rig change
 
     rig.processor.redo();
-    CHECK (rig.processor.getCurrentRig().name == "Surf Tremolo");
+    CHECK (rig.processor.getCurrentRig().name == "Tremolo Ghost");
     CHECK_FALSE (rig.processor.isRigModified());
 }
 

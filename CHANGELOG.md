@@ -2,6 +2,17 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.12.0
+
+- **42 factory rigs for the voice.** The guitar rigs PR7-V started with are gone; your own saved rigs are untouched. They show off the new delay, reverb, doubler and Revival compressor. Most start with a compressor and the de-esser, as a vocal chain would. Five banks:
+  - **A: everyday vocals.** Clean Slate, Studio Vocal, Pop Lead, Intimate, Radio Ready, Podcast Voice.
+  - **B: rock and grit.** Rock Lead, Grit Shout, Garage Megaphone, Gang Vocal (four loose takes), Arena Rock.
+  - **C: delays and throws.** Slapback, Dotted Throw, Ping-Pong Echo, Dub Echo, Wide Dual Echo, Lo-Fi Echo, Endless Echo (feedback past 100%: it keeps swelling until you switch the delay off), Pedal Throw (the expression pedal fades the echoes and hall in), Backwards Echo.
+  - **D: spaces.** Vocal Plate, Big Hall, Echo Chamber, Cathedral Choir, Worship Wash, Gated 80s, Reverse Swell, Floating.
+  - **E: character.** Big Double, Octave Double, Harmony Stack (set KEY and SCALE in the PITCH panel first), Dream Chorus, Rotary Voice, Phaser Dream, Jet Voice, Wide Pan, Tremolo Ghost, Telephone, Old Radio, Cassette Memory, Metallic Voice, Trap Ad-Lib.
+- **Even levels:** every rig was played through and its RIG LEVEL set so they sit within a few dB of each other, so switching doesn't make you jump. Clean Slate (everything off) is quieter, because it has no compressor lifting your voice.
+- They're starting points tuned by measurement, not by ear: adjust to your voice and mic, and save your own versions.
+
 ## 0.11.0
 
 - **Includes 0.10.0's bigger DELAY** (its notes are below): 0.10.0 was never published, because its macOS build failed its tests.

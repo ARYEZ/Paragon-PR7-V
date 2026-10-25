@@ -103,4 +103,4 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - Mod: chorus and flanger.
 - **The NAM amp and cab:** removed in 0.3.0 (the owner: "not needed for vocals").
 - **Pitch tools to adapt:** PITCH's octaver and FREEZE, and the expression pedal (ideal for harmony level, delay throws and pitch bends live).
-- **Factory rigs** for vocals: clean pop, rock grit, rap/trap, worship, lo-fi radio, robot, and song-inspired voices.
+- **Factory rigs** (0.12.0): the guitar rigs were replaced (the owner's choice) by 42 vocal ones in five banks, A everyday, B rock, C delays, D spaces, E character, using the new delay, reverb, doubler and Revival. A test plays each and keeps them within 6 dB of the median (balanced with `rigLevel`; Clean Slate, everything off, is exempt). Still to come: song-inspired rigs, a robot/vocoder voice once there is one.

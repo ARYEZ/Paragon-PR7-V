@@ -293,7 +293,7 @@ TEST_CASE ("BYPASS is global: rigs don't change it and it doesn't mark them modi
     const auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("ParagonX1UiTests").getChildFile (juce::Uuid().toString());
     processor.useRigFolder (folder);
 
-    processor.loadRig (*processor.getRigLibrary().findFactory ("Studio Clean"));
+    processor.loadRig (*processor.getRigLibrary().findFactory ("Studio Vocal"));
     set (processor, ParamIDs::bypass, 1.0f);
     CHECK_FALSE (processor.isRigModified());
 
