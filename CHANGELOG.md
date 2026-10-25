@@ -2,6 +2,19 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.20.0
+
+- **HARMONY stage 4: MIDI notes.** Inspired by Waves Harmony's MIDI keyboard input. Send MIDI to PR7-V (a MIDI track or keyboard routed to it in your DAW) and the keys you play become harmony voices made from your own voice.
+- **MIDI**, on the NOTES tab, decides how:
+  - **As Played** (to start): exactly the keys you hold, so a chord you play is the chord that's sung. Out-of-key keys stay as played.
+  - **Through Chord:** each key goes through the CHORD map and into the KEY and SCALE, as a generated note does.
+- **Velocity** sets each note's level: soft keys are quieter. The **sustain pedal** holds the notes.
+- **Played and generated notes share the eight note voices.** A voice keeps its note while it's still wanted, so a held key doesn't restart when another is added.
+- **TUNE VOICE: Notes** now follows the keyboard: your voice is tuned hard to the nearest held key (in whichever octave is nearest), the classic played tuned-vocal effect. With no keys held, it tunes to the generated note as before.
+- **A keyboard strip** along the bottom of the NOTES graph shows the keys held (pink) and the generated note (blue). The graph is narrower on the NOTES tab, to make room for its controls.
+- **Our design where the guide doesn't say:** As Played not correcting keys into the key, and the velocity curve (from 30% for the softest key to 100% for the hardest). MIDI works only with HARMONY on, except TUNE VOICE's Notes, which works either way.
+- **Check your DAW:** to play harmonies from a keyboard, route a MIDI track or input to PR7-V. How you do that depends on the DAW.
+
 ## 0.19.0
 
 - **GENERATE NOTES and CHORD maps were meant to be 0.18.0,** but another 0.18.0 (AEON, below) was published first, so they arrive in this one, along with AEON.

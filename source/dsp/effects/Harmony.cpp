@@ -81,6 +81,54 @@ namespace effects
         return best;
     }
 
+    void Harmony::MidiKeys::read (const juce::MidiBuffer& buffer) noexcept
+    {
+        for (const auto metadata : buffer)
+        {
+            const auto message = metadata.getMessage();
+            if (message.isNoteOn())
+            {
+                velocity[(size_t) message.getNoteNumber()] = juce::jmax (0.01f, message.getFloatVelocity());
+                pedalled[(size_t) message.getNoteNumber()] = false;
+            }
+            else if (message.isNoteOff())
+            {
+                // Held on by the pedal, if it's down.
+                if (pedal)
+                    pedalled[(size_t) message.getNoteNumber()] = true;
+                else
+                    velocity[(size_t) message.getNoteNumber()] = 0.0f;
+            }
+            else if (message.isSustainPedalOn())
+            {
+                pedal = true;
+            }
+            else if (message.isSustainPedalOff())
+            {
+                pedal = false;
+                for (size_t key = 0; key < velocity.size(); ++key)
+                    if (pedalled[key])
+                    {
+                        velocity[key] = 0.0f;
+                        pedalled[key] = false;
+                    }
+            }
+            else if (message.isAllNotesOff() || message.isAllSoundOff())
+            {
+                velocity.fill (0.0f);
+                pedalled.fill (false);
+            }
+        }
+    }
+
+    bool Harmony::MidiKeys::any() const noexcept
+    {
+        for (const auto v : velocity)
+            if (v > 0.0f)
+                return true;
+        return false;
+    }
+
     juce::StringArray Harmony::chordMapNames()
     {
         juce::StringArray names;
@@ -125,21 +173,81 @@ namespace effects
         }
 
         // The note in the key, then the CHORD map's notes from it, kept in
-        // the key too (a third stays a third), panned across WIDTH low to high.
+        // the key too (a third stays a third). Then the MIDI keys held.
         const auto root = heldNote >= 0 ? Scales::nearest (heldNote, settings.key, settings.scale) : -1;
         generatedNote = root;
         const auto& map = chordMaps[(size_t) juce::jlimit (0, (int) chordMaps.size() - 1, notes.chord)];
-        for (int v = 0; v < numNoteVoices; ++v)
+        std::array<std::pair<int, float>, numNoteVoices> playing {};   // note, velocity
+        auto count = 0;
+        const auto want = [&playing, &count] (int note, float velocity)
         {
-            auto& voice = noteVoices[(size_t) v];
-            const auto inMap = v < map.count;
-            voice.note = notes.generate && root >= 0 && inMap ? Scales::harmonyNote (root, map.intervals[(size_t) v], settings.key, settings.scale) : -1;
-            if (! inMap)
+            if (note < 0 || note > 127)
+                return;
+            for (int i = 0; i < count; ++i)
+                if (playing[(size_t) i].first == note)
+                {
+                    playing[(size_t) i].second = juce::jmax (playing[(size_t) i].second, velocity);
+                    return;
+                }
+            if (count < numNoteVoices)
+                playing[(size_t) count++] = { note, velocity };
+        };
+        if (settings.midi != nullptr)
+            for (int key = 0; key < 128; ++key)
+                if (const auto velocity = settings.midi->velocity[(size_t) key]; velocity > 0.0f)
+                {
+                    if (notes.midiMap == 0)
+                    {
+                        want (key, velocity);
+                        continue;
+                    }
+                    const auto keyRoot = Scales::nearest (key, settings.key, settings.scale);
+                    for (int i = 0; i < map.count; ++i)
+                        want (Scales::harmonyNote (keyRoot, map.intervals[(size_t) i], settings.key, settings.scale), velocity);
+                }
+        if (notes.generate && root >= 0)
+            for (int i = 0; i < map.count; ++i)
+                want (Scales::harmonyNote (root, map.intervals[(size_t) i], settings.key, settings.scale), 1.0f);
+
+        // Each voice keeps its note while it's still playing (no restart);
+        // the rest let go, and new notes take free voices.
+        std::array<bool, numNoteVoices> placed {};
+        for (auto& voice : noteVoices)
+        {
+            auto keep = false;
+            for (int i = 0; i < count && ! keep; ++i)
+                if (! placed[(size_t) i] && playing[(size_t) i].first == voice.note)
+                {
+                    placed[(size_t) i] = keep = true;
+                    voice.velocity = playing[(size_t) i].second;
+                }
+            if (! keep)
+                voice.note = -1;
+        }
+        for (int i = 0; i < count; ++i)
+        {
+            if (placed[(size_t) i])
+                continue;
+            // The quietest free voice (the one that has faded furthest).
+            NoteVoice* best = nullptr;
+            for (auto& voice : noteVoices)
+                if (voice.note < 0 && (best == nullptr || voice.envelope < best->envelope))
+                    best = &voice;
+            if (best == nullptr)
+                break;
+            best->note = playing[(size_t) i].first;
+            best->velocity = playing[(size_t) i].second;
+            placed[(size_t) i] = true;
+        }
+        // Panned across WIDTH, low notes left, high right.
+        for (auto& voice : noteVoices)
+        {
+            if (voice.note < 0)
                 continue;
             auto rank = 0;
-            for (int other = 0; other < map.count; ++other)
-                rank += map.intervals[(size_t) other] < map.intervals[(size_t) v] ? 1 : 0;
-            voice.panTarget = map.count > 1 ? notes.width * (-1.0f + 2.0f * (float) rank / (float) (map.count - 1)) : 0.0f;
+            for (int i = 0; i < count; ++i)
+                rank += playing[(size_t) i].first < voice.note ? 1 : 0;
+            voice.panTarget = count > 1 ? notes.width * (-1.0f + 2.0f * (float) rank / (float) (count - 1)) : 0.0f;
         }
 
         // Each note voice plays its note exactly, gliding (30 ms) when it changes.
@@ -190,8 +298,24 @@ namespace effects
         auto wanted = 0.0;
         if (settings.correct == Correct::notes)
         {
-            // NOTES: hard onto the generated note (held through TOLERANCE).
+            // NOTES: hard onto the nearest held MIDI key (in whichever octave
+            // is nearest), or with none held, the generated note.
             correctTarget = generatedNote.load();
+            if (settings.midi != nullptr && voiced)
+            {
+                auto bestDistance = 1000.0;
+                for (int key = 0; key < 128; ++key)
+                    if (settings.midi->velocity[(size_t) key] > 0.0f)
+                    {
+                        const auto octave = std::round ((sung - key) / 12.0);
+                        const auto candidate = key + 12 * (int) octave;
+                        if (std::abs (candidate - sung) < bestDistance)
+                        {
+                            bestDistance = std::abs (candidate - sung);
+                            correctTarget = candidate;
+                        }
+                    }
+            }
             if (voiced && correctTarget >= 0)
                 wanted = juce::jlimit (-6.0, 6.0, (double) correctTarget - sung);
         }
@@ -408,7 +532,8 @@ namespace effects
                         continue;
                     noteVoice.envelope += (gate ? attack : release) * ((gate ? 1.0f : 0.0f) - noteVoice.envelope);
                     noteVoice.pan += panGlide * (noteVoice.panTarget - noteVoice.pan);
-                    const auto sample = nextFrom (noteVoice.state, latency) * noteGain * noteVoice.envelope;
+                    const auto sample = nextFrom (noteVoice.state, latency) * noteGain * noteVoice.envelope
+                                        * (0.3f + 0.7f * noteVoice.velocity);
                     outLeft += sample * juce::jmin (1.0f, 1.0f - noteVoice.pan);
                     outRight += sample * juce::jmin (1.0f, 1.0f + noteVoice.pan);
                     if (! gate && noteVoice.envelope < 1.0e-4f)

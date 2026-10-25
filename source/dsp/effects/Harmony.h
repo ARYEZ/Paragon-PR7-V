@@ -53,6 +53,15 @@ namespace effects
     // apart from the fixed voices (on Waves Harmony the two share eight).
     // The chord maps are ours; the guide names none. CORRECT's NOTES state
     // tunes the singer hard to the generated note.
+    //
+    // MIDI NOTES (stage 4): keys played on a MIDI keyboard (or a MIDI track)
+    // become note voices too, sharing the eight with generated notes: AS
+    // PLAYED, exactly the keys held (no key correction: a played chord is
+    // sung as played), or THROUGH CHORD, each key through the CHORD map and
+    // into the key, as a generated note is. Velocity sets each one's level
+    // (soft keys quieter: our curve, 30% to 100%); the sustain pedal holds
+    // them. CORRECT's NOTES state then tunes the singer to the nearest held
+    // key (in whichever octave is nearest), the played "robot" effect.
     class Harmony
     {
     public:
@@ -123,6 +132,19 @@ namespace effects
             float width = 0.7f;              // how far apart the note voices are panned
             float formant = 0.0f;
             float attackMs = 20.0f, releaseMs = 150.0f;
+            int midiMap = 0;                 // MIDI: 0 As Played, 1 Through Chord
+        };
+        static inline const juce::StringArray midiMapNames { "As Played", "Through Chord" };
+
+        // The MIDI keys held (stage 4, MIDI note input): kept by the processor
+        // from block to block. The sustain pedal (CC 64) holds released keys.
+        struct MidiKeys
+        {
+            std::array<float, 128> velocity {};   // 0: not held; else 0 to 1
+            std::array<bool, 128> pedalled {};    // let go while the pedal was down
+            bool pedal = false;
+            void read (const juce::MidiBuffer&) noexcept;
+            bool any() const noexcept;
         };
         static constexpr double correctLatencySeconds = 0.04;   // what CORRECT delays the plugin by
         static constexpr double naturalSeconds = 0.06, hardSeconds = 0.003;
@@ -140,6 +162,7 @@ namespace effects
             float spread = 1.0f;                // 1: pans as set; 0: everything in the middle
             std::array<Voice, numVoices> voices;
             Notes notes;
+            const MidiKeys* midi = nullptr;
         };
 
         void prepare (double sampleRate, int maxBlockSize);
@@ -219,6 +242,7 @@ namespace effects
             int note = -1;                           // what it plays (MIDI), or -1: let go
             double glided = 0.0;                     // its pitch, gliding to `note` (MIDI)
             float envelope = 0.0f, pan = 0.0f, panTarget = 0.0f;
+            float velocity = 1.0f;
         };
         std::array<NoteVoice, numNoteVoices> noteVoices;
         struct Shown { std::atomic<int> note { -1 }; std::atomic<float> pan { 0.0f }, level { 0.0f }; };

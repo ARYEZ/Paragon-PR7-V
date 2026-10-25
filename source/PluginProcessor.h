@@ -163,6 +163,8 @@ public:
     float getHarmonyCorrectNote() const noexcept { return harmony.getCorrectNote(); }
     // HARMONY itself, for its panel to show the note voices (its getters are safe from the message thread).
     const effects::Harmony& getHarmony() const noexcept { return harmony; }
+    // Whether a MIDI key is held (for HARMONY's keyboard strip).
+    bool isMidiKeyHeld (int key) const noexcept { return shownMidiKeys[(size_t) juce::jlimit (0, 127, key)].load() > 0.0f; }
 
     // CORRECT needs the plugin to run a little late; this tells the DAW
     // (from the message thread: the timer calls it, and tests can).
@@ -255,6 +257,8 @@ private:
         void bind (juce::AudioProcessorValueTreeState&);
         void read (Mod::Settings&) const noexcept;
     } marsModulationParameters;
+    effects::Harmony::MidiKeys harmonyMidi;        // the MIDI keys held, for HARMONY (audio thread only)
+    std::array<std::atomic<float>, 128> shownMidiKeys {};   // the same, for the panel
     effects::MarsModulation::MidiState marsMidi;   // what MIDI has said, for MARS's MIDI sources (audio thread only)
     effects::Presence presence;
     effects::Harmony harmony;   // HARMONY: first in the stereo part, before the doubler

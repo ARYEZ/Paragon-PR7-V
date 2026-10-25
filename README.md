@@ -32,7 +32,8 @@ descriptions below still talk about guitar.
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
 | V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
-| V7 | Harmony: MIDI note input, per-voice delay/filter, snapshots, modulators | Next |
+| V7 | Harmony stage 4: MIDI note input (As Played / Through Chord, velocity, sustain) | ✅ Done (0.20.0) |
+| V8 | Harmony: Note Map Editor, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -93,7 +94,10 @@ descriptions below still talk about guitar.
       Octaves, Power, Choir...) or a chord from it (Triad Below, Seventh, Sus2, Sus4, Add9...). These **note voices**
       play their notes exactly, whatever your own tuning, and show on the graph in blue while they sound; they have
       their own **LEVEL**, **WIDTH**, **FORMANT**, **ATTACK** and **RELEASE**, and come on top of the voices on the graph.
-      TUNE VOICE's **Notes** setting tunes your voice hard to the generated note.
+      TUNE VOICE's **Notes** setting tunes your voice hard to the generated note. **MIDI** keys played into PR7-V
+      become note voices too: **As Played** (exactly the keys) or **Through Chord** (each key through the CHORD map);
+      velocity sets their level and the sustain pedal holds them, and TUNE VOICE's Notes then follows the nearest held
+      key. A keyboard strip under the graph shows the keys held (pink) and the generated note (blue).
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).
