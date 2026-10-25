@@ -14,7 +14,7 @@
 // RIG LEVEL for balancing rigs against each other instead.
 struct Rig
 {
-    static constexpr int numBanks = 5;          // A to E (factory: everyday, rock, delays, spaces, character)
+    static constexpr int numBanks = 6;          // A to F (factory: everyday, rock, delays, spaces, character, signature styles)
     static constexpr int maxNumber = 99;
 
     juce::String name { "New Rig" };
@@ -31,7 +31,7 @@ struct Rig
     std::map<juce::String, float> parameters;
 
     juce::String getSlotName() const;           // e.g. "A01"
-    static juce::String bankName (int bank);    // "A".."E"
+    static juce::String bankName (int bank);    // "A".."F"
 
     std::unique_ptr<juce::XmlElement> toXml() const;
     // Returns nothing if the XML isn't a rig.

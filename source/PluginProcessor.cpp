@@ -39,6 +39,7 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
     for (int band = 0; band < effects::Mars::maxBands; ++band)
         for (int part = 0; part < ParamIDs::marsBandParts.size(); ++part)
             marsBandParameters[(size_t) band].parts[part] = parameters.getRawParameterValue (ParamIDs::marsBand (band, ParamIDs::marsBandParts[part]));
+    marsModulationParameters.bind (parameters);
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
@@ -162,6 +163,99 @@ double ParagonX1AudioProcessor::getTempoBpm() const noexcept
     return tapped > 0.0 ? tapped : hostBpm.load();
 }
 
+void ParagonX1AudioProcessor::MarsModulationParameters::bind (juce::AudioProcessorValueTreeState& state)
+{
+    const auto get = [&state] (const juce::String& id)
+    {
+        auto* value = state.getRawParameterValue (id);
+        jassert (value != nullptr);
+        return value;
+    };
+    for (int l = 0; l < Mod::numLfos; ++l)
+    {
+        for (int part = 0; part < ParamIDs::marsLfoParts.size(); ++part)
+            lfos[(size_t) l].parts[(size_t) part] = get (ParamIDs::marsLfo (l, ParamIDs::marsLfoParts[part]));
+        for (int step = 0; step < Mod::maxSteps; ++step)
+            for (int part = 0; part < ParamIDs::marsStepParts.size(); ++part)
+                lfos[(size_t) l].steps[(size_t) step][(size_t) part] = get (ParamIDs::marsStep (l, step, ParamIDs::marsStepParts[part]));
+    }
+    for (int e = 0; e < Mod::numEgs; ++e)
+        for (int part = 0; part < ParamIDs::marsEgParts.size(); ++part)
+            egs[(size_t) e][(size_t) part] = get (ParamIDs::marsEg (e, ParamIDs::marsEgParts[part]));
+    for (int f = 0; f < Mod::numEfs; ++f)
+        for (int part = 0; part < ParamIDs::marsEfParts.size(); ++part)
+            efs[(size_t) f][(size_t) part] = get (ParamIDs::marsEf (f, ParamIDs::marsEfParts[part]));
+    for (int m = 0; m < Mod::numMidis; ++m)
+        for (int part = 0; part < ParamIDs::marsMidiParts.size(); ++part)
+            midis[(size_t) m][(size_t) part] = get (ParamIDs::marsMidi (m, ParamIDs::marsMidiParts[part]));
+    for (int p = 0; p < Mod::numXys; ++p)
+        for (int part = 0; part < ParamIDs::marsXyParts.size(); ++part)
+            xys[(size_t) p][(size_t) part] = get (ParamIDs::marsXy (p, ParamIDs::marsXyParts[part]));
+    for (int slot = 0; slot < Mod::numSlots; ++slot)
+        for (int part = 0; part < ParamIDs::marsSlotParts.size(); ++part)
+            slots[(size_t) slot][(size_t) part] = get (ParamIDs::marsSlot (slot, ParamIDs::marsSlotParts[part]));
+}
+
+void ParagonX1AudioProcessor::MarsModulationParameters::read (Mod::Settings& settings) const noexcept
+{
+    const auto index = [] (Value value) { return juce::roundToInt (value->load()); };
+    for (size_t l = 0; l < lfos.size(); ++l)
+    {
+        const auto& p = lfos[l].parts;
+        auto& lfo = settings.lfos[l];
+        lfo.numSteps = index (p[0]) + 1;
+        lfo.rateHz = p[1]->load();
+        lfo.sync = index (p[2]);
+        lfo.offset = p[3]->load();
+        lfo.balance = p[4]->load();
+        lfo.glide = p[5]->load();
+        lfo.phase = p[6]->load();
+        lfo.midi = (Mod::MidiRestart) index (p[7]);
+        for (size_t step = 0; step < (size_t) Mod::maxSteps; ++step)
+        {
+            const auto& sp = lfos[l].steps[step];
+            lfo.steps[step] = { sp[0]->load(), sp[1]->load(), (Mod::Curve) index (sp[2]), sp[3]->load() > 0.5f };
+        }
+    }
+    for (size_t e = 0; e < egs.size(); ++e)
+    {
+        const auto& p = egs[e];
+        auto& eg = settings.egs[e];
+        eg.trigger = (Mod::Trigger) index (p[0]);
+        eg.thresholdDb = p[1]->load();
+        eg.delayMs = p[2]->load();
+        eg.attackMs = p[3]->load();
+        eg.decayMs = p[4]->load();
+        eg.sustain = p[5]->load();
+        eg.holdMs = p[6]->load();
+        eg.releaseMs = p[7]->load();
+        eg.attackSlope = p[8]->load();
+        eg.decaySlope = p[9]->load();
+        eg.releaseSlope = p[10]->load();
+        eg.centred = index (p[11]) == 1;
+    }
+    for (size_t f = 0; f < efs.size(); ++f)
+    {
+        const auto& p = efs[f];
+        settings.efs[f] = { (Mod::Trigger) index (p[0]), p[1]->load(), p[2]->load(), index (p[3]) == 1, p[4]->load() };
+    }
+    for (size_t m = 0; m < midis.size(); ++m)
+    {
+        const auto& p = midis[m];
+        settings.midis[m] = { (Mod::MidiInput) index (p[0]), index (p[1]), (Mod::Response) index (p[2]) };
+    }
+    for (size_t x = 0; x < xys.size(); ++x)
+    {
+        const auto& p = xys[x];
+        settings.xys[x] = { p[0]->load(), p[1]->load(), index (p[2]) == 1, index (p[3]) == 1 };
+    }
+    for (size_t s = 0; s < slots.size(); ++s)
+    {
+        const auto& p = slots[s];
+        settings.slots[s] = { index (p[0]), index (p[1]), p[2]->load() };
+    }
+}
+
 void ParagonX1AudioProcessor::readMidiExpression (const juce::MidiBuffer& midi) noexcept
 {
     // CC 11 is "expression" in the MIDI spec, and what most MIDI expression
@@ -213,6 +307,7 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     juce::ScopedNoDenormals noDenormals;
 
     readMidiExpression (midi);
+    marsMidi.read (midi);
 
     if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0)
         return;
@@ -224,6 +319,7 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     // so work through an oversized block in promised-size pieces.
     for (int start = 0; start < buffer.getNumSamples(); start += preparedBlockSize)
         processChunk (buffer, start, juce::jmin (preparedBlockSize, buffer.getNumSamples() - start));
+    marsMidi.blockDone();
 }
 
 void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, int start, int numSamples)
@@ -330,7 +426,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         band.mix = parts[10]->load();
         band.levelDb = parts[11]->load();
     }
-    mars.process (monoBlock, marsSettings);
+    marsModulationParameters.read (marsSettings.modulation);
+    const effects::MarsModulation::Context marsContext { getTempoBpm(), songBeats, pedal, &marsMidi };
+    mars.process (monoBlock, marsSettings, marsContext);
 
     presence.process (monoBlock, param (ParamIDs::presence));
 

@@ -462,12 +462,139 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { effects::Mars::minLevelDb, 12.0f, 0.1f }, 0.0f, v35, asMarsLevel));
     }
 
-    // Added in PR7-V 0.15.0: AEON's MANUAL and RES knobs (0 to 10), as on the
+    // Added in plugin version 37: MARS's modulation (stage 2), inspired by
+    // Saturn 2's. Every slot starts empty, so nothing moves until one is set.
+    constexpr int v37 = 37;
+    using Mod = effects::MarsModulation;
+    const auto range = [] (int target) { return Mod::targetRange (target); };
+    const ToText asSigned = [] (float value, int) { return (value > 0.0f ? "+" : "") + juce::String (juce::roundToInt (value * 100.0f)) + "%"; };
+    const ToText asSpeed = [] (float value, int) { return "x" + juce::String (value, 2); };
+    const ToText asWhole = [] (float value, int) { return juce::String (juce::roundToInt (value)); };
+    const ToText asSlope = [asSigned] (float value, int) { return std::abs (value) < 0.005f ? juce::String ("Straight") : asSigned (value, 0); };
+    const Mod::Lfo lfoDefaults;
+    for (int l = 0; l < Mod::numLfos; ++l)
+    {
+        const auto id = [l] (const char* part) { return ParamIDs::marsLfo (l, part); };
+        const auto name = "Mars XLFO " + juce::String (l + 1) + " ";
+        juce::StringArray stepCounts;
+        for (int n = 1; n <= Mod::maxSteps; ++n)
+            stepCounts.add (juce::String (n));
+        layout.add (makeChoice (id ("Steps").toRawUTF8(), name + "Steps", v37, stepCounts, lfoDefaults.numSteps - 1));
+        layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Rate", range (Mod::lfoTarget (l, Mod::lfoRate)), lfoDefaults.rateHz, v37, asHz));
+        layout.add (makeChoice (id ("Sync").toRawUTF8(), name + "Sync", v37, Mod::syncNames, 0));
+        juce::NormalisableRange<float> offset { 0.5f, 2.0f, 0.0f };
+        offset.setSkewForCentre (1.0f);
+        layout.add (makeFloat (id ("Offset").toRawUTF8(), name + "Offset", offset, 1.0f, v37, asSpeed));
+        layout.add (makeFloat (id ("Balance").toRawUTF8(), name + "Balance", range (Mod::lfoTarget (l, Mod::lfoBalance)), 0.0f, v37, asSigned));
+        layout.add (makeFloat (id ("Glide").toRawUTF8(), name + "Glide", range (Mod::lfoTarget (l, Mod::lfoGlide)), 0.0f, v37, asSigned));
+        layout.add (makeFloat (id ("Phase").toRawUTF8(), name + "Phase", range (Mod::lfoTarget (l, Mod::lfoPhase)), 0.0f, v37,
+                               [] (float value, int) { return juce::String (juce::roundToInt (value * 360.0f)) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0")); }));
+        layout.add (makeChoice (id ("Midi").toRawUTF8(), name + "MIDI Restart", v37, Mod::midiRestartNames, 0));
+        for (int step = 0; step < Mod::maxSteps; ++step)
+        {
+            const auto stepId = [l, step] (const char* part) { return ParamIDs::marsStep (l, step, part); };
+            const auto stepName = name + "Step " + juce::String (step + 1) + " ";
+            const auto& stepDefaults = lfoDefaults.steps[(size_t) step];
+            layout.add (makeFloat (stepId ("Value").toRawUTF8(), stepName + "Value", { -1.0f, 1.0f, 0.01f }, stepDefaults.value, v37, asSigned));
+            layout.add (makeFloat (stepId ("Glide").toRawUTF8(), stepName + "Glide", { 0.0f, 1.0f, 0.01f }, stepDefaults.glide, v37, asPercent));
+            layout.add (makeChoice (stepId ("Curve").toRawUTF8(), stepName + "Curve", v37, Mod::curveNames, (int) stepDefaults.curve));
+            layout.add (makeSwitch (stepId ("Random").toRawUTF8(), stepName + "Random", v37, stepDefaults.random));
+        }
+    }
+    const Mod::Eg egDefaults;
+    for (int e = 0; e < Mod::numEgs; ++e)
+    {
+        const auto id = [e] (const char* part) { return ParamIDs::marsEg (e, part); };
+        const auto name = "Mars EG " + juce::String (e + 1) + " ";
+        const auto target = [e] (int part) { return Mod::egTarget (e, part); };
+        layout.add (makeChoice (id ("Trigger").toRawUTF8(), name + "Trigger", v37, Mod::triggerNames, (int) egDefaults.trigger));
+        layout.add (makeFloat (id ("Threshold").toRawUTF8(), name + "Threshold", range (target (Mod::egThreshold)), egDefaults.thresholdDb, v37, asDb));
+        layout.add (makeFloat (id ("Delay").toRawUTF8(), name + "Delay", range (target (Mod::egDelay)), egDefaults.delayMs, v37, asTime));
+        layout.add (makeFloat (id ("Attack").toRawUTF8(), name + "Attack", range (target (Mod::egAttack)), egDefaults.attackMs, v37, asTime));
+        layout.add (makeFloat (id ("Decay").toRawUTF8(), name + "Decay", range (target (Mod::egDecay)), egDefaults.decayMs, v37, asTime));
+        layout.add (makeFloat (id ("Sustain").toRawUTF8(), name + "Sustain", range (target (Mod::egSustain)), egDefaults.sustain, v37, asPercent));
+        layout.add (makeFloat (id ("Hold").toRawUTF8(), name + "Hold", range (target (Mod::egHold)), egDefaults.holdMs, v37, asTime));
+        layout.add (makeFloat (id ("Release").toRawUTF8(), name + "Release", range (target (Mod::egRelease)), egDefaults.releaseMs, v37, asTime));
+        for (const auto* slope : { "AttackSlope", "DecaySlope", "ReleaseSlope" })
+            layout.add (makeFloat (id (slope).toRawUTF8(), name + juce::String (slope).replace ("Slope", " Slope"), { -1.0f, 1.0f, 0.01f }, 0.0f, v37, asSlope));
+        layout.add (makeChoice (id ("Range").toRawUTF8(), name + "Range", v37, Mod::egRangeNames, 0));
+    }
+    const Mod::Ef efDefaults;
+    for (int f = 0; f < Mod::numEfs; ++f)
+    {
+        const auto id = [f] (const char* part) { return ParamIDs::marsEf (f, part); };
+        const auto name = "Mars EF " + juce::String (f + 1) + " ";
+        auto triggers = Mod::triggerNames;
+        triggers.removeString ("MIDI Notes");
+        layout.add (makeChoice (id ("Trigger").toRawUTF8(), name + "Trigger", v37, triggers, (int) efDefaults.trigger));
+        layout.add (makeFloat (id ("Attack").toRawUTF8(), name + "Attack", range (Mod::efTarget (f, Mod::efAttack)), efDefaults.attackMs, v37, asTime));
+        layout.add (makeFloat (id ("Release").toRawUTF8(), name + "Release", range (Mod::efTarget (f, Mod::efRelease)), efDefaults.releaseMs, v37, asTime));
+        layout.add (makeChoice (id ("Mode").toRawUTF8(), name + "Mode", v37, Mod::efModeNames, 0));
+        layout.add (makeFloat (id ("Gain").toRawUTF8(), name + "Gain", { -24.0f, 24.0f, 0.1f }, efDefaults.gainDb, v37, asSignedDb));
+    }
+    const Mod::Midi midiDefaults;
+    for (int m = 0; m < Mod::numMidis; ++m)
+    {
+        const auto id = [m] (const char* part) { return ParamIDs::marsMidi (m, part); };
+        const auto name = "Mars MIDI " + juce::String (m + 1) + " ";
+        layout.add (makeChoice (id ("Input").toRawUTF8(), name + "Input", v37, Mod::midiInputNames, (int) midiDefaults.input));
+        layout.add (makeFloat (id ("Controller").toRawUTF8(), name + "Controller", { 0.0f, 127.0f, 1.0f }, (float) midiDefaults.controller, v37, asWhole));
+        layout.add (makeChoice (id ("Response").toRawUTF8(), name + "Response", v37, Mod::responseNames, (int) midiDefaults.response));
+    }
+    for (int p = 0; p < Mod::numXys; ++p)
+    {
+        const auto id = [p] (const char* part) { return ParamIDs::marsXy (p, part); };
+        const auto name = "Mars XY " + juce::String (p + 1) + " ";
+        layout.add (makeFloat (id ("X").toRawUTF8(), name + "X", { 0.0f, 1.0f, 0.001f }, 0.5f, v37, asPercent));
+        layout.add (makeFloat (id ("Y").toRawUTF8(), name + "Y", { 0.0f, 1.0f, 0.001f }, 0.5f, v37, asPercent));
+        layout.add (makeChoice (id ("Mode").toRawUTF8(), name + "Mode", v37, Mod::xyModeNames, 0));
+        layout.add (makeChoice (id ("Range").toRawUTF8(), name + "Range", v37, Mod::xyRangeNames, 0));
+    }
+    for (int slot = 0; slot < Mod::numSlots; ++slot)
+    {
+        const auto id = [slot] (const char* part) { return ParamIDs::marsSlot (slot, part); };
+        const auto name = "Mars Slot " + juce::String (slot + 1) + " ";
+        layout.add (makeChoice (id ("Source").toRawUTF8(), name + "Source", v37, Mod::sourceNames, 0));
+        layout.add (makeChoice (id ("Target").toRawUTF8(), name + "Target", v37, Mod::targetNames(), 0));
+        layout.add (makeFloat (id ("Amount").toRawUTF8(), name + "Amount", range (Mod::slotTarget (slot)), 0.0f, v37, asSigned));
+    }
+
+    // Added for AEON (the release after 0.17.0): AEON's MANUAL and RES knobs (0 to 10), as on the
     // pedal it's modelled on. AEON took the old flanger's place in the list.
-    constexpr int v36 = 36;
-    layout.add (makeFloat (ParamIDs::modManual, "AEON Manual", { 0.0f, 10.0f, 0.1f }, 5.0f, v36, asKnob));
-    layout.add (makeFloat (ParamIDs::modRes, "AEON Res", { 0.0f, 10.0f, 0.1f }, 5.0f, v36, asKnob));
+    constexpr int v38 = 38;
+    layout.add (makeFloat (ParamIDs::modManual, "AEON Manual", { 0.0f, 10.0f, 0.1f }, 5.0f, v38, asKnob));
+    layout.add (makeFloat (ParamIDs::modRes, "AEON Res", { 0.0f, 10.0f, 0.1f }, 5.0f, v38, asKnob));
     return layout;
+}
+
+juce::String ParamIDs::marsTargetParameter (int target)
+{
+    using Mod = effects::MarsModulation;
+    if (target >= Mod::firstBandTarget && target < Mod::firstGlobalTarget)
+    {
+        const char* parts[] = { "Drive", "Dynamics", "Feedback", "FbFreq", "Bass", "Mid", "Treble", "Presence", "Mix", "Level" };
+        return marsBand ((target - Mod::firstBandTarget) / Mod::bandParts, parts[(target - Mod::firstBandTarget) % Mod::bandParts]);
+    }
+    if (target >= Mod::firstGlobalTarget && target < Mod::firstLfoTarget)
+    {
+        const char* ids[] = { marsCross1, marsCross2, marsCross3, marsInput, marsOutput, marsMix };
+        return ids[target - Mod::firstGlobalTarget];
+    }
+    if (target >= Mod::firstLfoTarget && target < Mod::firstEgTarget)
+    {
+        const char* parts[] = { "Rate", "Balance", "Glide", "Phase" };
+        return marsLfo ((target - Mod::firstLfoTarget) / Mod::lfoParts, parts[(target - Mod::firstLfoTarget) % Mod::lfoParts]);
+    }
+    if (target >= Mod::firstEgTarget && target < Mod::firstEfTarget)
+    {
+        const char* parts[] = { "Threshold", "Delay", "Attack", "Decay", "Sustain", "Hold", "Release" };
+        return marsEg ((target - Mod::firstEgTarget) / Mod::egParts, parts[(target - Mod::firstEgTarget) % Mod::egParts]);
+    }
+    if (target >= Mod::firstEfTarget && target < Mod::firstSlotTarget)
+        return marsEf ((target - Mod::firstEfTarget) / Mod::efParts, (target - Mod::firstEfTarget) % Mod::efParts == 0 ? "Attack" : "Release");
+    if (target >= Mod::firstSlotTarget && target < Mod::numTargets)
+        return marsSlot (target - Mod::firstSlotTarget, "Amount");
+    return {};
 }
 
 void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::String&)>& get,

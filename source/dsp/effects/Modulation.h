@@ -8,7 +8,7 @@ namespace effects
     // Stomp 5: the modulation block, after the DOUBLER. Ten types:
     //
     //   chorus, phaser, tremolo                  the originals (unchanged)
-    //   flanger        AEON, modelled on the Boss BF-2 (see Aeon.h; PR7-V 0.15.0,
+    //   flanger        AEON, modelled on the Boss BF-2 (see Aeon.h; PR7-V, after 0.17.0,
     //                  replacing the original generic flanger)
     //   dimension      Roland Dimension D / Boss CE-1 style dual chorus
     //   uniVibe        Shin-ei Uni-Vibe: four uneven phase stages, lamp LFO
