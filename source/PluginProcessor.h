@@ -159,6 +159,12 @@ public:
     float getCompGainReductionDb() const noexcept { return compGate.getGainReductionDb(); }
     // The note HARMONY hears being sung (a MIDI number), or -1 between notes. For its panel.
     float getHarmonySungNote() const noexcept { return harmony.getSungNote(); }
+    // The note HARMONY's CORRECT is tuning the voice to (a MIDI number), or -1. For its panel.
+    float getHarmonyCorrectNote() const noexcept { return harmony.getCorrectNote(); }
+
+    // CORRECT needs the plugin to run a little late; this tells the DAW
+    // (from the message thread: the timer calls it, and tests can).
+    void updateLatency();
     // DOUBLER's MOD RESET: start every voice's wobble together.
     void resetDoublerModulation() noexcept { doubler.resetModulation(); }
     // How hard MARS's band is being driven, for its panel's display.
@@ -178,6 +184,8 @@ private:
     bool isOn (const char* id) const { return param (id) > 0.5f; }
 
     void timerCallback() override;
+    int wantedLatency() const noexcept;
+    std::atomic<int> correctLatency { 0 };   // what the audio thread runs HARMONY's CORRECT at (0: off)
     void parameterChanged (const juce::String& parameterId, float newValue) override;
     void markModified() noexcept;
     void applyRig (const Rig& rig);

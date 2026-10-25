@@ -2,6 +2,20 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.17.0
+
+- **Pitch correction for your voice: TUNE VOICE (HARMONY stage 2).** Inspired by the CORRECT button in Waves Harmony. It's in the HARMONY panel's header (the PITCH stomp's panel) and tunes your own voice to the nearest note in the song's **KEY** and **SCALE**:
+  - **Natural:** glides to the note, so vibrato, slides and expression mostly survive. A gentle tidy-up.
+  - **Hard:** jumps straight to the note, turning slides into steps: the robotic tuned-vocal sound.
+  - **Off:** as before.
+- **Set the key first.** A note outside the KEY and SCALE goes to the nearest one inside it. If you don't know the key, choose SCALE **Chromatic**: every note counts, and the voice just goes to the nearest semitone.
+- **It works with HARMONY off too,** so you can use it purely to tune your voice. With HARMONY on, the harmony voices stay in time with your tuned voice.
+- **SINGING** now also shows the note it's tuning you to.
+- **Your vowels stay yours:** it moves the pitch, not the voice's character.
+- **The trade-off: a 40 ms delay while it's on.** Tuning needs a moment of your voice to work with. PR7-V tells your DAW, which lines the vocal back up on playback. Singing live through it, you'll hear yourself 40 ms late. With TUNE VOICE off there's no delay at all, as before.
+- **Two new factory rigs:** **Tuned Lead** (A08, Natural) and **Hard Tune** (E21, the robotic sound).
+- **Our design where the guide doesn't say:** the glide speeds (Natural about 60 ms, Hard about 3 ms) and how a note is held so a voice right between two notes doesn't flicker. Waves' NOTES mode (tuning to played or generated notes) comes with MIDI input and Generate Notes in a later stage.
+
 ## 0.16.0
 
 - **A new bank of factory rigs, F: signature styles.** Sixteen rigs for the vocal sounds of genres and eras, named for the style rather than any artist:

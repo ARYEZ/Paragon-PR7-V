@@ -558,6 +558,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeChoice (id ("Target").toRawUTF8(), name + "Target", v37, Mod::targetNames(), 0));
         layout.add (makeFloat (id ("Amount").toRawUTF8(), name + "Amount", range (Mod::slotTarget (slot)), 0.0f, v37, asSigned));
     }
+    // Added in plugin version 38: HARMONY's CORRECT (stage 2), pitch
+    // correction of the singer's own voice. Off to start: no delay.
+    constexpr int v38 = 38;
+    layout.add (makeChoice (ParamIDs::harmonyCorrect, "Harmony Correct", v38, effects::Harmony::correctNames, 0));
     return layout;
 }
 

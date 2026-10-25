@@ -35,6 +35,7 @@ namespace
                     saturatedTapeStyle = 6, americanAmpStyle = 11, britishAmpStyle = 12, crunchyAmpStyle = 14,
                     screamingAmpStyle = 15, destroyStyle = 20;
     constexpr float texturizer = 3;                                                      // GLITCH's MODE
+    constexpr float naturalTune = 1, hardTune = 2;                                       // HARMONY's CORRECT (TUNE VOICE)
     // MARS's modulation (effects::MarsModulation): sources, targets, XLFO SYNC.
     constexpr float xlfo1 = 1, envelopeFollower1 = 5, expressionPedal = 13;
     constexpr float band1Drive = 1, band1Level = 10, band2Drive = 11, crossover1 = 41;
@@ -110,6 +111,18 @@ std::vector<Rig> makeFactoryRigs()
             { deessOn, 1 }, { deessAmount, 6 },
             { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", 1.5f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // A polished pop lead, tuned gently (TUNE VOICE: Natural, in the
+        // HARMONY panel). Set KEY and SCALE for the song first, or SCALE to
+        // Chromatic for any song. Tuning makes the plugin run 40 ms late
+        // (your DAW lines it back up).
+        make ("Tuned Lead", A, 8, "Pop,Studio,Tuning", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { harmonyCorrect, naturalTune },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -2 }, { "eq2k", 1 }, { "eq4k", 3 }, { "eq8k", 2 }, { "eq16k", 2 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.16f } }),
 
         // ---- B: rock and grit ----------------------------------------------
         // A rock lead: a little Screamer edge, a tape slap and a plate.
@@ -464,6 +477,18 @@ std::vector<Rig> makeFactoryRigs()
             { "mmSlot1Source", xlfo1 }, { "mmSlot1Target", band1Level }, { "mmSlot1Amount", 0.5f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
 
+        // The hard-tuned robot voice: every note snapped straight to pitch
+        // (TUNE VOICE: Hard), the slides turned into steps. Set KEY and
+        // SCALE for the song first (or SCALE to Chromatic); it runs 40 ms late.
+        make ("Hard Tune", E, 21, "Pop,Rap,Tuning,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { harmonyCorrect, hardTune },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 2 }, { "eq8k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.14f } }),
+
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records
         // are commonly made: doubling, compression, delays, saturation), not
@@ -605,7 +630,7 @@ std::vector<Rig> makeFactoryRigs()
         // Nu-metal: a rap-rock voice that's hard, dry and right up front,
         // doubled for the hooks, with a driven edge.
         make ("Nu-Metal Shout", F, 12, "Nu-Metal,Rap,Rock,Saturation,Doubler", {
-            { rigLevel, -5 },   // even with the other rigs
+            { rigLevel, -3 },   // even with the other rigs
             { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 5 },
             { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.45f }, { "mb1Mix", 0.8f },
             { eqOn, 1 }, { "eq63", -4 }, { "eq250", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 3 }, { "eq8k", 2 },

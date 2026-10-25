@@ -28,6 +28,14 @@ namespace effects
             voice.ratio = voice.formantRatio = 1.0f;
             voice.leftGain = voice.rightGain = 0.0f;
         }
+        corrected.output.assign ((size_t) bufferSize, 0.0f);
+        corrected.running = false;
+        corrected.ratio = corrected.formantRatio = 1.0f;
+        correctTarget = -1;
+        correctSemitones = 0.0;
+        correction = 0.0f;
+        correctNote = -1.0f;
+        latencyInUse = 0;
         now = 0;
         samplesToNextRead = 0;
         period = unvoicedSeconds * sampleRate;
@@ -89,6 +97,29 @@ namespace effects
         const auto sung = Scales::midiFromHz (sampleRate / period);
         sungNote = voiced ? (float) sung : -1.0f;
 
+        // CORRECT: the note the singer is aiming at, held until another is
+        // clearly nearer (a fifth of a semitone), so a voice right between
+        // two notes doesn't flicker between them.
+        auto wanted = 0.0;
+        if (settings.correct != Correct::off && voiced)
+        {
+            const auto nearestNote = Scales::nearest (sung, settings.key, settings.scale);
+            if (correctTarget < 0 || ! Scales::isIn (correctTarget, settings.key, settings.scale)
+                || (nearestNote != correctTarget && std::abs (sung - nearestNote) + 0.2 < std::abs (sung - correctTarget)))
+                correctTarget = nearestNote;
+            wanted = juce::jlimit (-6.0, 6.0, (double) correctTarget - sung);
+        }
+        else
+        {
+            correctTarget = -1;
+        }
+        const auto speed = settings.correct == Correct::hard ? hardSeconds : naturalSeconds;
+        correctSemitones += (1.0 - std::exp (-(double) hop / (speed * sampleRate))) * (wanted - correctSemitones);
+        corrected.ratio = (float) std::pow (2.0, correctSemitones / 12.0);
+        corrected.formantRatio = 1.0f;   // the voice's own resonances stay put
+        correction = (float) correctSemitones;
+        correctNote = (float) correctTarget;
+
         for (size_t v = 0; v < voices.size(); ++v)
         {
             const auto& setting = settings.voices[v];
@@ -118,13 +149,60 @@ namespace effects
         }
     }
 
-    void Harmony::addSlice (VoiceState& voice, double centre) noexcept
+    double Harmony::sliceDelay (const VoiceState& voice, int fixedDelay) const noexcept
+    {
+        // What a slice needs (two pulses, more when FORMANT reads faster),
+        // or the plugin's fixed delay while CORRECT is on, whichever is longer.
+        const auto half = juce::jmax (8.0, period);
+        const auto needed = half * (1.0 + juce::jmax (1.0, (double) voice.formantRatio)) + 4.0;
+        return juce::jmax (needed, (double) fixedDelay);
+    }
+
+    float Harmony::nextFrom (VoiceState& state, int fixedDelay) noexcept
+    {
+        // Lay down every slice whose source audio has arrived, then take this sample.
+        const auto half = juce::jmax (8.0, period);
+        const auto read = (double) state.formantRatio;
+        const auto delay = sliceDelay (state, fixedDelay);
+        if (! state.running)
+        {
+            state.running = true;
+            state.nextSlice = (double) now;
+        }
+        if (state.nextSlice < (double) now + half)
+            state.nextSlice = (double) now + delay - half * read;   // fell behind (just started)
+        while (state.nextSlice <= (double) now + delay - half * read)
+        {
+            addSlice (state, state.nextSlice, delay);
+            state.nextSlice += half / (double) state.ratio;
+        }
+        auto& slot = state.output[(size_t) (now & mask)];
+        const auto sample = slot;
+        slot = 0.0f;
+        return sample;
+    }
+
+    void Harmony::resetVoices() noexcept
+    {
+        for (auto* state : { &corrected })
+        {
+            std::fill (state->output.begin(), state->output.end(), 0.0f);
+            state->running = false;
+        }
+        for (auto& voice : voices)
+        {
+            std::fill (voice.output.begin(), voice.output.end(), 0.0f);
+            voice.running = false;
+            voice.leftGain = voice.rightGain = 0.0f;
+        }
+    }
+
+    void Harmony::addSlice (VoiceState& voice, double centre, double delay) noexcept
     {
         // One slice: two pulses of the voice, faded in and out (a Hann
         // window), centred on the analysis mark nearest where it's going.
         const auto half = juce::jmax (8, juce::roundToInt (period));
         const auto read = (double) voice.formantRatio;
-        const auto delay = (double) half * (1.0 + juce::jmax (1.0, read)) + 4.0;
         const auto from = nearestMark (centre - delay, (double) now - half * read);
 
         // Slices overlap more the higher the pitch, which would make the
@@ -140,19 +218,24 @@ namespace effects
 
     void Harmony::process (juce::dsp::AudioBlock<float> block, const float* cleanVoice, const Settings& settings) noexcept
     {
-        if (settings.on && bypass.isSilent())
+        // CORRECT on (the processor has the plugin running `latency` late):
+        // the voice always goes through here, tuned; HARMONY's switch only
+        // brings the harmony voices in and out. Off: as before, no delay.
+        const auto latency = juce::jmax (0, settings.latency);
+        if (latency != latencyInUse)
+        {
+            // Every voice changes its delay: start them afresh.
+            resetVoices();
+            latencyInUse = latency;
+        }
+        if (latency == 0 && settings.on && bypass.isSilent())
         {
             // Coming back on: start the voices afresh rather than from where
             // they were when it went off.
-            for (auto& voice : voices)
-            {
-                std::fill (voice.output.begin(), voice.output.end(), 0.0f);
-                voice.running = false;
-                voice.leftGain = voice.rightGain = 0.0f;
-            }
+            resetVoices();
         }
 
-        bypass.process (block, settings.on, [&] (juce::dsp::AudioBlock<float> wet)
+        const auto run = [&] (juce::dsp::AudioBlock<float> wet, bool voicesOn)
         {
             const auto numSamples = (int) wet.getNumSamples();
             const auto stereo = wet.getNumChannels() > 1;
@@ -166,7 +249,7 @@ namespace effects
             for (size_t v = 0; v < voices.size(); ++v)
             {
                 const auto& setting = settings.voices[v];
-                if (! setting.active || ! setting.on)
+                if (! voicesOn || ! setting.active || ! setting.on)
                     continue;
                 const auto pan = juce::jlimit (-1.0f, 1.0f, setting.pan * settings.spread);
                 const auto gain = gainFor (setting.levelDb) * harmonyGain;
@@ -174,7 +257,8 @@ namespace effects
                 // singer's own voice is; panned, it fades from the far side.
                 targets[v] = { gain * juce::jmin (1.0f, 1.0f - pan), gain * juce::jmin (1.0f, 1.0f + pan) };
             }
-            const auto sourceTarget = gainFor (settings.sourceDb);
+            // SOURCE is HARMONY's mix: with HARMONY off, the voice is at its own level.
+            const auto sourceTarget = voicesOn ? gainFor (settings.sourceDb) : 1.0f;
 
             for (int i = 0; i < numSamples; ++i)
             {
@@ -195,7 +279,8 @@ namespace effects
                 }
 
                 const auto through = (float) (i + 1) / (float) numSamples;
-                const auto source = (sourceGain + (sourceTarget - sourceGain) * through) * voice;
+                const auto singer = latency > 0 ? nextFrom (corrected, latency) : voice;
+                const auto source = (sourceGain + (sourceTarget - sourceGain) * through) * singer;
                 auto outLeft = source, outRight = source;
 
                 for (size_t v = 0; v < voices.size(); ++v)
@@ -203,29 +288,9 @@ namespace effects
                     auto& state = voices[v];
                     const auto [targetLeft, targetRight] = targets[v];
                     const auto sounding = targetLeft > 0.0f || targetRight > 0.0f || state.leftGain > 0.0f || state.rightGain > 0.0f;
-                    if (! state.running)
-                    {
-                        if (! sounding)
-                            continue;
-                        state.running = true;
-                        state.nextSlice = (double) now;
-                    }
-
-                    // Lay down every slice whose source audio has arrived.
-                    const auto half = juce::jmax (8.0, period);
-                    const auto read = (double) state.formantRatio;
-                    const auto delay = half * (1.0 + juce::jmax (1.0, read)) + 4.0;
-                    if (state.nextSlice < (double) now + half)
-                        state.nextSlice = (double) now + delay - half * read;   // fell behind (just started)
-                    while (state.nextSlice <= (double) now + delay - half * read)
-                    {
-                        addSlice (state, state.nextSlice);
-                        state.nextSlice += half / (double) state.ratio;
-                    }
-
-                    auto& slot = state.output[(size_t) (now & mask)];
-                    const auto sample = slot;
-                    slot = 0.0f;
+                    if (! state.running && ! sounding)
+                        continue;
+                    const auto sample = nextFrom (state, latency);
                     outLeft += (state.leftGain + (targetLeft - state.leftGain) * through) * sample;
                     outRight += (state.rightGain + (targetRight - state.rightGain) * through) * sample;
                 }
@@ -255,6 +320,11 @@ namespace effects
                     std::fill (state.output.begin(), state.output.end(), 0.0f);
                 }
             }
-        });
+        };
+
+        if (latency > 0)
+            run (block, settings.on);
+        else
+            bypass.process (block, settings.on, [&] (juce::dsp::AudioBlock<float> wet) { run (wet, true); });
     }
 }

@@ -30,7 +30,8 @@ descriptions below still talk about guitar.
 | V2 | Master limiter by OUTPUT | ✅ Done |
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
-| V5 | Harmony: CORRECT (pitch correction), Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
+| V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
+| V6 | Harmony: Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -80,6 +81,11 @@ descriptions below still talk about guitar.
       singer; 0%: they move with the pitch, like a sped-up tape). It starts with a third above on the left and a fifth
       above on the right. The harmonies come out a few milliseconds after you (two vocal pulses: about 8 ms on a high
       note to 25 ms on a low one); your own voice isn't delayed.
+      **TUNE VOICE** (top right; Waves Harmony calls it CORRECT) tunes your own voice to the nearest note in the KEY and
+      SCALE (SCALE **Chromatic**: the nearest semitone, for any song): **Natural** glides to the note so vibrato and slides
+      survive, **Hard** jumps to it (the robotic sound). It works with HARMONY off too, and SINGING shows the note it's
+      tuning to. While it's on, the whole plugin runs 40 ms late, which it tells your DAW so the vocal is lined back up
+      on playback; singing live through it you'll hear yourself 40 ms late. Off, there's no delay at all.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

@@ -19,7 +19,7 @@ class HarmonyPanel final : public juce::Component,
 {
 public:
     // `sungNote` returns the note being sung (a MIDI number), or -1.
-    HarmonyPanel (juce::AudioProcessorValueTreeState&, std::function<float()> sungNote);
+    HarmonyPanel (juce::AudioProcessorValueTreeState&, std::function<float()> sungNote, std::function<float()> correctNote = {});
     ~HarmonyPanel() override;
 
     void paint (juce::Graphics&) override;
@@ -72,10 +72,14 @@ private:
     Switch harmonyOn, voiceOn, voiceCorrect;
     juce::Label keyLabel, scaleLabel;
     juce::ComboBox key, scale;
+    juce::Label correctLabel;
+    juce::ComboBox correct;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> correctAttachment;
+    std::function<float()> correctNote;   // the note CORRECT is tuning to, or -1
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;
 
     juce::Rectangle<float> graph, sungArea, readoutArea;
-    juce::String shownSung;
+    juce::String shownSung, shownTuned;
 };
