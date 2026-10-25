@@ -1,6 +1,6 @@
 # Paragon PR7-V: notes for Claude
 
-This repository starts as a copy of **Paragon PR7-G** (the guitar processor, repo `ARYEZ/Paragon-X1`), full history included, at PR7-G **0.32.1**. It is to become **Paragon PR7-V**, the **vocal** processor. A third sibling, **Paragon PR7-B** (bass, repo `ARYEZ/Paragon-PR7-B`), started the same way.
+This repository starts as a copy of **Paragon PR7-G** (the guitar processor, repo `ARYEZ/Paragon-PR7-G`), full history included, at PR7-G **0.32.1**. It is to become **Paragon PR7-V**, the **vocal** processor. A third sibling, **Paragon PR7-B** (bass, repo `ARYEZ/Paragon-PR7-B`), started the same way.
 
 Everything below describes how the project is built, tested and released, and how the owner likes to work.
 

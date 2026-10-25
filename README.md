@@ -6,7 +6,7 @@
 A vocal multi-effects VST3 plugin: a floor processor for your voice, with seven stomps, an expression pedal
 and rigs. Built with [JUCE](https://juce.com).
 
-Paragon PR7-V is the vocal version of [Paragon PR7-G](https://github.com/ARYEZ/Paragon-X1), the guitar processor, and
+Paragon PR7-V is the vocal version of [Paragon PR7-G](https://github.com/ARYEZ/Paragon-PR7-G), the guitar processor, and
 started from its 0.32.1 release. It installs alongside PR7-G and keeps its own rigs. It has no amp or cabinet (PR7-G's
 NAM amp and IR loader aren't needed for a voice). Voicing the effects for vocals is in progress, so some of the
 descriptions below still talk about guitar.
