@@ -43,7 +43,9 @@ descriptions below still talk about guitar.
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
-  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.) The **PITCH** stomp switches
+  HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
+  what was on (TUNE VOICE in the mode it had).
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
     **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
     DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and

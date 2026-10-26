@@ -194,7 +194,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                  &processorToShow.getMars()),
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
-            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
+            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect },
           { "DYNAMICS", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
           { "DE-ESS", Icons::Type::deEsser, ParagonColours::deEsser, ParamIDs::deessOn },
           { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::filterPitch, ParamIDs::fpOn },
@@ -361,14 +361,19 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                 on.add (juce::String (voice + 1));
         return on.isEmpty() ? juce::String ("No voices") : (on.size() == 1 ? "Voice " : "Voices ") + on.joinIntoString (", ");
     });
-    // HARMONY and the octaver; it brings back whichever were on, and the
-    // first time, HARMONY. FREEZE has its own switch in the panel (a press
-    // turning it on too would hold a note by surprise).
-    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn }, pitchBlock, [this]
+    // HARMONY, the octaver and TUNE VOICE (which works without HARMONY, so
+    // the stomp must switch it too, or the voice stays tuned, and 40 ms
+    // late, with the stomp's light out); it brings back whichever were on,
+    // TUNE VOICE in the mode it had, and the first time, HARMONY. FREEZE
+    // has its own switch in the panel (a press turning it on too would hold
+    // a note by surprise).
+    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn, ParamIDs::harmonyCorrect }, pitchBlock, [this]
     {
         juce::StringArray parts;
         if (rawValue (ParamIDs::harmonyOn) > 0.5f)
             parts.add ("Harmony " + valueText (ParamIDs::harmonyKey) + " " + valueText (ParamIDs::harmonyScale));
+        if (rawValue (ParamIDs::harmonyCorrect) > 0.5f)
+            parts.add ("Tune Voice " + valueText (ParamIDs::harmonyCorrect));
         if (rawValue (ParamIDs::octOn) > 0.5f)
             parts.add ("Octaver");
         return parts.joinIntoString ("  ");

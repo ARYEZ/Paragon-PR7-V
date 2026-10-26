@@ -2,6 +2,12 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.21.1
+
+- **Fixed: PITCH wouldn't turn off once TUNE VOICE was on.** TUNE VOICE (HARMONY's pitch correction) works without HARMONY, but the PITCH stomp didn't switch it. With the stomp's light out, your voice stayed tuned and 40 ms late, so PITCH seemed stuck on.
+- **The PITCH stomp now switches TUNE VOICE too,** with HARMONY and the octaver. Off means your plain voice, with no delay. Pressing it again brings back exactly what was on, TUNE VOICE in the mode it had (Natural, Hard or Notes). The stomp's light, its hover text and the PITCH block in the signal chain all show when TUNE VOICE is on.
+- **Unchanged:** HARMONY's own switch in the panel still switches only the harmony voices. That way you can still use TUNE VOICE on its own, with no harmonies.
+
 ## 0.21.0
 
 - **HARMONY stage 5: the Note Map Editor.** Inspired by Waves Harmony's Note Map Editor. Click **EDIT** beside CHORD on the NOTES tab to make your own map of what each note plays.
