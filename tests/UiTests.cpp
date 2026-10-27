@@ -914,12 +914,12 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
         REQUIRE (count == 1);
         const auto shown = showing->getBoundsInParent();   // as drawn, scaled for an editor
         CHECK (rackBounds.contains (shown));
-        CHECK (shown.getX() >= rack.getX() + rack.getControlArea().getX());
+        CHECK (shown.getX() >= rack.getX() + (dynamic_cast<MarsPanel*> (showing) != nullptr ? rack.getDisplayArea() : rack.getControlArea()).getX());
         CHECK (shown.getRight() <= expression[0]->getX());
         // An editor sits in its screen on the face, scaled to fit, and a
         // click on it lands on it (the scaling also moves where it's clicked).
         if (dynamic_cast<EffectPanel*> (showing) == nullptr && dynamic_cast<GraphicEqPanel*> (showing) == nullptr
-            && dynamic_cast<DoublerPanel*> (showing) == nullptr)
+            && dynamic_cast<DoublerPanel*> (showing) == nullptr && dynamic_cast<MarsPanel*> (showing) == nullptr)
         {
             CHECK (shown == rack.getWindowGlass() + rack.getPosition());
             const auto centre = shown.getCentre();
@@ -931,7 +931,9 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
             // On the face at full size, not shrunk into a screen.
             CHECK (rack.getWindowGlass().isEmpty());
             CHECK (showing->getTransform().isIdentity());
-            CHECK (shown == rack.getControlArea() + rack.getPosition());
+            // (MARS covers the rack's display too: its band display is the display.)
+            const auto controls = rack.getControlArea() + rack.getPosition();
+            CHECK (shown == (dynamic_cast<MarsPanel*> (showing) != nullptr ? controls.getUnion (rack.getDisplayArea() + rack.getPosition()) : controls));
         }
     }
 
@@ -952,6 +954,32 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
     REQUIRE (gain != nullptr);
     gain->setValue (-9.0, juce::sendNotificationSync);
     CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (0, "Gain"))->load(), Catch::Matchers::WithinAbs (-9.0, 0.05));
+
+    // MARS on the rack: its band display is the rack's display, and clicking
+    // it picks a band; its DRIVE knob (one of the unit's big knobs) sets the band's drive.
+    chains[0]->onSelect (4);
+    auto* marsPanel = dynamic_cast<MarsPanel*> (editors[3]);
+    REQUIRE (marsPanel != nullptr);
+    CHECK (marsPanel->isRack());
+    set (processor, ParamIDs::marsBands, 1.0f);   // two bands
+    set (processor, ParamIDs::marsCross1, 1000.0f);
+    marsPanel->selectBand (0);
+    const auto displayArea = rack.getDisplayArea() + rack.getPosition() - marsPanel->getPosition();
+    const juce::Point<float> inBand2 (marsPanel->xFor (5000.0f), (float) displayArea.getCentreY());
+    CHECK (displayArea.toFloat().contains (inBand2));
+    marsPanel->mouseDown (mouseAt (*marsPanel, inBand2));
+    marsPanel->mouseUp (mouseAt (*marsPanel, inBand2));
+    CHECK (marsPanel->getSelectedBand() == 1);
+    std::vector<juce::Slider*> marsKnobs;
+    findAll (*marsPanel, marsKnobs);
+    juce::Slider* driveKnob = nullptr;
+    for (auto* knob : marsKnobs)
+        if (knob->isVisible() && (bool) knob->getProperties()[ParagonLookAndFeel::pedalKnobProperty]
+            && (driveKnob == nullptr || knob->getX() < driveKnob->getX()))
+            driveKnob = knob;   // the first knob in the row: DRIVE
+    REQUIRE (driveKnob != nullptr);
+    driveKnob->setValue (0.75, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::marsBand (1, "Drive"))->load(), Catch::Matchers::WithinAbs (0.75, 0.01));
 
     // The GRAPHIC EQ's faders on the rack set their bands.
     chains[0]->onSelect (5);

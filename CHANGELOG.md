@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.31.0
+
+- **MARS (SATURATION) rebuilt for the rack, at full size** (the third of the four editors; HARMONY is last). In 0.28.0 it was shrunk into a screen in the rack.
+  - **The band display is now the rack's display:** on the unit's screen on the left, each band a column in its colour, its drive as a bar and how hard it's driven right now as a line. You play it as before: click a band to pick it, drag a crossover line to move it, drag up or down in a band for its DRIVE, double-click to split a band, right-click to remove one.
+  - **Along the top:** the BANDS, GLOBAL, MOD and SLOTS page keys, then ON and how many BANDS.
+  - **BANDS:** the picked band's name in its colour, its ON key and STYLE, then all ten of its knobs in one row (DRIVE, DYNAMICS, FEEDBACK, FB FREQ, MIX, BASS, MID, TREBLE, PRESENCE, LEVEL) as the unit's big knobs, each value on a small screen. Right-click a knob to modulate it, as before; a modulated knob still shows its coloured ring.
+  - **GLOBAL:** INPUT, OUTPUT, MIX, QUALITY, SLOPE and the three crossovers in one row; the band display stays on the left.
+  - **MOD and SLOTS** are full editors of their own (the XLFO steps, envelopes, the 16 slots), so each gets one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
 ## 0.30.0
 
 - **The DOUBLER rebuilt for the rack, at full size** (the second of the four editors; MARS and HARMONY follow). In 0.28.0 it was shrunk into a screen in the rack; now it's laid out on the rack's face, its numbers larger than they've ever been.

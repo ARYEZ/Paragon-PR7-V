@@ -701,13 +701,19 @@ void MainView::layoutDock()
     eqPanel.setBounds (controls);
     doublerPanel.setRack (true);
     doublerPanel.setBounds (controls);
-    const std::initializer_list<juce::Component*> editors { &harmonyPanel, &marsPanel };
+    // MARS covers the rack's display too: its band display is the display.
+    {
+        const auto displayArea = faceplate.getDisplayArea() + faceplate.getPosition();
+        marsPanel.setBounds (controls.getUnion (displayArea));
+        marsPanel.setRack (true, displayArea - marsPanel.getPosition());
+    }
+    const std::initializer_list<juce::Component*> editors { &harmonyPanel };
     juce::Component* editorShowing = nullptr;
     for (auto* editor : editors)
         if (editor->isVisible())
             editorShowing = editor;
     faceplate.setWindow (editorShowing != nullptr ? controls - faceplate.getPosition() : juce::Rectangle<int>());
-    harmonyPanel.showTitle = marsPanel.showTitle = false;
+    harmonyPanel.showTitle = false;
     const auto glass = (editorShowing != nullptr ? faceplate.getWindowGlass() + faceplate.getPosition() : controls).toFloat();
     const auto designHeight = mockF (0, 568, 0, 822).getHeight();
     const auto scale = juce::jmin (1.0f, glass.getHeight() / designHeight);
@@ -720,7 +726,7 @@ void MainView::layoutDock()
     for (auto& panel : panels)
         if (panel != nullptr && panel->isVisible())
             panel->toFront (false);
-    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel })
+    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel, &marsPanel })
         if (panel->isVisible())
             panel->toFront (false);
     for (auto* editor : editors)

@@ -323,6 +323,15 @@ juce::Rectangle<int> Faceplate::getWindowGlass() const
     return LedDisplay::paintScreen (g, window.toFloat(), windowFrame).getSmallestIntegerContainer().reduced (1);
 }
 
+juce::Rectangle<int> Faceplate::getDisplayArea() const
+{
+    if (! isRack())
+        return {};
+    auto content = faceOf (getLocalBounds().toFloat()).reduced (12.0f, 8.0f);
+    content.removeFromTop (36.0f);   // the name, and the gap under it
+    return content.withWidth (rackDisplayWidth).toNearestInt();
+}
+
 juce::Rectangle<int> Faceplate::getSideArea() const
 {
     if (! isRack() || rackSideWidth <= 0.0f)
@@ -602,6 +611,8 @@ void Faceplate::paintMars (juce::Graphics& g, juce::Rectangle<float> header, juc
     // A valve unit: behind one long screen, a tube for each band, glowing
     // in the LED orange as hard as the band is driven, its STYLE under it.
     nameplate (g, header, "MARS", "MULTIBAND SATURATION");
+    if (isRack())
+        return;   // on the rack, MARS's own band display is the display (MarsPanel draws it here)
     const auto on = isOn();
     const auto glass = screen (g, body);
     auto inside = glass.reduced (glass.getWidth() * 0.03f, glass.getHeight() * 0.08f);

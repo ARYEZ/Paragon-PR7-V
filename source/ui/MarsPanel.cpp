@@ -3,6 +3,8 @@
 #include "Icons.h"
 #include "Parameters.h"
 #include "ParagonLookAndFeel.h"
+#include "ui/Finish.h"
+#include "ui/LedDisplay.h"
 
 namespace
 {
@@ -310,6 +312,15 @@ void MarsPanel::mouseDoubleClick (const juce::MouseEvent& event)
 
 void MarsPanel::timerCallback()
 {
+    // On the rack, the names follow the finish's ink.
+    const auto ink = rack ? Finish::ink() : ParagonColours::textDim;
+    if (ink != inkColour)
+    {
+        inkColour = ink;
+        for (auto* label : allLabels())
+            label->setColour (juce::Label::textColourId, ink);
+    }
+
     // The display's drive lights move with the sound; the picked band stays one that exists.
     if (selected >= numBands())
         selectBand (numBands() - 1);
@@ -349,8 +360,147 @@ void MarsPanel::timerCallback()
     }
 }
 
+std::vector<juce::Label*> MarsPanel::allLabels()
+{
+    std::vector<juce::Label*> found { &on.label, &bands.label, &bandOn.label, &style.label, &quality.label, &slope.label };
+    for (auto* knob : modulatableKnobs())
+        found.push_back (&knob->label);
+    return found;
+}
+
+void MarsPanel::setRack (bool inRack, juce::Rectangle<int> displayArea)
+{
+    const auto changed = rack != inRack || rackDisplay != displayArea;
+    rack = inRack;
+    rackDisplay = displayArea;
+    if (! changed)
+        return;
+    styleForRack();
+    resized();
+    repaint();
+}
+
+void MarsPanel::styleForRack()
+{
+    // Knobs as the unit's big knobs with values on screens, lists on
+    // screens, switches and pages as its keys, names in its ink.
+    for (auto* knob : modulatableKnobs())
+    {
+        knob->slider.getProperties().set (ParagonLookAndFeel::pedalKnobProperty, rack);
+        knob->slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, rack ? 18 : 15);
+        knob->slider.setColour (juce::Slider::textBoxTextColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+        knob->slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    }
+    for (auto* box : { &bands.box, &style.box, &quality.box, &slope.box })
+    {
+        box->setColour (juce::ComboBox::backgroundColourId, rack ? juce::Colours::transparentBlack : juce::Colour (0xff151217));
+        box->setColour (juce::ComboBox::outlineColourId, rack ? juce::Colours::transparentBlack : ParagonColours::panelEdge);
+        box->setColour (juce::ComboBox::textColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+        box->setColour (juce::ComboBox::arrowColourId, rack ? LedDisplay::ledOrange.withAlpha (0.6f) : ParagonColours::textDim);
+    }
+    for (auto* button : { &on.button, &bandOn.button })
+        button->getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
+    for (auto& button : pages)
+        button.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    inkColour = {};
+    timerCallback();
+}
+
+void MarsPanel::layOutRack()
+{
+    // The controls: everything right of the rack's display.
+    auto area = getLocalBounds().withTrimmedLeft (rackDisplay.getRight() + 28);
+
+    // The top row: the pages, then ON and BANDS (GRAPHIC EQ, placed by the main view, at the right).
+    auto keys = area.removeFromTop (24);
+    for (auto& button : pages)
+    {
+        button.setBounds (keys.removeFromLeft (70));
+        keys.removeFromLeft (6);
+    }
+    keys.removeFromLeft (18);
+    on.label.setBounds (keys.removeFromLeft (24));
+    on.button.setBounds (keys.removeFromLeft (48).withSizeKeepingCentre (44, 24));
+    keys.removeFromLeft (16);
+    bands.label.setBounds (keys.removeFromLeft (46));
+    bands.box.setBounds (keys.removeFromLeft (62).reduced (0, 1));
+    area.removeFromTop (10);
+
+    // The display: on BANDS and GLOBAL, the band display on a screen where
+    // the rack's display is; on MOD and SLOTS, one wide screen across the
+    // display and the controls.
+    if (page == 2 || page == 3)
+    {
+        rackScreen = rackDisplay.withRight (area.getRight()).withTop (area.getY()).toFloat();
+        juce::Image scratch (juce::Image::ARGB, 1, 1, true);
+        juce::Graphics g (scratch);
+        const auto glass = LedDisplay::paintScreen (g, rackScreen, 0.35f).reduced (4.0f, 3.0f).toNearestInt();
+        sourcesView.setBounds (glass);
+        slotsView.setBounds (glass);
+        display = {};
+        return;
+    }
+    rackScreen = rackDisplay.toFloat();
+    {
+        juce::Image scratch (juce::Image::ARGB, 1, 1, true);
+        juce::Graphics g (scratch);
+        display = LedDisplay::paintScreen (g, rackScreen, 0.45f).reduced (6.0f, 6.0f);
+    }
+
+    const auto place = [] (juce::Label& label, juce::Component& widget, juce::Rectangle<int> cell, int widgetHeight, bool knob)
+    {
+        label.setBounds (cell.removeFromTop (14));
+        cell.removeFromTop (2);
+        if (knob)
+            widget.setBounds (cell.withSizeKeepingCentre (juce::jmin (cell.getWidth() + 16, cell.getHeight()), cell.getHeight()));
+        else
+            widget.setBounds (cell.withSizeKeepingCentre (cell.getWidth(), widgetHeight).withY (cell.getY() + cell.getHeight() / 2 - widgetHeight / 2 - 8));
+    };
+    if (page == 0)
+    {
+        // The picked band: its name, ON and STYLE, then its ten knobs in a row.
+        auto bandRow = area.removeFromTop (30);
+        bandTitle = bandRow.removeFromLeft (64);
+        bandOn.label.setBounds (bandRow.removeFromLeft (24));
+        bandOn.button.setBounds (bandRow.removeFromLeft (48).withSizeKeepingCentre (44, 24));
+        bandRow.removeFromLeft (16);
+        style.label.setBounds (bandRow.removeFromLeft (44));
+        style.box.setBounds (bandRow.removeFromLeft (260).reduced (0, 2));
+        area.removeFromTop (6);
+        const std::array<Knob*, 10> row { &drive, &dynamics, &feedback, &feedbackFreq, &mix, &bass, &mid, &treble, &presence, &level };
+        const auto width = (float) area.getWidth() / 10.0f;
+        for (size_t i = 0; i < row.size(); ++i)
+        {
+            const auto cell = juce::Rectangle<int> (area.getX() + juce::roundToInt (width * (float) i), area.getY(), juce::roundToInt (width), area.getHeight()).reduced (3, 0);
+            place (row[i]->label, row[i]->slider, cell, 0, true);
+        }
+        return;
+    }
+
+    // GLOBAL: one row.
+    std::vector<std::pair<juce::Label*, juce::Component*>> cells {
+        { &input.label, &input.slider }, { &output.label, &output.slider }, { &globalMix.label, &globalMix.slider },
+        { &quality.label, &quality.box }, { &slope.label, &slope.box },
+        { &cross1.label, &cross1.slider }, { &cross2.label, &cross2.slider }, { &cross3.label, &cross3.slider } };
+    const auto row = area.withSizeKeepingCentre (area.getWidth(), juce::jmin (area.getHeight(), 130));
+    auto line = row;
+    const auto weights = std::array<float, 8> { 1, 1, 1, 1.6f, 1.6f, 1, 1, 1 };
+    const auto unit = (float) line.getWidth() / 10.2f;
+    for (size_t i = 0; i < cells.size(); ++i)
+    {
+        const auto cell = line.removeFromLeft (juce::roundToInt (unit * weights[i])).reduced (3, 0);
+        const auto isChoice = i == 3 || i == 4;
+        place (*cells[i].first, *cells[i].second, cell, 28, ! isChoice);
+    }
+}
+
 void MarsPanel::resized()
 {
+    if (rack)
+    {
+        layOutRack();
+        return;
+    }
     auto area = getLocalBounds().reduced (16, 10);
     auto header = area.removeFromTop (24);
     const auto titleWidth = juce::GlyphArrangement::getStringWidthInt (juce::FontOptions (14.0f, juce::Font::bold), "SATURATION");
@@ -428,6 +578,8 @@ void MarsPanel::resized()
 
 void MarsPanel::paintOverChildren (juce::Graphics& g)
 {
+    for (const auto& glass : glasses)
+        LedDisplay::paintGlassOverlay (g, glass, 0.35f);
     if (page > 1)
         return;
     for (auto* knob : modulatableKnobs())
@@ -444,35 +596,66 @@ void MarsPanel::setAccent (juce::Colour colour)
 
 void MarsPanel::paint (juce::Graphics& g)
 {
-    // The same dark panel and header as the other blocks' panels.
-    const auto bounds = getLocalBounds().toFloat();
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
-                                             juce::Colour (0xff09070a), 0.0f, bounds.getBottom(), false));
-    g.fillRoundedRectangle (bounds, 8.0f);
-    g.setColour (ParagonColours::panelEdge);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
-
-    auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    if (showTitle)
+    glasses.clear();
+    if (rack)
     {
-        Icons::draw (g, Icons::Type::drive, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
-        header.removeFromLeft (8.0f);
-        g.setColour (ParagonColours::text);
-        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-        g.drawText ("SATURATION", header, juce::Justification::centredLeft, false);
+        // On the unit's face: screens behind the values and lists, and
+        // the display (or the MOD / SLOTS screen).
+        const auto bigGlass = LedDisplay::paintScreen (g, rackScreen, page >= 2 ? 0.35f : 0.45f);
+        juce::ignoreUnused (bigGlass);
+        for (auto* knob : modulatableKnobs())
+            if (knob->slider.isVisible())
+            {
+                const auto box = knob->slider.getBounds().toFloat().removeFromBottom (18.0f);
+                glasses.push_back (LedDisplay::paintScreen (g, box.withSizeKeepingCentre (juce::jmin (box.getWidth(), (float) knob->label.getWidth()), box.getHeight())
+                                                                  .expanded (0.0f, 3.0f), 0.35f));
+            }
+        for (auto* box : { &bands.box, &style.box, &quality.box, &slope.box })
+            if (box->isVisible())
+                glasses.push_back (LedDisplay::paintScreen (g, box->getBounds().toFloat().expanded (2.0f, 3.0f), 0.35f));
+        if (page >= 2)
+            return;
+        if (page == 0)
+        {
+            g.setColour (bandColours[selected]);
+            g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+            g.drawText ("BAND " + juce::String (selected + 1), bandTitle, juce::Justification::centredLeft, false);
+        }
     }
+    else
+    {
+        // The same dark panel and header as the other blocks' panels.
+        const auto bounds = getLocalBounds().toFloat();
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
+                                                 juce::Colour (0xff09070a), 0.0f, bounds.getBottom(), false));
+        g.fillRoundedRectangle (bounds, 8.0f);
+        g.setColour (ParagonColours::panelEdge);
+        g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
-    if (page != 0 || display.isEmpty())
+        auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
+        if (showTitle)
+        {
+            Icons::draw (g, Icons::Type::drive, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
+            header.removeFromLeft (8.0f);
+            g.setColour (ParagonColours::text);
+            g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+            g.drawText ("SATURATION", header, juce::Justification::centredLeft, false);
+        }
+
+        if (page != 0 || display.isEmpty())
+            return;
+
+        // The band's name beside its controls.
+        g.setColour (bandColours[selected]);
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText ("BAND " + juce::String (selected + 1), bandTitle.withTrimmedTop (14), juce::Justification::centredLeft, false);
+
+        // The display: frequencies left to right, each band a column.
+        g.setColour (juce::Colour (0xff151217));
+        g.fillRoundedRectangle (display, 5.0f);
+    }
+    if (display.isEmpty())
         return;
-
-    // The band's name beside its controls.
-    g.setColour (bandColours[selected]);
-    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-    g.drawText ("BAND " + juce::String (selected + 1), bandTitle.withTrimmedTop (14), juce::Justification::centredLeft, false);
-
-    // The display: frequencies left to right, each band a column.
-    g.setColour (juce::Colour (0xff151217));
-    g.fillRoundedRectangle (display, 5.0f);
     g.setFont (juce::FontOptions (9.0f));
     for (const auto hz : { 100.0f, 1000.0f, 10000.0f })
     {

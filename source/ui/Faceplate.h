@@ -61,6 +61,7 @@ public:
     // the rest of its face, at getControlArea(). 0: the faceplate alone.
     void setRackDisplayWidth (float width, float sideWidth = 0.0f);   // sideWidth: a section on the right (EXPRESSION ASSIGN), at getSideArea()
     juce::Rectangle<int> getSideArea() const;
+    juce::Rectangle<int> getDisplayArea() const;   // on the rack: where the block's display is, under its name
     // A screen's frame on the face round `area` (in this component), for a
     // block whose controls are a whole editor (HARMONY, the EQ...): it sits
     // in the glass, getWindowGlass(), as on the unit's big screen. Empty: none.
