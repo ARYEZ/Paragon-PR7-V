@@ -5,26 +5,26 @@
 #include "PluginProcessor.h"
 #include "ui/Icons.h"
 
-// The FACEPLATE: a picture of the selected block as a piece of hardware,
-// beside its controls on the PROCESSOR page (where the RIG BROWSER and
-// SELECTED RIG panels were). It follows the block's TYPE and shows what
-// the block is doing, live:
+// The FACEPLATE: the selected block as a small unit of the PR7 line, beside
+// its controls on the PROCESSOR page (where the RIG BROWSER and SELECTED
+// RIG panels were). Built only from the PR7's own parts, in the current
+// finish: the unit's pearl chassis, its LCD screens, big knobs, small keys
+// with light stripes, EQ faders, neon LED bars, and lettering stamped in
+// ink or printed in red. It follows the block's TYPE and shows what the
+// block is doing, live, on its screens:
 //
-//   DYNAMICS    Classic: a studio rack compressor with a gain-reduction
-//               needle. Daybreak: a boutique pedal with an LED ladder.
-//               Revival: a vocal leveller drawing its GATE, COMPRESSION
-//               and GAIN as a live curve, with a meter.
-//   SATURATION  MARS: a valve unit, a glowing tube per band (glowing
-//               harder the harder the band is driven).
-//   the rest    a rack unit with the block's name, its TYPE and an ON lamp,
-//               until each gets its own.
-//
-// All drawn in code, our own designs (no maker's look is copied).
+//   DYNAMICS    Classic: a gain-reduction needle, THRESHOLD/RATIO/LEVEL.
+//               Daybreak: COMP/DETAIL/MIX knobs, INTENSITY key, a meter.
+//               Revival: GATE/COMPRESSION/GAIN as one curve, faders, a meter.
+//   SATURATION  MARS: a tube per band, glowing as hard as it's driven.
+//   the rest    the block's name, icon and TYPE, until each gets its own.
 class Faceplate final : public juce::Component,
-                        private juce::Timer
+                        private juce::Timer,
+                        private juce::ChangeListener
 {
 public:
     explicit Faceplate (ParagonX1AudioProcessor&);
+    ~Faceplate() override;
 
     // Which kind of block: the ones with their own faceplates, or any other.
     enum class Unit { dynamics, saturation, other };
@@ -44,19 +44,22 @@ public:
     float getShownDrive (int band) const noexcept { return shownDrive[(size_t) juce::jlimit (0, 3, band)]; }
 
     void paint (juce::Graphics&) override;
+    void resized() override;
 
 private:
     void timerCallback() override;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;   // the finish changed
     float raw (const juce::String& id) const;
     float normalised (const juce::String& id) const;
     juce::String text (const juce::String& id) const;
     bool isOn() const;
 
-    void paintGeneric (juce::Graphics&, juce::Rectangle<float>);
-    void paintClassic (juce::Graphics&, juce::Rectangle<float>);
-    void paintDaybreak (juce::Graphics&, juce::Rectangle<float>);
-    void paintRevival (juce::Graphics&, juce::Rectangle<float>);
-    void paintMars (juce::Graphics&, juce::Rectangle<float>);
+    // Each draws its name in `header` and the rest in `body`.
+    void paintGeneric (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintClassic (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintDaybreak (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintRevival (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintMars (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
 
     ParagonX1AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& parameters;
@@ -64,7 +67,8 @@ private:
     juce::String title, typeId;
     juce::StringArray onIds;
     Icons::Type icon = Icons::Type::eq;
-    juce::Colour colour;
+    juce::Colour colour;   // the block's colour in the chain (the faders' light)
+    juce::Image satin;     // the pearl's grain, as on the unit
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less

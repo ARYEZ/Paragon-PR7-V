@@ -166,10 +166,10 @@ descriptions below still talk about guitar.
   INTERVAL at the toe), **LO-FI** (fades the lo-fi effect in: full band at the heel, lo-fi at the toe) or
   **WHAMMY-WAH** (plays the FILTER / PITCH block's Whammy-Wah). MIN and MAX set where the heel and toe land. The assignment and range
   are saved with each rig.
-- **Bottom panels:** the **FACEPLATE** shows the block you pick as a piece of hardware, following its TYPE, with
-  live meters: DYNAMICS as a studio rack compressor with a gain-reduction needle (Classic), a sunrise pedal with an
-  LED ladder (Daybreak) or a vocal leveller drawing its curve (Revival); SATURATION as MARS, a glowing valve per
-  band. The other blocks show a rack unit with their name and TYPE for now. Beside it, the graphic EQ, or the knobs
+- **Bottom panels:** the **FACEPLATE** shows the block you pick as a small PR7 unit (same chassis, screens, knobs,
+  keys and lights, in your finish), following its TYPE, with live readings on its screens: DYNAMICS with a
+  gain-reduction needle (Classic), its knobs, INTENSITY key and a meter (Daybreak) or its curve and faders (Revival);
+  SATURATION as MARS, a glowing tube per band. The other blocks show a rack unit with their name and TYPE for now. Beside it, the graphic EQ, or the knobs
   of whichever block you pick (click a signal-chain block or a footswitch name); **GRAPHIC EQ** goes back to the EQ.
   Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
 - **SETTINGS:** the tuner's reference pitch, mute while tuning, and the expression pedal's MIDI CC.

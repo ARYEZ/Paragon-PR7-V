@@ -2,6 +2,15 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.23.1
+
+- **The faceplates are now part of the PR7 line** (the owner's request): every one is built from the PR7's own parts instead of their own looks.
+  - **The chassis:** each faceplate is a small PR7 unit, with the same pearl rim, satin face and glow, in your chosen finish (Pearl White, Pearl White + Neon or Pearl Black). It changes when you change the finish in SETTINGS.
+  - **Screens:** the unit's own LCD screens, with readings in its orange LED light. Classic's gain-reduction needle is drawn in that light on a screen. The meters are rows of LED bars like the tuner's, and MARS's tubes glow behind a screen.
+  - **Knobs, keys and faders:** Daybreak's COMP, DETAIL and MIX are the unit's big knobs (neon on the neon finishes). INTENSITY is one of the unit's small black keys, its light stripe lit while it's on. Revival's faders are the graphic EQ's.
+  - **Lights and lettering:** the ON light is the LED bar from above the footswitches. Names are in the PARAGON badge's lettering, with a red printed line under each, as "VOCAL MULTI-FX PROCESSOR" is printed on the unit. Labels are stamped in the unit's ink.
+- **Unchanged:** what each faceplate shows. The main unit looks exactly as before; it's now drawn by the same shared code as the faceplates, so the two always match.
+
 ## 0.23.0
 
 - **The FACEPLATE** replaces the RIG BROWSER and SELECTED RIG panels under the unit. Both only repeated things available elsewhere: the PRESETS page, and the unit's own display and SAVE / SAVE AS buttons.

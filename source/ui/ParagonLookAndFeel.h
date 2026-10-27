@@ -110,9 +110,16 @@ public:
 private:
     juce::Typeface::Ptr regular, semiBold, blackItalic;
 
-    static void drawPedalKnob (juce::Graphics&, juce::Rectangle<float> bounds, float angle);
-
 public:
+    // One of the big black knobs on the pedal face (RIG LEVEL, PRESENCE),
+    // pointing at `angle` (radians, 0 straight up), in the current finish.
+    static void drawPedalKnob (juce::Graphics&, juce::Rectangle<float> bounds, float angle);
+    // A graphic-EQ fader: the groove from `top` to `bottom` at `centreX`,
+    // lit in `colour` from `litFrom` to the cap at `capY`, and the cap (a
+    // small piano-black key). `width` limits the cap.
+    static void drawFader (juce::Graphics&, float centreX, float top, float bottom, float litFrom, float capY,
+                           float width, juce::Colour colour, bool pressed = false, bool highlighted = false);
+
     // The mockup's piano-black keys (footswitches, slot blocks, small
     // buttons): a glossy black top set in chamfered edges, the top bevel
     // catching the light, the side bevels reflecting the red glow, and a
@@ -132,6 +139,11 @@ public:
     // catch on pearl white, a shadow on pearl black: Finish::stampEdge).
     static void drawStampedText (juce::Graphics&, const juce::String& text, juce::Rectangle<float> area,
                                  juce::Justification, juce::Colour colour);
+    // The unit's small black keys (UNDO, BYPASS, TAP...) in their chrome
+    // surround, and the light stripe on one (`area`: inside the surround,
+    // as the key's text area is).
+    static void drawSmallKey (juce::Graphics&, juce::Rectangle<float> bounds, bool down, bool highlighted);
+    static void drawKeyStripe (juce::Graphics&, juce::Rectangle<float> area, bool on, bool down);
 };
 
 // JUCE finds fonts through the *default* look-and-feel, so while any plugin
