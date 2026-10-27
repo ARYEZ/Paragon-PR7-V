@@ -254,9 +254,10 @@ void Faceplate::updateMeters()
 }
 
 //==============================================================================
-void Faceplate::setRackDisplayWidth (float width)
+void Faceplate::setRackDisplayWidth (float width, float sideWidth)
 {
     rackDisplayWidth = juce::jmax (0.0f, width);
+    rackSideWidth = juce::jmax (0.0f, sideWidth);
     repaint();
 }
 
@@ -276,8 +277,17 @@ juce::Rectangle<int> Faceplate::getControlArea() const
         return {};
     auto content = faceOf (getLocalBounds().toFloat()).reduced (12.0f, 8.0f);
     content.removeFromLeft (rackDisplayWidth + rackGap);
+    if (rackSideWidth > 0.0f)
+        content.removeFromRight (rackSideWidth + rackGap);
     content.removeFromRight (44.0f);   // the status light's column
     return content.toNearestInt();
+}
+
+juce::Rectangle<int> Faceplate::getSideArea() const
+{
+    if (! isRack() || rackSideWidth <= 0.0f)
+        return {};
+    return faceOf (getLocalBounds().toFloat()).reduced (12.0f, 8.0f).removeFromRight (rackSideWidth).toNearestInt();
 }
 
 void Faceplate::paint (juce::Graphics& g)
@@ -289,6 +299,15 @@ void Faceplate::paint (juce::Graphics& g)
 
     // Its name top left, its status LED top right (as over the footswitches).
     auto content = face.reduced (12.0f, 8.0f);
+    if (isRack() && rackSideWidth > 0.0f)
+    {
+        // The section on the right (EXPRESSION ASSIGN), behind its own line.
+        content.removeFromRight (rackSideWidth);
+        const auto x = content.getRight() - rackGap * 0.5f;
+        content.removeFromRight (rackGap);
+        g.setColour (Finish::printedRed().withAlpha (0.7f));
+        g.fillRect (juce::Rectangle<float> (x - 0.75f, face.getY() + 14.0f, 1.5f, face.getHeight() - 28.0f));
+    }
     auto header = content.removeFromTop (30.0f);
     ParagonLookAndFeel::drawNeonBar (g, header.removeFromRight (34.0f).withSizeKeepingCentre (30.0f, 6.0f).translated (0.0f, -6.0f), isOn());
     content.removeFromTop (6.0f);

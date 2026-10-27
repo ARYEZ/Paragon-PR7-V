@@ -686,8 +686,12 @@ void MainView::layoutDock()
     const auto summaryArea = mock (662, 568, 1334, 822);
     if (rack)
     {
-        faceplate.setBounds (mock (12, 568, 1334, 822));
-        faceplate.setRackDisplayWidth (mockF (0, 0, 400, 0).getWidth());
+        // EXPRESSION ASSIGN on the same unit, at its right end.
+        faceplate.setBounds (mock (12, 568, 1662, 822));
+        faceplate.setRackDisplayWidth (mockF (0, 0, 380, 0).getWidth(), mockF (0, 0, 270, 0).getWidth());
+        expressionPanel.setRack (true);
+        expressionPanel.setBounds (faceplate.getSideArea() + faceplate.getPosition());
+        expressionPanel.toFront (false);
         const auto controls = faceplate.getControlArea() + faceplate.getPosition();
         panels[delayBlock]->setBounds (controls);
         panels[delayBlock]->toFront (false);
@@ -696,6 +700,8 @@ void MainView::layoutDock()
     }
     faceplate.setRackDisplayWidth (0.0f);
     faceplate.setBounds (mock (12, 568, 652, 822));
+    expressionPanel.setRack (false);
+    expressionPanel.setBounds (mock (1344, 568, 1662, 822));
     for (auto& panel : panels)
         if (panel != nullptr)
             panel->setBounds (summaryArea);
@@ -840,6 +846,7 @@ void MainView::applyFinish()
     holdLabel.setColour (juce::Label::textColourId, Finish::printedRed());
     pedal.refinish();
     expressionPedal.refinish();
+    expressionPanel.refinish();
     repaint();
 }
 
@@ -990,7 +997,6 @@ void MainView::resized()
     harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
     octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);
     layoutDock();
-    expressionPanel.setBounds (mock (1344, 568, 1662, 822));
 
     signalChain.setBounds (mock (12, 832, 1662, 930));
 

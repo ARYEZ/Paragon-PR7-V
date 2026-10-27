@@ -59,7 +59,8 @@ public:
     // The rack: one wide unit holding the block's display on the left (this
     // wide) and its real controls (the block's EffectPanel, in rack mode) on
     // the rest of its face, at getControlArea(). 0: the faceplate alone.
-    void setRackDisplayWidth (float width);
+    void setRackDisplayWidth (float width, float sideWidth = 0.0f);   // sideWidth: a section on the right (EXPRESSION ASSIGN), at getSideArea()
+    juce::Rectangle<int> getSideArea() const;
     bool isRack() const noexcept { return rackDisplayWidth > 0.0f; }
     juce::Rectangle<int> getControlArea() const;
 
@@ -106,7 +107,7 @@ private:
     Icons::Type icon = Icons::Type::eq;
     juce::Colour colour;   // the block's colour in the chain (the faders' light)
     juce::Image satin;     // the pearl's grain, as on the unit
-    float rackDisplayWidth = 0.0f;
+    float rackDisplayWidth = 0.0f, rackSideWidth = 0.0f;
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less
