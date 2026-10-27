@@ -669,6 +669,38 @@ void MainView::selectBlock (int block)
         footswitches[i]->setSelected (footswitchBlocks[i] == block || (footswitchBlocks[i] == compBlock && block == deEssBlock));
 
     signalChain.setSelected (block);
+    layoutDock();
+}
+
+void MainView::layoutDock()
+{
+    // The rack: the faceplate and the block's controls as one wide unit, the
+    // display on the left and the real controls on its face. For now (the
+    // owner's example) only DELAY; the rest keep the faceplate beside the panel.
+    const auto rack = selectedBlock == delayBlock;
+    closePanel.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);   // one of the unit's keys, on the rack
+    for (auto& panel : panels)
+        if (panel != nullptr)
+            panel->setRack (rack && panel == panels[delayBlock]);
+
+    const auto summaryArea = mock (662, 568, 1334, 822);
+    if (rack)
+    {
+        faceplate.setBounds (mock (12, 568, 1334, 822));
+        faceplate.setRackDisplayWidth (mockF (0, 0, 400, 0).getWidth());
+        const auto controls = faceplate.getControlArea() + faceplate.getPosition();
+        panels[delayBlock]->setBounds (controls);
+        panels[delayBlock]->toFront (false);
+        closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
+        return;
+    }
+    faceplate.setRackDisplayWidth (0.0f);
+    faceplate.setBounds (mock (12, 568, 652, 822));
+    for (auto& panel : panels)
+        if (panel != nullptr)
+            panel->setBounds (summaryArea);
+    closePanel.setBounds (summaryArea.withSizeKeepingCentre (0, 0).withX (summaryArea.getRight() - 130).withY (summaryArea.getY() + 10)
+                              .withSize (118, 24));
 }
 
 void MainView::showPage (Page newPage)
@@ -949,11 +981,7 @@ void MainView::resized()
     // Dock
     // The FACEPLATE where the RIG BROWSER and SELECTED RIG panels were: both
     // only repeated the PRESETS page and the unit's own display and SAVE buttons.
-    faceplate.setBounds (mock (12, 568, 652, 822));
     const auto summaryArea = mock (662, 568, 1334, 822);
-    for (auto& panel : panels)
-        if (panel != nullptr)
-            panel->setBounds (summaryArea);
     eqPanel.setBounds (summaryArea);
     harmonyPanel.setBounds (summaryArea);
     doublerPanel.setBounds (summaryArea);
@@ -961,8 +989,7 @@ void MainView::resized()
     // PITCH's view tabs sit in its header, after the icon and name.
     harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
     octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);
-    closePanel.setBounds (summaryArea.withSizeKeepingCentre (0, 0).withX (summaryArea.getRight() - 130).withY (summaryArea.getY() + 10)
-                              .withSize (118, 24));
+    layoutDock();
     expressionPanel.setBounds (mock (1344, 568, 1662, 822));
 
     signalChain.setBounds (mock (12, 832, 1662, 930));

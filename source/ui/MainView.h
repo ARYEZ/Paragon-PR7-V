@@ -106,6 +106,7 @@ private:
     void timerCallback() override;
 
     void selectBlock (int block);
+    void layoutDock();   // the faceplate and the selected block's controls (one rack unit, or side by side)
     void refreshPerformance();
     void toggleTuner();
     void tap();

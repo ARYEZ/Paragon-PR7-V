@@ -56,6 +56,13 @@ public:
                    const juce::String& onIds, const juce::String& typeId);
     Look getLook() const;
 
+    // The rack: one wide unit holding the block's display on the left (this
+    // wide) and its real controls (the block's EffectPanel, in rack mode) on
+    // the rest of its face, at getControlArea(). 0: the faceplate alone.
+    void setRackDisplayWidth (float width);
+    bool isRack() const noexcept { return rackDisplayWidth > 0.0f; }
+    juce::Rectangle<int> getControlArea() const;
+
     // Moves the meters one step towards the plugin's readings (the timer
     // does it 30 times a second; tests and screenshots call it directly).
     void updateMeters();
@@ -99,6 +106,7 @@ private:
     Icons::Type icon = Icons::Type::eq;
     juce::Colour colour;   // the block's colour in the chain (the faders' light)
     juce::Image satin;     // the pearl's grain, as on the unit
+    float rackDisplayWidth = 0.0f;
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less

@@ -254,11 +254,37 @@ void Faceplate::updateMeters()
 }
 
 //==============================================================================
+void Faceplate::setRackDisplayWidth (float width)
+{
+    rackDisplayWidth = juce::jmax (0.0f, width);
+    repaint();
+}
+
+namespace
+{
+    juce::Rectangle<float> faceOf (juce::Rectangle<float> bounds)
+    {
+        const auto chassis = bounds.reduced (glowRoom);
+        return chassis.withTrimmedBottom (unitShape.frontEdge).reduced (9.0f);
+    }
+    constexpr float rackGap = 28.0f;   // between the display and the controls, the divider in its middle
+}
+
+juce::Rectangle<int> Faceplate::getControlArea() const
+{
+    if (! isRack())
+        return {};
+    auto content = faceOf (getLocalBounds().toFloat()).reduced (12.0f, 8.0f);
+    content.removeFromLeft (rackDisplayWidth + rackGap);
+    content.removeFromRight (44.0f);   // the status light's column
+    return content.toNearestInt();
+}
+
 void Faceplate::paint (juce::Graphics& g)
 {
     // The unit: the PR7's chassis, smaller, in the current finish.
     const auto chassis = getLocalBounds().toFloat().reduced (glowRoom);
-    const auto face = chassis.withTrimmedBottom (unitShape.frontEdge).reduced (9.0f);
+    const auto face = faceOf (getLocalBounds().toFloat());
     PedalBody::paintUnit (g, chassis, face, [this] (juce::Graphics& gg) { gg.drawImage (satin, getLocalBounds().toFloat()); }, unitShape);
 
     // Its name top left, its status LED top right (as over the footswitches).
@@ -266,6 +292,16 @@ void Faceplate::paint (juce::Graphics& g)
     auto header = content.removeFromTop (30.0f);
     ParagonLookAndFeel::drawNeonBar (g, header.removeFromRight (34.0f).withSizeKeepingCentre (30.0f, 6.0f).translated (0.0f, -6.0f), isOn());
     content.removeFromTop (6.0f);
+    if (isRack())
+    {
+        // The display on the left; a printed red line between it and the
+        // controls, which the panel draws on the rest of the face.
+        header = header.withWidth (rackDisplayWidth);
+        content = content.withWidth (rackDisplayWidth);
+        const auto x = content.getRight() + rackGap * 0.5f;
+        g.setColour (Finish::printedRed().withAlpha (0.7f));
+        g.fillRect (juce::Rectangle<float> (x - 0.75f, face.getY() + 14.0f, 1.5f, face.getHeight() - 28.0f));
+    }
     switch (getLook())
     {
         case Look::classic:  paintClassic (g, header, content); break;
@@ -534,7 +570,7 @@ void Faceplate::paintDelay (juce::Graphics& g, juce::Rectangle<float> header, ju
     // The screen: each repeat a bar, as tall as it is loud (FEEDBACK each
     // time), over the next few seconds; a light runs along them at the
     // delay time (in time with it, not with the audio itself).
-    auto settings = body.removeFromRight (body.getWidth() * 0.4f);
+    auto settings = body.removeFromRight (body.getWidth() * (isRack() ? 0.34f : 0.4f));
     body.removeFromRight (14.0f);
     const auto glass = screen (g, body);
     {
@@ -573,8 +609,10 @@ void Faceplate::paintDelay (juce::Graphics& g, juce::Rectangle<float> header, ju
     }
     finish (g, glass);
 
-    // TIME (the note length while synced), then FEEDBACK and MIX knobs.
-    auto timeArea = settings.removeFromTop (settings.getHeight() * 0.42f);
+    // TIME (the note length while synced), then FEEDBACK and MIX knobs (in
+    // the rack, the real knobs are beside the display: just TIME, larger).
+    auto timeArea = isRack() ? settings.withSizeKeepingCentre (settings.getWidth(), juce::jmin (settings.getHeight() - 16.0f, 80.0f)).translated (0.0f, 8.0f)
+                             : settings.removeFromTop (settings.getHeight() * 0.42f);
     const auto timeGlass = screen (g, timeArea);
     const auto sync = juce::roundToInt (raw (ParamIDs::delaySync));
     if (sync > 0 && sync < syncs)
@@ -588,6 +626,11 @@ void Faceplate::paintDelay (juce::Graphics& g, juce::Rectangle<float> header, ju
         sevenSegment (g, timeGlass, juce::String (juce::roundToInt (left * 1000.0)), "ms");
     }
     finish (g, timeGlass);
+    if (isRack())
+    {
+        stamped (g, "TIME", timeArea.withHeight (14.0f).translated (0.0f, -16.0f), 8.0f, juce::Justification::centredLeft);
+        return;
+    }
     settings.removeFromTop (4.0f);
     const auto half = settings.getWidth() / 2.0f;
     bigKnob (g, settings.removeFromLeft (half), "FEEDBACK", normalised (ParamIDs::delayFeedback));

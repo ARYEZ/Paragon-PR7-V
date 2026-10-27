@@ -25,8 +25,16 @@ ParagonLookAndFeel::ParagonLookAndFeel()
     setColour (juce::TooltipWindow::outlineColourId, ParagonColours::panelEdge);
 }
 
-void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool)
+void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
 {
+    if (button.getProperties()[rackKeyProperty])
+    {
+        const auto key = button.getLocalBounds().toFloat();
+        drawSmallKey (g, key, down, highlighted);
+        drawKeyStripe (g, key.reduced (4.0f, 2.0f), button.getToggleState(), down);
+        return;
+    }
+
     auto bounds = button.getLocalBounds().toFloat();
     const auto ledSize = juce::jmin (12.0f, bounds.getHeight() - 4.0f);
     const auto led = bounds.removeFromLeft (bounds.getHeight()).withSizeKeepingCentre (ledSize, ledSize);
