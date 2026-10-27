@@ -2,6 +2,14 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.29.0
+
+- **The GRAPHIC EQ rebuilt for the rack, at full size** (the first of the four editors; the DOUBLER, MARS and HARMONY follow, in that order). In 0.28.0 it was shrunk to fit a screen in the rack; now it's laid out on the rack's face like the other blocks, nothing shrunk.
+  - **The display** on the left is the EQ's response curve, across the whole screen.
+  - **The faders** stand evenly spaced, as on a hardware graphic EQ, with LEVEL a little apart on the right. Each one's setting is on a small orange screen above it, its frequency stamped under it, and a printed +12 / +6 / 0 / -6 / -12 dB scale with a line at 0 dB runs beside them. Drag a fader, or double-click it for 0 dB, as before.
+  - **ON** and **FLAT** are the unit's keys; **PRESETS** is on a screen.
+  - Nothing changes in the sound or your settings: the same nine bands, LEVEL and presets.
+
 ## 0.28.0
 
 - **The rack: one unit under the floorboard.** The faceplate, the controls beside it and EXPRESSION ASSIGN are now one wide PR7 rack unit: the "brain" to go with the floorboard processor. Your idea; the layout is ours.

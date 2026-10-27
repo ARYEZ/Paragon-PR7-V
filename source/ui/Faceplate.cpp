@@ -1163,7 +1163,7 @@ void Faceplate::paintEq (juce::Graphics& g, juce::Rectangle<float> header, juce:
     nameplate (g, header, "GRAPHIC EQ", "9-BAND EQUALIZER");
     const auto on = isOn();
 
-    auto right = settingsColumn (body, 0.28f);
+    auto right = isRack() ? juce::Rectangle<float>() : settingsColumn (body, 0.28f);   // on the rack, LEVEL is a real fader with its value
     const auto glass = screen (g, body);
     caption (g, glass, "RESPONSE  +12 / -12 dB");
     {
@@ -1199,6 +1199,8 @@ void Faceplate::paintEq (juce::Graphics& g, juce::Rectangle<float> header, juce:
     }
     finish (g, glass);
 
+    if (isRack())
+        return;
     auto levelArea = readoutArea (g, right, "LEVEL");
     const auto levelGlass = screen (g, levelArea);
     const auto level = raw (ParamIDs::eqLevel);

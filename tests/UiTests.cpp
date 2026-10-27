@@ -918,7 +918,7 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
         CHECK (shown.getRight() <= expression[0]->getX());
         // An editor sits in its screen on the face, scaled to fit, and a
         // click on it lands on it (the scaling also moves where it's clicked).
-        if (dynamic_cast<EffectPanel*> (showing) == nullptr)
+        if (dynamic_cast<EffectPanel*> (showing) == nullptr && dynamic_cast<GraphicEqPanel*> (showing) == nullptr)
         {
             CHECK (shown == rack.getWindowGlass() + rack.getPosition());
             const auto centre = shown.getCentre();
@@ -927,9 +927,26 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
         }
         else
         {
+            // On the face at full size, not shrunk into a screen.
             CHECK (rack.getWindowGlass().isEmpty());
+            CHECK (showing->getTransform().isIdentity());
+            CHECK (shown == rack.getControlArea() + rack.getPosition());
         }
     }
+
+    // The GRAPHIC EQ's faders on the rack set their bands.
+    chains[0]->onSelect (5);
+    auto* eqPanel = dynamic_cast<GraphicEqPanel*> (editors[1]);
+    REQUIRE (eqPanel != nullptr);
+    CHECK (eqPanel->isRack());
+    std::vector<juce::Slider*> eqFaders;
+    findAll (*eqPanel, eqFaders);
+    REQUIRE (eqFaders.size() == 10);   // nine bands and LEVEL
+    std::sort (eqFaders.begin(), eqFaders.end(), [] (auto* a, auto* b) { return a->getX() < b->getX(); });
+    eqFaders[2]->setValue (-5.0, juce::sendNotificationSync);   // 250 Hz
+    CHECK_THAT (processor.getParameters().getRawParameterValue ("eq250")->load(), Catch::Matchers::WithinAbs (-5.0, 0.05));
+    eqFaders[9]->setValue (3.0, juce::sendNotificationSync);    // LEVEL
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::eqLevel)->load(), Catch::Matchers::WithinAbs (3.0, 0.05));
 
     // On the rack the controls are the real ones: DELAY's FEEDBACK knob
     // (one of the unit's big knobs) sets the delay's feedback.
