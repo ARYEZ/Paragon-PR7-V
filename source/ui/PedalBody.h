@@ -31,6 +31,22 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // The unit itself, for drawing smaller units in the same pearl (the
+    // FACEPLATE): the glow round it, the thick pearl rim and its front edge,
+    // and the satin face plate sunk into it, in the current finish. The
+    // main unit is drawn by these too, so the two always match.
+    struct Shape
+    {
+        float chassisRadius = 28.0f;
+        float faceRadius = 16.0f;
+        float frontEdge = 8.0f;     // the unit's thickness, below the rim's top
+        float glow = 1.0f;          // how far the light round it spreads (1: the main unit's)
+    };
+    static void paintUnit (juce::Graphics&, juce::Rectangle<float> chassis, juce::Rectangle<float> face,
+                           const std::function<void (juce::Graphics&)>& drawSatin, Shape);
+    // A section panel set down into the face (the main unit's slot and footswitch rows).
+    static void paintSection (juce::Graphics&, juce::Rectangle<float> section, const std::function<void (juce::Graphics&)>& drawSatin);
+
 private:
     void makeSatinTexture();
     void paintBadge (juce::Graphics&) const;

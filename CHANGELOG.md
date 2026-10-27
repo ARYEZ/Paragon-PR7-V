@@ -2,6 +2,27 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.23.1
+
+- **The faceplates are now part of the PR7 line** (the owner's request): every one is built from the PR7's own parts instead of their own looks.
+  - **The chassis:** each faceplate is a small PR7 unit, with the same pearl rim, satin face and glow, in your chosen finish (Pearl White, Pearl White + Neon or Pearl Black). It changes when you change the finish in SETTINGS.
+  - **Screens:** the unit's own LCD screens, with readings in its orange LED light. Classic's gain-reduction needle is drawn in that light on a screen. The meters are rows of LED bars like the tuner's, and MARS's tubes glow behind a screen.
+  - **Knobs, keys and faders:** Daybreak's COMP, DETAIL and MIX are the unit's big knobs (neon on the neon finishes). INTENSITY is one of the unit's small black keys, its light stripe lit while it's on. Revival's faders are the graphic EQ's.
+  - **Lights and lettering:** the ON light is the LED bar from above the footswitches. Names are in the PARAGON badge's lettering, with a red printed line under each, as "VOCAL MULTI-FX PROCESSOR" is printed on the unit. Labels are stamped in the unit's ink.
+- **Unchanged:** what each faceplate shows. The main unit looks exactly as before; it's now drawn by the same shared code as the faceplates, so the two always match.
+
+## 0.23.0
+
+- **The FACEPLATE** replaces the RIG BROWSER and SELECTED RIG panels under the unit. Both only repeated things available elsewhere: the PRESETS page, and the unit's own display and SAVE / SAVE AS buttons.
+- **It shows the block you select as a piece of hardware** beside its controls, following the block's TYPE, with live meters:
+  - **DYNAMICS, Classic:** a studio rack compressor with a VU-style needle showing gain reduction, and its THRESHOLD, RATIO and LEVEL in windows.
+  - **DYNAMICS, Daybreak:** a boutique pedal with a sunrise finish, its COMP, DETAIL and MIX knobs, the INTENSITY switch and an LED ladder for gain reduction.
+  - **DYNAMICS, Revival:** a vocal leveller that draws its GATE, COMPRESSION and GAIN as one input-to-output curve, with faders and a reduction meter.
+  - **SATURATION (MARS):** a valve unit with a tube for each band, glowing as hard as the band is driven, its STYLE underneath.
+  - **Every other block:** a rack unit with its icon, name, TYPE and an ON lamp, until it gets its own faceplate (DELAY, REVERB and PITCH/HARMONY are next).
+- **Our own designs:** all are drawn in code, in the PR7's colours. None copies a real product's look; Revival is only *inspired by* the vocal leveller it's modelled on.
+- **Unchanged:** the controls and EXPRESSION ASSIGN are where they were.
+
 ## 0.22.0
 
 - **HARMONY stage 6: each voice gets its own DELAY, FEEDBACK and FILTER, and FLATTEN.** Inspired by the Harmony Panel and Notes Panel in Waves Harmony's guide.
