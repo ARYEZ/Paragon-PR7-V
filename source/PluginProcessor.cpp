@@ -524,6 +524,16 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         harmonySettings.customScale[(size_t) note] = box == 1 ? 1 : box == 2 ? -1 : 0;
     }
     notes.fold = isOn (ParamIDs::harmonyMapFold);
+    // GLOBAL: GLIDE (a synced one as ms at the tempo now), PITCH and FORMANT.
+    {
+        const auto sync = juce::roundToInt (param (ParamIDs::harmonyGlideSync));
+        const auto syncs = (int) std::size (effects::Delay::syncBeats);
+        harmonySettings.glideMs = sync > 0 && sync < syncs
+                                      ? (float) (effects::Delay::syncBeats[sync] * 60000.0 / juce::jmax (20.0, getTempoBpm()))
+                                      : param (ParamIDs::harmonyGlide);
+        harmonySettings.pitch = param (ParamIDs::harmonyGlobalPitch);
+        harmonySettings.formant = param (ParamIDs::harmonyGlobalFormant);
+    }
     notes.fx = harmonyFx (param (ParamIDs::harmonyNoteDelay), juce::roundToInt (param (ParamIDs::harmonyNoteSync)),
                           param (ParamIDs::harmonyNoteFeedback), juce::roundToInt (param (ParamIDs::harmonyNoteFilter)),
                           param (ParamIDs::harmonyNoteCutoff));

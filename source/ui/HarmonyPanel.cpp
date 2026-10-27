@@ -113,6 +113,7 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
         {
             if (! isActive (voice))
                 addVoiceAt (voice, 0.0f, 0.0f);
+            showGlobal (false);
             selectVoice (voice);
             showNotes (false);
         };
@@ -126,7 +127,7 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     notesTab.setColour (juce::TextButton::textColourOnId, noteBlue);
     notesTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
     notesTab.setTooltip ("GENERATE NOTES: harmonies from chord maps, made from the notes you sing");
-    notesTab.onClick = [this] { showNotes (true); };
+    notesTab.onClick = [this] { showGlobal (false); showNotes (true); };
     addAndMakeVisible (notesTab);
     setUp (generate, "GENERATE");
     generate.button.setTooltip ("Turn your singing into notes, and each note into the CHORD map's harmonies");
@@ -177,6 +178,37 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     fxTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
     fxTab.setTooltip ("The picked voice's DELAY, FEEDBACK and FILTER (on NOTES: the note voices')");
     fxTab.onClick = [this] { showFx (fxTab.getToggleState()); };
+
+    // GLOBAL: how the harmony voices glide, and an offset for all of them.
+    globalTab.setClickingTogglesState (true);
+    globalTab.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    globalTab.setColour (juce::TextButton::textColourOnId, ParagonColours::accent);
+    globalTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    globalTab.setTooltip ("GLIDE, PITCH and FORMANT for all the harmony voices, with the mix (* when a global setting is changed)");
+    globalTab.onClick = [this] { showGlobal (globalTab.getToggleState()); };
+    addAndMakeVisible (globalTab);
+    const std::tuple<Knob*, const char*, const char*, const char*> globalKnobs[] = {
+        { &glide, "GLIDE", ParamIDs::harmonyGlide, "How long the voices take to move to a new note: 1 ms jumps straight there (greyed while SYNC sets it)" },
+        { &globalPitch, "PITCH", ParamIDs::harmonyGlobalPitch, "Moves every harmony voice up or down (your own voice stays put)" },
+        { &globalFormant, "FORMANT", ParamIDs::harmonyGlobalFormant, "The character of every harmony voice: lower for bigger singers, higher for smaller" } };
+    for (const auto& [knob, label, id, tip] : globalKnobs)
+    {
+        setUp (*knob, label);
+        knob->attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id, knob->slider);
+        auto* parameter = parameters.getParameter (id);
+        knob->slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
+        knob->slider.setTooltip (tip);
+    }
+    styleLabel (glideSyncLabel, "SYNC");
+    addAndMakeVisible (glideSyncLabel);
+    glideSync.addItemList (effects::Delay::syncNames, 1);
+    glideSync.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
+    glideSync.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
+    glideSync.setColour (juce::ComboBox::textColourId, ParagonColours::accent);
+    glideSync.setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
+    glideSync.setTooltip ("GLIDE as a note length at the song's tempo (Off: in ms)");
+    addAndMakeVisible (glideSync);
+    glideSyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyGlideSync, glideSync);
     addAndMakeVisible (fxTab);
     setUp (echoDelay, "DELAY");
     setUp (echoFeedback, "FEEDBACK");
@@ -330,13 +362,31 @@ void HarmonyPanel::showFx (bool show)
 {
     fxShown = show;
     fxTab.setToggleState (show, juce::dontSendNotification);
+    if (show)
+    {
+        globalShown = false;
+        globalTab.setToggleState (false, juce::dontSendNotification);
+    }
+    updateVisibility();
+}
+
+void HarmonyPanel::showGlobal (bool show)
+{
+    globalShown = show;
+    globalTab.setToggleState (show, juce::dontSendNotification);
+    if (show)
+    {
+        fxShown = false;
+        fxTab.setToggleState (false, juce::dontSendNotification);
+    }
     updateVisibility();
 }
 
 void HarmonyPanel::updateVisibility()
 {
-    // Three views: the picked voice (with the mix), NOTES, or FX (either's).
-    const auto voiceMain = ! notesShown && ! fxShown, notesMain = notesShown && ! fxShown;
+    // Four views: the picked voice (with the mix), NOTES, FX (either's), or GLOBAL (with the mix).
+    const auto fx = fxShown && ! globalShown;
+    const auto voiceMain = ! notesShown && ! fx && ! globalShown, notesMain = notesShown && ! fx && ! globalShown;
     shownFlatten = value (voiceId (selected, "Flatten")) > 0.5f;
     const auto show = [] (auto& control, bool visible)
     {
@@ -346,8 +396,14 @@ void HarmonyPanel::updateVisibility()
         else
             control.button.setVisible (visible);
     };
-    for (auto* knob : { &fine, &formant, &source, &harmony, &spread, &correctFormant })
+    for (auto* knob : { &fine, &formant })
         show (*knob, voiceMain);
+    for (auto* knob : { &source, &harmony, &spread, &correctFormant })
+        show (*knob, voiceMain || globalShown);
+    for (auto* knob : { &glide, &globalPitch, &globalFormant })
+        show (*knob, globalShown);
+    glideSyncLabel.setVisible (globalShown);
+    glideSync.setVisible (globalShown);
     show (pitch, voiceMain && ! shownFlatten);
     show (flattenNote, voiceMain && shownFlatten);
     for (auto* control : { &voiceOn, &voiceCorrect, &voiceFlatten })
@@ -358,9 +414,9 @@ void HarmonyPanel::updateVisibility()
     for (auto* component : std::initializer_list<juce::Component*> { &chordLabel, &chord, &midiLabel, &midiMap, &editMap })
         component->setVisible (notesMain);
     for (auto* knob : { &echoDelay, &echoFeedback, &cutoff })
-        show (*knob, fxShown);
+        show (*knob, fx);
     for (auto* component : std::initializer_list<juce::Component*> { &syncLabel, &echoSync, &filterLabel, &filterType })
-        component->setVisible (fxShown);
+        component->setVisible (fx);
     resized();
     repaint();
 }
@@ -540,6 +596,14 @@ void HarmonyPanel::timerCallback()
     refreshTabs();
     if ((value (voiceId (selected, "Flatten")) > 0.5f) != shownFlatten)
         updateVisibility();   // PITCH becomes NOTE, or back
+    // GLOBAL*: a global setting isn't where it starts (as the guide's asterisk).
+    const auto globalChanged = value (ParamIDs::harmonyGlide) > effects::Harmony::minGlideMs + 0.5f
+                               || juce::roundToInt (value (ParamIDs::harmonyGlideSync)) != 0
+                               || std::abs (value (ParamIDs::harmonyGlobalPitch)) > 0.01f
+                               || std::abs (value (ParamIDs::harmonyGlobalFormant)) > 0.01f;
+    if (const auto text = globalChanged ? "GLOBAL*" : "GLOBAL"; globalTab.getButtonText() != text)
+        globalTab.setButtonText (text);
+    glide.slider.setEnabled (juce::roundToInt (value (ParamIDs::harmonyGlideSync)) == 0);
     echoDelay.slider.setEnabled (juce::roundToInt (value (fxId ("Sync", ParamIDs::harmonyNoteSync))) == 0);
     const auto note = sungNote ? sungNote() : -1.0f;
     juce::String text ("--");
@@ -572,8 +636,16 @@ void HarmonyPanel::resized()
     // Left: on, key, scale, the sung note.
     auto left = area.removeFromLeft (112);
     area.removeFromLeft (10);
-    harmonyOn.label.setBounds (left.removeFromTop (14));
-    harmonyOn.button.setBounds (left.removeFromTop (28).withSizeKeepingCentre (26, 26));
+    // HARMONY's switch, and GLOBAL (its settings for every voice) beside it.
+    {
+        auto labels = left.removeFromTop (14);
+        auto row = left.removeFromTop (28);
+        // The switch needs only 26 px; its label can run wider, in the row above.
+        const auto switchWidth = 38;
+        harmonyOn.label.setBounds (labels.removeFromLeft (56));
+        harmonyOn.button.setBounds (row.removeFromLeft (switchWidth).withSizeKeepingCentre (26, 26));
+        globalTab.setBounds (row.reduced (2, 2));
+    }
     left.removeFromTop (6);
     keyLabel.setBounds (left.removeFromTop (14));
     key.setBounds (left.removeFromTop (26).reduced (4, 0));
@@ -590,6 +662,7 @@ void HarmonyPanel::resized()
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).withRight (getWidth() - 130 - 8);
     correct.setBounds (header.removeFromRight (78).reduced (0, 1));
     correctLabel.setBounds (header.removeFromRight (62));
+
 
     // Middle: the graph, and the picked voice's pan and level under it.
     auto middle = area.removeFromLeft (notesShown ? 150 : 196);   // NOTES: a narrower graph, room for its controls
@@ -612,6 +685,30 @@ void HarmonyPanel::resized()
     }
     right.removeFromTop (6);
     const auto rowHeight = (right.getHeight() - 6) / 2;
+
+    if (globalShown)
+    {
+        // GLOBAL: GLIDE, SYNC, PITCH, FORMANT; then the mix, as in the voice view.
+        const auto knobIn = [] (Knob& knob, juce::Rectangle<int> cell)
+        {
+            knob.label.setBounds (cell.removeFromTop (14));
+            knob.slider.setBounds (cell.reduced (1, 0));
+        };
+        auto top = right.removeFromTop (rowHeight);
+        const auto unit = top.getWidth() / 5;
+        knobIn (glide, top.removeFromLeft (unit));
+        auto syncCell = top.removeFromLeft (unit * 2).reduced (4, 0);
+        glideSyncLabel.setBounds (syncCell.removeFromTop (14));
+        glideSync.setBounds (syncCell.withSizeKeepingCentre (syncCell.getWidth(), 24).translated (0, -8));
+        knobIn (globalPitch, top.removeFromLeft (unit));
+        knobIn (globalFormant, top);
+        right.removeFromTop (6);
+        auto mixRow = right;
+        const auto mixWidth = mixRow.getWidth() / 4;
+        for (auto* knob : { &source, &harmony, &spread, &correctFormant })
+            knobIn (*knob, mixRow.removeFromLeft (mixWidth));
+        return;
+    }
 
     if (fxShown)
     {
@@ -727,14 +824,24 @@ void HarmonyPanel::paint (juce::Graphics& g)
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawText ("SINGING", area.removeFromTop (14.0f), juce::Justification::centred, false);
         g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : accent);
-        g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
-        const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
-        g.drawText (shownSung, area, juce::Justification::centred, false);
-        if (shownTuned.isNotEmpty())
+        if (shownTuned.isNotEmpty() && area.getHeight() < 36.0f)
         {
-            g.setColour (ParagonColours::accent);
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-            g.drawText (shownTuned, tunedLine, juce::Justification::centred, false);
+            // Short of room (GLOBAL sits below): the note and where it's
+            // being tuned to on one line.
+            g.setFont (juce::FontOptions (juce::jlimit (11.0f, 18.0f, area.getHeight() * 0.85f), juce::Font::bold));
+            g.drawFittedText (shownSung + " " + shownTuned, area.toNearestInt(), juce::Justification::centred, 1, 0.7f);
+        }
+        else
+        {
+            g.setFont (juce::FontOptions (juce::jmin (22.0f, area.getHeight() * 0.9f), juce::Font::bold));
+            const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
+            g.drawText (shownSung, area, juce::Justification::centred, false);
+            if (shownTuned.isNotEmpty())
+            {
+                g.setColour (ParagonColours::accent);
+                g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+                g.drawText (shownTuned, tunedLine, juce::Justification::centred, false);
+            }
         }
     }
 

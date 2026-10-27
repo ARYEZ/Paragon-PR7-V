@@ -50,6 +50,13 @@ public:
     // FEEDBACK and FILTER, in place of the two rows of controls.
     void showFx (bool show);
     bool isShowingFx() const noexcept { return fxShown; }
+    // GLOBAL: GLIDE, its SYNC, PITCH and FORMANT for all the harmony
+    // voices, over the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT).
+    void showGlobal (bool show);
+    bool isShowingGlobal() const noexcept { return globalShown; }
+    // Re-reads the sung note, the voices and GLOBAL's state now (the timer
+    // does it; screenshots call it directly).
+    void updateReadings() { timerCallback(); }
     // The Note Map Editor (EDIT on the NOTES tab): CHORD becomes Custom; a
     // built-in map is copied in first if the Custom map is empty.
     void openNoteMap();
@@ -132,6 +139,13 @@ private:
     juce::ComboBox echoSync, filterType;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> echoSyncAttachment, filterTypeAttachment;
     juce::String fxId (const char* voicePart, const char* noteId) const;   // the picked voice's part, or the note voices' parameter
+    // Stage 7: the GLOBAL view.
+    juce::TextButton globalTab { "GLOBAL" };
+    bool globalShown = false;
+    Knob glide, globalPitch, globalFormant;
+    juce::Label glideSyncLabel;
+    juce::ComboBox glideSync;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> glideSyncAttachment;
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;
 
     juce::Rectangle<float> graph, sungArea, readoutArea;

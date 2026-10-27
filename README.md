@@ -35,7 +35,8 @@ descriptions below still talk about guitar.
 | V7 | Harmony stage 4: MIDI note input (As Played / Through Chord, velocity, sustain) | ✅ Done (0.20.0) |
 | V8 | Harmony stage 5: Note Map Editor (CHORD Custom, SCALE Custom, Spread/Fold) | ✅ Done (0.21.0) |
 | V9 | Harmony stage 6: per-voice DELAY, FEEDBACK, FILTER and FLATTEN | ✅ Done (0.22.0) |
-| V10 | Harmony: global glide/pitch/formant, snapshots, modulators | Next |
+| V10 | Harmony stage 7: GLOBAL glide, pitch and formant | ✅ Done (0.26.0) |
+| V11 | Harmony: snapshots, modulators | Next |
 
 ## Using it
 
@@ -109,6 +110,8 @@ descriptions below still talk about guitar.
       Each voice's **FLATTEN** holds it on one **NOTE** (C1 to C5) whatever you sing, in place of PITCH. **FX** (after
       NOTES) shows the picked voice's **DELAY** (ms, or **SYNC**ed to the tempo), **FEEDBACK** (repeats), **FILTER**
       (low-pass, high-pass or band-pass) and **CUTOFF**; on the NOTES tab, the note voices' shared set.
+      **GLOBAL** (beside the HARMONY switch): **GLIDE** (how long the voices take to reach a new note, or synced),
+      **PITCH** and **FORMANT** for every harmony voice at once, with the mix; it reads GLOBAL* when one is changed.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

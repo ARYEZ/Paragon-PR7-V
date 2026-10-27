@@ -2,6 +2,23 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.26.0
+
+- **HARMONY stage 7: GLOBAL controls.** Inspired by the Global Controls section of Waves Harmony's guide. The new **GLOBAL** button sits beside the HARMONY switch.
+- **The GLOBAL view** shows four new controls above the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT, which the guide also counts as global):
+  - **GLIDE:** how long the harmony voices take to move to a new note, from 1 ms (straight there, as before) to 1 second. **SYNC** sets it as a note length at the song's tempo instead.
+  - **PITCH:** moves every harmony voice up or down, up to an octave either way. It's applied after the key correction, so a third stays a third, an octave up.
+  - **FORMANT:** changes the character of every harmony voice at once (lower for a bigger singer, higher for a smaller one), on top of each voice's own FORMANT.
+- **GLOBAL\* tells you a global setting is changed,** like the guide's asterisk.
+- **Everything starts where it changes nothing,** so rigs and projects sound as before.
+- **Our design where the guide doesn't say:**
+  - **Your own voice:** PITCH and FORMANT move only the harmony voices, not yours. "The entire process" could be read either way, and leaving your lead alone seemed the musical choice.
+  - **What GLIDE smooths:** the whole pitch curve, so a long GLIDE also softens how closely the voices follow your vibrato.
+  - **How long a glide takes:** GLIDE is the time to reach the new note.
+  - **The note voices** keep their own quick 30 ms glide as a minimum.
+  - **SYNC values:** PR7-V's usual note lengths.
+- **Also:** the SINGING note on the HARMONY panel adapts to the space, showing the note and TUNE VOICE's target on one line if needed.
+
 ## 0.25.0
 
 - **FACEPLATE stage 3: every block now has its own faceplate,** built from the same PR7 parts as the others.

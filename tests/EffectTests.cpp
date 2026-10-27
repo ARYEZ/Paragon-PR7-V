@@ -4292,3 +4292,70 @@ TEST_CASE ("HARMONY NOTES DELAY and FEEDBACK: the note voices' echo outlasts the
     CHECK (afterRelease (0.6f) > 1.0e-3f);
     CHECK (afterRelease (0.6f) > 10.0f * afterRelease (0.0f));   // without: only RELEASE's last trace
 }
+
+//==============================================================================
+// HARMONY stage 7: GLOBAL GLIDE, PITCH and FORMANT.
+TEST_CASE ("HARMONY GLOBAL PITCH: every harmony voice moves, the singer doesn't", "[effects][harmony][global]")
+{
+    const auto A3 = 220.0, E4 = 329.628, E5 = 659.255, C5 = 523.251;
+    HarmonyRig fixed (7.0f);
+    fixed.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto heard = pitchOf (fixed.runMono (sungVowel (A3, 1.0)));
+    CAPTURE (heard);
+    CHECK (std::abs (cents (heard, E5)) < 20.0);   // a fifth above, an octave up
+    HarmonyRig plain (7.0f);
+    CHECK (std::abs (cents (pitchOf (plain.runMono (sungVowel (A3, 1.0))), E4)) < 20.0);
+
+    // The singer's own voice (SOURCE up, voices off) isn't moved.
+    HarmonyRig singer (7.0f);
+    singer.set (ParamIDs::harmonySource, 0.0f);
+    singer.setVoice ("Active", 0.0f);
+    singer.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto sung = sungVowel (A3, 1.0);
+    CHECK (maxAbsDifference (sung, singer.runMono (sung), (size_t) (0.1 * sampleRate)) < 1.0e-5f);
+
+    // And note voices too: a held C4 comes out as C5.
+    MidiRig midi;
+    midi.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto out = runWithMidi (midi, sungVowel (A3, 1.0), { { 0.0, keyDown (60) } });
+    CAPTURE (pitchOf (out));
+    CHECK (std::abs (cents (pitchOf (out), C5)) < 20.0);
+}
+
+TEST_CASE ("HARMONY GLOBAL FORMANT: the same as each voice's own FORMANT", "[effects][harmony][global]")
+{
+    const auto sung = sungVowel (220.0, 1.0);
+    HarmonyRig global (7.0f);
+    global.set (ParamIDs::harmonyGlobalFormant, 5.0f);
+    HarmonyRig own (7.0f);
+    own.setVoice ("Formant", 5.0f);
+    HarmonyRig plain (7.0f);
+    const auto a = global.runMono (sung), b = own.runMono (sung), c = plain.runMono (sung);
+    CHECK (maxAbsDifference (a, b, 0) < 1.0e-6f);
+    CHECK (maxAbsDifference (a, c, (size_t) (0.2 * sampleRate)) > 1.0e-3f);   // and it does change the voice
+}
+
+TEST_CASE ("HARMONY GLIDE: the voices slide to a new note instead of jumping", "[effects][harmony][global]")
+{
+    // Sung A3 then C4 (from 0.6 s): the fifth above goes from E4 to G4. A
+    // voice gliding there is, for a moment, less than a fifth above the
+    // singer; one that jumps is a fifth above straight away. (A pitch
+    // can't be read off a slide, so this reads the voice's own shift.)
+    const auto line = sungLine ({ { 220.0, 0.6 }, { 261.626, 0.9 } });
+    const auto shiftAt = [&line] (std::function<void (HarmonyRig&)> setUp, double seconds)
+    {
+        HarmonyRig rig (7.0f);
+        setUp (rig);
+        rig.runMono (std::vector<float> (line.begin(), line.begin() + (long) (seconds * sampleRate)));
+        return 12.0 * std::log2 ((double) rig.processor.getHarmony().getRatio (0));
+    };
+    const auto noGlide = [] (HarmonyRig&) {};
+    const auto glide300 = [] (HarmonyRig& rig) { rig.set (ParamIDs::harmonyGlide, 300.0f); };
+    const auto synced = [] (HarmonyRig& rig) { rig.set (ParamIDs::harmonyGlideSync, 3.0f); };   // 1/4 at 120: 500 ms
+    const auto soon = 0.6 + 0.12;   // once the new note's been heard
+    CAPTURE (shiftAt (noGlide, soon), shiftAt (glide300, soon), shiftAt (synced, soon), shiftAt (glide300, 0.6 + 0.45));
+    CHECK (std::abs (shiftAt (noGlide, soon) - 7.0) < 0.2);    // straight to the fifth
+    CHECK (shiftAt (glide300, soon) < 6.0);                      // still sliding up from E4
+    CHECK (shiftAt (synced, soon) < shiftAt (glide300, soon));   // the longer glide, further behind
+    CHECK (std::abs (shiftAt (glide300, 0.6 + 0.45) - 7.0) < 0.3);   // there within GLIDE (plus the note's detection)
+}

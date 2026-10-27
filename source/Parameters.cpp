@@ -643,6 +643,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::harmonyNoteFeedback, "Harmony Note Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v43, asPercent));
     layout.add (makeChoice (ParamIDs::harmonyNoteFilter, "Harmony Note Filter", v43, effects::Harmony::filterNames, 0));
     layout.add (makeFloat (ParamIDs::harmonyNoteCutoff, "Harmony Note Cutoff", cutoffRange, effects::Harmony::filterHighestHz, v43, asCutoff));
+
+    // Added in plugin version 44: HARMONY's GLOBAL controls (stage 7). All
+    // start where they change nothing (GLIDE at its shortest: straight to the note).
+    constexpr int v44 = 44;
+    layout.add (makeFloat (ParamIDs::harmonyGlide, "Harmony Glide", skewed (effects::Harmony::minGlideMs, effects::Harmony::maxGlideMs, 100.0f, 1.0f),
+                           effects::Harmony::minGlideMs, v44, asMs));
+    layout.add (makeChoice (ParamIDs::harmonyGlideSync, "Harmony Glide Sync", v44, effects::Delay::syncNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyGlobalPitch, "Harmony Global Pitch", { -12.0f, 12.0f, 1.0f }, 0.0f, v44, asInterval));
+    layout.add (makeFloat (ParamIDs::harmonyGlobalFormant, "Harmony Global Formant", { -12.0f, 12.0f, 0.1f }, 0.0f, v44, asSemitoneShift));
     return layout;
 }
 

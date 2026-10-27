@@ -201,6 +201,11 @@ namespace ParamIDs
     inline constexpr auto harmonyNoteFeedback   = "harmonyNoteFeedback";   // 0 to 1
     inline constexpr auto harmonyNoteFilter     = "harmonyNoteFilter";     // Harmony::filterNames
     inline constexpr auto harmonyNoteCutoff     = "harmonyNoteCutoff";     // Hz
+    // Version 44: HARMONY's GLOBAL controls (stage 7).
+    inline constexpr auto harmonyGlide          = "harmonyGlide";          // ms
+    inline constexpr auto harmonyGlideSync      = "harmonyGlideSync";      // Delay::syncNames (0: Off, use ms)
+    inline constexpr auto harmonyGlobalPitch    = "harmonyGlobalPitch";    // semitones
+    inline constexpr auto harmonyGlobalFormant  = "harmonyGlobalFormant";  // semitones
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     // Saved by name; the processor reads them in this order: only add to the end.
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level",

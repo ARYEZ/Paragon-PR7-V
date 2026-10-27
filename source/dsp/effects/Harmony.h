@@ -76,6 +76,15 @@ namespace effects
     // the slope, DELAY 0 meaning none, the 2 s longest echo and FEEDBACK
     // 100% fading very slowly rather than building forever are our choices:
     // the guide doesn't give them.
+    //
+    // GLOBAL (stage 7; the guide's Global Controls): GLIDE, how smoothly
+    // each harmony voice moves to a new pitch (1 ms: straight there; the
+    // note voices never faster than their own 30 ms); PITCH, an offset for
+    // every harmony voice after the key correction and note mapping; and
+    // FORMANT, added to every harmony voice's own. The singer's own voice
+    // is left alone by PITCH and FORMANT (our reading of "the entire
+    // process"), and GLIDE follows the whole pitch curve, so a long one also
+    // smooths how closely the voices follow vibrato.
     class Harmony
     {
     public:
@@ -196,6 +205,8 @@ namespace effects
             void read (const juce::MidiBuffer&) noexcept;
             bool any() const noexcept;
         };
+        static constexpr float minGlideMs = 1.0f, maxGlideMs = 1000.0f;   // GLIDE's range; at the bottom, straight to the note
+        static constexpr float noteGlideMs = 30.0f;                      // the note voices' own glide time constant (GLIDE only slows them)
         static constexpr double correctLatencySeconds = 0.04;   // what CORRECT delays the plugin by
         static constexpr double naturalSeconds = 0.06, hardSeconds = 0.003;
 
@@ -214,6 +225,9 @@ namespace effects
             Notes notes;
             const MidiKeys* midi = nullptr;
             Scales::Custom customScale {};      // SCALE Custom (global, like KEY and SCALE)
+            float glideMs = minGlideMs;         // GLOBAL: GLIDE (the processor turns a synced one into ms)
+            float pitch = 0.0f;                 // GLOBAL: PITCH, semitones
+            float formant = 0.0f;               // GLOBAL: FORMANT, semitones
         };
 
         void prepare (double sampleRate, int maxBlockSize);
@@ -269,6 +283,7 @@ namespace effects
             bool running = false;
             float ratio = 1.0f, formantRatio = 1.0f;
             float leftGain = 0.0f, rightGain = 0.0f; // where the last block left them
+            double glidedNote = -1.0;                // GLIDE: the pitch it's gliding along (MIDI), or -1 between notes
             VoiceFx fx;
         };
 

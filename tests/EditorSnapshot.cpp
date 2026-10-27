@@ -215,6 +215,10 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYFX", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
             harmonyPanel->showFx (true);
+    // PARAGON_SNAPSHOT_HARMONYGLOBAL=1: its GLOBAL view.
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYGLOBAL", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->showGlobal (true);
     // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
     // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2; MARS's
     // BANDS, GLOBAL, MOD, SLOTS: 0-3).
@@ -243,6 +247,9 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);
     editor->resized();
+    // HARMONY's readings (the sung note, GLOBAL*) as its timer would show them.
+    if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+        harmonyPanel->updateReadings();
     // The FACEPLATE's meters settle as they would over a second of the timer.
     if (auto* faceplate = findType<Faceplate> (*editor))
         for (int tick = 0; tick < 30; ++tick)

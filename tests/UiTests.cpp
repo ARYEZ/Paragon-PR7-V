@@ -944,3 +944,55 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
         faceplate.updateMeters();
     CHECK (faceplate.getShownReduction() > -0.5f);
 }
+
+TEST_CASE ("HARMONY's GLOBAL view: GLIDE, SYNC, PITCH, FORMANT, and its asterisk", "[ui][harmony][global]")
+{
+    ParagonX1AudioProcessor processor;
+    HarmonyPanel panel (processor.getParameters(), [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::TextButton*> buttons;
+    std::vector<juce::Label*> labels;
+    findAll (panel, buttons);
+    findAll (panel, labels);
+    const auto button = [&buttons] (const juce::String& prefix) -> juce::TextButton*
+    {
+        for (auto* b : buttons)
+            if (b->getButtonText().startsWith (prefix))
+                return b;
+        return nullptr;
+    };
+    const auto labelShown = [&labels] (const juce::String& text)
+    {
+        for (auto* label : labels)
+            if (label->isVisible() && label->getText() == text)
+                return true;
+        return false;
+    };
+    auto* global = button ("GLOBAL");
+    REQUIRE (global != nullptr);
+    CHECK (global->isVisible());
+    CHECK_FALSE (labelShown ("GLIDE"));
+
+    panel.showGlobal (true);
+    CHECK (panel.isShowingGlobal());
+    CHECK (labelShown ("GLIDE"));
+    CHECK (labelShown ("SOURCE"));       // the mix stays
+    CHECK_FALSE (labelShown ("FLATTEN"));
+
+    // The asterisk: a global setting changed.
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL");
+    set (processor, ParamIDs::harmonyGlobalPitch, 7.0f);
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL*");
+
+    // FX and GLOBAL take turns; a voice tab goes back to the voice.
+    panel.showFx (true);
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK_FALSE (labelShown ("GLIDE"));
+    panel.showGlobal (true);
+    CHECK_FALSE (panel.isShowingFx());
+    button ("2")->onClick();   // what clicking tab 2 does
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK (labelShown ("FLATTEN"));
+}
