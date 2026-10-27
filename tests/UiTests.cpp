@@ -885,7 +885,13 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
     }
     footswitches[1]->onSelect();   // SATURATION
     CHECK (faceplate.getLook() == Faceplate::Look::mars);
+    footswitches[3]->onSelect();   // PITCH
+    CHECK (faceplate.getLook() == Faceplate::Look::harmony);
     footswitches[5]->onSelect();   // DELAY
+    CHECK (faceplate.getLook() == Faceplate::Look::delay);
+    footswitches[6]->onSelect();   // REVERB
+    CHECK (faceplate.getLook() == Faceplate::Look::reverb);
+    footswitches[4]->onSelect();   // MODULATION: not yet its own
     CHECK (faceplate.getLook() == Faceplate::Look::generic);
 
     // A loud note: the compressor's needle swings, MARS's driven band glows.

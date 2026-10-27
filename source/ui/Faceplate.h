@@ -17,6 +17,14 @@
 //               Daybreak: COMP/DETAIL/MIX knobs, INTENSITY key, a meter.
 //               Revival: GATE/COMPRESSION/GAIN as one curve, faders, a meter.
 //   SATURATION  MARS: a tube per band, glowing as hard as it's driven.
+//   DELAY       its TYPE as the name; the repeats laid out in time, fading
+//               by FEEDBACK, a light running along them at the delay time;
+//               TIME in seven-segment digits; FEEDBACK and MIX knobs.
+//   REVERB      its TYPE as the name; the reverb's shape (pre-delay, early
+//               reflections, the tail as long as it decays); DECAY in
+//               seconds; SIZE and MIX knobs.
+//   PITCH       HARMONY: the note sung (and TUNE VOICE's target), the
+//               voices by interval and pan, keys for HARMONY, OCTAVE, FREEZE.
 //   the rest    the block's name, icon and TYPE, until each gets its own.
 class Faceplate final : public juce::Component,
                         private juce::Timer,
@@ -27,9 +35,9 @@ public:
     ~Faceplate() override;
 
     // Which kind of block: the ones with their own faceplates, or any other.
-    enum class Unit { dynamics, saturation, other };
+    enum class Unit { dynamics, saturation, delay, reverb, pitch, other };
     // What's drawn now (for tests).
-    enum class Look { generic, classic, daybreak, revival, mars };
+    enum class Look { generic, classic, daybreak, revival, mars, delay, reverb, harmony };
 
     // `onIds`: the block's on switches (comma separated); `typeId`: its TYPE
     // (or empty).
@@ -60,6 +68,9 @@ private:
     void paintDaybreak (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintRevival (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintMars (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintDelay (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintReverb (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintHarmony (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
 
     ParagonX1AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& parameters;

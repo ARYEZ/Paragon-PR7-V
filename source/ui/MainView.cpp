@@ -637,8 +637,19 @@ void MainView::selectBlock (int block)
         { "LO-FI", Icons::Type::loFi, ParamIDs::lofiOn, ParamIDs::lofiType } };
     static_assert (std::size (about) == numBlocks);
     const auto& shown = about[(size_t) juce::jlimit (0, numBlocks - 1, block)];
-    faceplate.setBlock (block == compBlock ? Faceplate::Unit::dynamics : block == driveBlock ? Faceplate::Unit::saturation : Faceplate::Unit::other,
-                        shown.title, shown.icon, ParagonColours::chainColour (block, numBlocks), shown.onIds, shown.typeId);
+    const auto unitFor = [] (int which)
+    {
+        switch (which)
+        {
+            case compBlock:   return Faceplate::Unit::dynamics;
+            case driveBlock:  return Faceplate::Unit::saturation;
+            case delayBlock:  return Faceplate::Unit::delay;
+            case reverbBlock: return Faceplate::Unit::reverb;
+            case pitchBlock:  return Faceplate::Unit::pitch;
+            default:          return Faceplate::Unit::other;
+        }
+    };
+    faceplate.setBlock (unitFor (block), shown.title, shown.icon, ParagonColours::chainColour (block, numBlocks), shown.onIds, shown.typeId);
 
     const int footswitchBlocks[] = { compBlock, driveBlock, doublerBlock, pitchBlock, modBlock, delayBlock, reverbBlock };
     static_assert (std::size (footswitchBlocks) == std::tuple_size_v<decltype (footswitches)>);

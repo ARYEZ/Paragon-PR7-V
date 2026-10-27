@@ -2,6 +2,24 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.24.0
+
+- **FACEPLATE stage 2: DELAY, REVERB and PITCH get their own faceplates,** built from the same PR7 parts as the first ones.
+- **DELAY** is named for its TYPE ("TAPE ECHO", "ANALOG DELAY", "SHIMMER DELAY"…).
+  - A screen shows the repeats laid out in time, each as loud as FEEDBACK leaves it. With DUAL on there's a row for each side, and PING-PONG is marked.
+  - A light runs along the repeats at the delay time. It keeps time with your delay setting, not the audio itself.
+  - TIME shows in the main display's seven-segment digits, or as the note length while synced.
+  - FEEDBACK and MIX are on the unit's big knobs.
+- **REVERB** is named for its TYPE ("HALL", "PLATE", "SPRING"…).
+  - A screen draws its shape: the PRE-DELAY gap, the early reflections (as tall as EARLY), then the tail fading over the real decay time. SPRING ripples, and REVERSE swells up and cuts off.
+  - DECAY shows in seconds in seven-segment digits.
+  - SIZE and MIX are on knobs.
+- **PITCH (HARMONY)** has two screens and three keys:
+  - **Note screen:** the note you're singing, with TUNE VOICE's target beside it when it's on, and the KEY and SCALE.
+  - **Voices screen:** the harmony voices by pan and interval, like a small version of the HARMONY graph. A flattened voice sits at its note, and note voices show as rings.
+  - **Keys:** small keys for HARMONY, OCTAVE and FREEZE, lit while each is on.
+- **Still the shared rack unit:** MODULATION, FILTER / PITCH, DE-ESSER, GLITCH, DOUBLER, GRAPHIC EQ and LO-FI, until stage 3.
+
 ## 0.23.1
 
 - **The faceplates are now part of the PR7 line** (the owner's request): every one is built from the PR7's own parts instead of their own looks.

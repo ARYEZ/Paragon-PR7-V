@@ -5,8 +5,13 @@
 #include "Parameters.h"
 #include "ParagonLookAndFeel.h"
 #include "PedalBody.h"
+#include "dsp/PitchDetector.h"
+#include "dsp/Scales.h"
 #include "dsp/effects/CompGate.h"
+#include "dsp/effects/Delay.h"
+#include "dsp/effects/Harmony.h"
 #include "dsp/effects/Mars.h"
+#include "dsp/effects/Reverb.h"
 
 // Every part here is one of the PR7's own: the unit's pearl chassis
 // (PedalBody::paintUnit), its LCD screens (LedDisplay::paintScreen, the LED
@@ -81,6 +86,49 @@ namespace
 
     // The angle a knob points at for `position` (0 to 1), as the unit's knobs turn.
     float knobAngle (float position) { return juce::MathConstants<float>::pi * (1.2f + 1.6f * juce::jlimit (0.0f, 1.0f, position)); }
+
+    // One of the unit's big knobs with its name stamped under it.
+    void bigKnob (juce::Graphics& g, juce::Rectangle<float> cell, const juce::String& name, float position)
+    {
+        stamped (g, name, cell.removeFromBottom (12.0f), 8.0f);
+        const auto size = juce::jmin (cell.getWidth(), cell.getHeight() + 16.0f);
+        ParagonLookAndFeel::drawPedalKnob (g, cell.withSizeKeepingCentre (size, size).translated (0.0f, -2.0f), knobAngle (position));
+    }
+
+    // A number on a screen in the main display's seven-segment digits (a
+    // dot drawn for a decimal point), then a small unit after it.
+    void sevenSegment (juce::Graphics& g, juce::Rectangle<float> glass, const juce::String& number, const juce::String& unitText)
+    {
+        auto area = glass.reduced (glass.getWidth() * 0.06f, glass.getHeight() * 0.2f);
+        const auto unitWidth = area.getHeight() * 0.9f;
+        g.setColour (orange);
+        g.setFont (font (area.getHeight() * 0.38f));
+        g.drawText (unitText, area.removeFromRight (unitWidth), juce::Justification::bottomLeft, false);
+        const auto digitHeight = area.getHeight();
+        const auto digitWidth = digitHeight * 0.55f;
+        auto digits = 0;
+        for (auto c : number)
+            digits += c == '.' ? 0 : 1;
+        auto x = area.getRight() - 4.0f - (float) digits * digitWidth * 1.15f;
+        for (auto c : number)
+        {
+            if (c == '.')
+            {
+                g.setColour (orange);
+                g.fillEllipse (juce::Rectangle<float> (3.5f, 3.5f).withCentre ({ x - digitWidth * 0.08f, area.getBottom() - 2.0f }));
+                continue;
+            }
+            LedDisplay::drawDigit (g, c, juce::Rectangle<float> (x, area.getY(), digitWidth, digitHeight), orange);
+            x += digitWidth * 1.15f;
+        }
+    }
+
+    // A note's name, "A3".
+    juce::String noteName (float midiNote)
+    {
+        const auto named = PitchDetector::toNote (Scales::hzFromMidi (midiNote));
+        return named.name + juce::String (named.octave);
+    }
 }
 
 //==============================================================================
@@ -125,6 +173,12 @@ Faceplate::Look Faceplate::getLook() const
 {
     if (unit == Unit::saturation)
         return Look::mars;
+    if (unit == Unit::delay)
+        return Look::delay;
+    if (unit == Unit::reverb)
+        return Look::reverb;
+    if (unit == Unit::pitch)
+        return Look::harmony;
     if (unit == Unit::dynamics)
     {
         switch ((effects::CompGate::Type) juce::roundToInt (raw (ParamIDs::compType)))
@@ -192,6 +246,9 @@ void Faceplate::paint (juce::Graphics& g)
         case Look::daybreak: paintDaybreak (g, header, content); break;
         case Look::revival:  paintRevival (g, header, content); break;
         case Look::mars:     paintMars (g, header, content); break;
+        case Look::delay:    paintDelay (g, header, content); break;
+        case Look::reverb:   paintReverb (g, header, content); break;
+        case Look::harmony:  paintHarmony (g, header, content); break;
         case Look::generic:  paintGeneric (g, header, content); break;
     }
 }
@@ -417,4 +474,244 @@ void Faceplate::paintMars (juce::Graphics& g, juce::Rectangle<float> header, juc
         g.fillRect (plates.withSizeKeepingCentre (2.5f, plates.getHeight() * 0.85f));
     }
     finish (g, glass);
+}
+
+void Faceplate::paintDelay (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)
+{
+    // The delay's TYPE as its name; its repeats on a screen; TIME in digits.
+    static const char* names[] = { "DIGITAL DELAY", "ANALOG DELAY", "TAPE ECHO", "MOD DELAY", "REVERSE DELAY",
+                                   "MULTI-TAP", "SHIMMER DELAY", "DUCKING DELAY" };
+    const auto type = juce::jlimit (0, (int) std::size (names) - 1, juce::roundToInt (raw (ParamIDs::delayType)));
+    nameplate (g, header, names[type], "ECHO");
+    const auto on = isOn();
+
+    // The time each side repeats at (seconds), synced or not.
+    const auto bpm = juce::jmax (20.0, processor.getTempoBpm());
+    const auto syncs = (int) std::size (effects::Delay::syncBeats);
+    const auto secondsFor = [&] (const char* timeId, const char* syncId)
+    {
+        const auto sync = juce::roundToInt (raw (syncId));
+        return sync > 0 && sync < syncs ? (double) effects::Delay::syncBeats[sync] * 60.0 / bpm : raw (timeId) / 1000.0;
+    };
+    const auto left = juce::jmax (0.001, secondsFor (ParamIDs::delayTime, ParamIDs::delaySync));
+    const auto dual = raw (ParamIDs::delayDual) > 0.5f;
+    const auto right = dual ? juce::jmax (0.001, secondsFor (ParamIDs::delayTimeRight, ParamIDs::delaySyncRight)) : left;
+    const auto feedback = raw (ParamIDs::delayFeedback);
+
+    // The screen: each repeat a bar, as tall as it is loud (FEEDBACK each
+    // time), over the next few seconds; a light runs along them at the
+    // delay time (in time with it, not with the audio itself).
+    auto settings = body.removeFromRight (body.getWidth() * 0.4f);
+    body.removeFromRight (14.0f);
+    const auto glass = screen (g, body);
+    {
+        auto plot = glass.reduced (glass.getWidth() * 0.05f, glass.getHeight() * 0.14f);
+        g.setColour (orange.withAlpha (0.6f));
+        g.setFont (font (8.0f));
+        g.drawText (raw (ParamIDs::delayPingPong) > 0.5f ? "REPEATS  PING-PONG" : dual ? "REPEATS  DUAL" : "REPEATS",
+                    plot.removeFromTop (10.0f), juce::Justification::topLeft, false);
+        const auto span = juce::jmax (left, right) * 6.5;
+        const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
+        const auto rows = dual ? 2 : 1;
+        const auto rowHeight = plot.getHeight() / (float) rows;
+        for (int row = 0; row < rows; ++row)
+        {
+            const auto period = row == 0 ? left : right;
+            const auto lane = plot.withTrimmedTop (rowHeight * (float) row).withHeight (rowHeight).reduced (0.0f, 2.0f);
+            g.setColour (orange.withAlpha (0.15f));
+            g.fillRect (lane.withTop (lane.getBottom() - 1.0f));
+            const auto ringing = (int) std::fmod (now / period, 6.0);   // the repeat the light is on
+            auto level = 1.0f;
+            for (int repeat = 0; repeat < 6 && repeat * period < span; ++repeat)
+            {
+                const auto x = lane.getX() + lane.getWidth() * (float) (((double) repeat + 1.0) * period / span);
+                const auto bar = juce::Rectangle<float> (4.0f, lane.getHeight() * juce::jmax (0.04f, level)).withBottomY (lane.getBottom()).withCentre ({ x, 0.0f })
+                                     .withBottomY (lane.getBottom());
+                const auto lit = on && repeat == ringing;
+                g.setColour (orange.withAlpha (lit ? 0.35f : 0.15f));
+                g.fillRoundedRectangle (bar.expanded (2.0f, 1.0f), 2.0f);
+                g.setColour (orange.withAlpha (on ? (lit ? 1.0f : 0.6f) : 0.3f));
+                g.fillRoundedRectangle (bar, 1.5f);
+                level *= juce::jmin (1.0f, feedback);
+                if (level < 0.02f)
+                    break;
+            }
+        }
+    }
+    finish (g, glass);
+
+    // TIME (the note length while synced), then FEEDBACK and MIX knobs.
+    auto timeArea = settings.removeFromTop (settings.getHeight() * 0.42f);
+    const auto timeGlass = screen (g, timeArea);
+    const auto sync = juce::roundToInt (raw (ParamIDs::delaySync));
+    if (sync > 0 && sync < syncs)
+    {
+        g.setColour (orange);
+        g.setFont (font (timeGlass.getHeight() * 0.5f));
+        g.drawText (effects::Delay::syncNames[sync], timeGlass.reduced (8.0f, 0.0f), juce::Justification::centredRight, false);
+    }
+    else
+    {
+        sevenSegment (g, timeGlass, juce::String (juce::roundToInt (left * 1000.0)), "ms");
+    }
+    finish (g, timeGlass);
+    settings.removeFromTop (4.0f);
+    const auto half = settings.getWidth() / 2.0f;
+    bigKnob (g, settings.removeFromLeft (half), "FEEDBACK", normalised (ParamIDs::delayFeedback));
+    bigKnob (g, settings, "MIX", normalised (ParamIDs::delayMix));
+}
+
+void Faceplate::paintReverb (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)
+{
+    // The reverb's TYPE as its name; its shape on a screen; DECAY in seconds.
+    static const char* names[] = { "CLASSIC", "ROOM", "HALL", "CATHEDRAL", "PLATE", "SPRING", "DIGITAL", "REVERSE", "CHAMBER" };
+    const auto type = juce::jlimit (0, (int) std::size (names) - 1, juce::roundToInt (raw (ParamIDs::reverbType)));
+    nameplate (g, header, names[type], "REVERB");
+    const auto on = isOn();
+    const auto decay = effects::Reverb::decaySeconds ((effects::Reverb::Type) type, raw (ParamIDs::reverbSize), raw (ParamIDs::reverbDecay));
+    const auto preDelay = raw (ParamIDs::reverbPreDelay) / 1000.0f;
+    const auto early = juce::jlimit (0.0f, 1.0f, normalised (ParamIDs::reverbEarly));
+
+    // The screen: level over time. A gap for PRE-DELAY, the early
+    // reflections as ticks, then the tail fading over DECAY (rising, for
+    // REVERSE; with a spring's ripple, for SPRING).
+    auto settings = body.removeFromRight (body.getWidth() * 0.4f);
+    body.removeFromRight (14.0f);
+    const auto glass = screen (g, body);
+    {
+        auto plot = glass.reduced (glass.getWidth() * 0.05f, glass.getHeight() * 0.14f);
+        g.setColour (orange.withAlpha (0.6f));
+        g.setFont (font (8.0f));
+        g.drawText ("PRE " + juce::String (juce::roundToInt (preDelay * 1000.0f)) + " ms", plot.removeFromTop (10.0f), juce::Justification::topLeft, false);
+        const auto span = preDelay + decay * 1.15f + 0.05f;
+        const auto xFor = [&plot, span] (float seconds) { return plot.getX() + plot.getWidth() * seconds / span; };
+        const auto start = preDelay;
+        const auto reverse = type == (int) effects::Reverb::Type::reverse;
+        const auto spring = type == (int) effects::Reverb::Type::spring;
+        juce::Path tail;
+        tail.startNewSubPath (xFor (start), plot.getBottom());
+        for (auto t = 0.0f; t <= decay; t += decay / 120.0f)
+        {
+            auto level = reverse ? std::pow (t / decay, 2.0f) : std::pow (10.0f, -3.0f * t / decay);   // 60 dB down over DECAY
+            if (spring)
+                level *= 0.8f + 0.2f * std::cos (t * 70.0f);
+            tail.lineTo (xFor (start + t), plot.getBottom() - plot.getHeight() * 0.9f * level);
+        }
+        tail.lineTo (xFor (start + decay), plot.getBottom());
+        tail.closeSubPath();
+        g.setGradientFill (juce::ColourGradient (orange.withAlpha (on ? 0.45f : 0.15f), 0.0f, plot.getY(), orange.withAlpha (0.05f), 0.0f, plot.getBottom(), false));
+        g.fillPath (tail);
+        g.setColour (orange.withAlpha (on ? 1.0f : 0.4f));
+        g.strokePath (tail, juce::PathStrokeType (1.4f));
+        // Early reflections: a few ticks just after the pre-delay.
+        for (int tick = 0; tick < 6; ++tick)
+        {
+            const auto x = xFor (start + 0.008f + 0.011f * (float) tick);
+            const auto height = plot.getHeight() * early * (0.95f - 0.12f * (float) tick);
+            g.setColour (orange.withAlpha (on ? 0.9f : 0.35f));
+            g.fillRect (juce::Rectangle<float> (2.0f, height).withBottomY (plot.getBottom()).withX (x));
+        }
+        g.setColour (orange.withAlpha (0.15f));
+        g.fillRect (plot.withTop (plot.getBottom() - 1.0f));
+    }
+    finish (g, glass);
+
+    // DECAY in seconds, then SIZE and MIX knobs.
+    auto decayArea = settings.removeFromTop (settings.getHeight() * 0.42f);
+    const auto decayGlass = screen (g, decayArea);
+    sevenSegment (g, decayGlass, juce::String (decay, decay < 10.0f ? 1 : 0), "s");
+    finish (g, decayGlass);
+    settings.removeFromTop (4.0f);
+    const auto half = settings.getWidth() / 2.0f;
+    bigKnob (g, settings.removeFromLeft (half), "SIZE", normalised (ParamIDs::reverbSize));
+    bigKnob (g, settings, "MIX", normalised (ParamIDs::reverbMix));
+}
+
+void Faceplate::paintHarmony (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)
+{
+    // The voice processor: the note sung on one screen, the voices on
+    // another, and keys for HARMONY, OCTAVE and FREEZE.
+    nameplate (g, header, "HARMONY", "VOICE PROCESSOR");
+
+    // Keys down the right, each with its light stripe and name.
+    auto keys = body.removeFromRight (98.0f);
+    const auto keyRow = keys.getHeight() / 3.0f;
+    for (auto [id, name] : { std::pair { ParamIDs::harmonyOn, "HARMONY" }, std::pair { ParamIDs::octOn, "OCTAVE" },
+                             std::pair { ParamIDs::freezeOn, "FREEZE" } })
+    {
+        auto row = keys.removeFromTop (keyRow);
+        const auto key = row.removeFromLeft (40.0f).withSizeKeepingCentre (38.0f, juce::jmin (22.0f, row.getHeight() - 4.0f));
+        ParagonLookAndFeel::drawSmallKey (g, key, false, false);
+        ParagonLookAndFeel::drawKeyStripe (g, key.reduced (4.0f, 2.0f), raw (id) > 0.5f, false);
+        stamped (g, name, row.withTrimmedLeft (6.0f), 8.0f, juce::Justification::centredLeft);
+    }
+    body.removeFromRight (12.0f);
+
+    // The note: SINGING, and with TUNE VOICE on, the note it's tuned to.
+    const auto noteGlass = screen (g, body.removeFromLeft (body.getWidth() * 0.42f));
+    {
+        auto inside = noteGlass.reduced (noteGlass.getWidth() * 0.07f, noteGlass.getHeight() * 0.12f);
+        g.setColour (orange.withAlpha (0.6f));
+        g.setFont (font (8.0f));
+        g.drawText ("KEY " + text (ParamIDs::harmonyKey).toUpperCase() + " " + text (ParamIDs::harmonyScale).toUpperCase(),
+                    inside.removeFromTop (10.0f), juce::Justification::topLeft, false);
+        const auto sung = processor.getHarmonySungNote();
+        const auto correcting = juce::roundToInt (raw (ParamIDs::harmonyCorrect)) > 0;
+        const auto target = processor.getHarmonyCorrectNote();
+        g.setColour (orange);
+        g.setFont (font (inside.getHeight() * 0.62f));
+        g.drawText (sung >= 0.0f ? noteName (sung) : juce::String ("--"), inside.removeFromLeft (inside.getWidth() * 0.55f), juce::Justification::centredLeft, false);
+        if (correcting)
+        {
+            g.setColour (orange.withAlpha (target >= 0.0f ? 0.9f : 0.4f));
+            g.setFont (font (inside.getHeight() * 0.3f));
+            g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92 ")) + (target >= 0.0f ? noteName (target) : juce::String ("--")),
+                        inside, juce::Justification::centredLeft, false);
+        }
+    }
+    finish (g, noteGlass);
+    body.removeFromLeft (10.0f);
+
+    // The voices, as on the HARMONY graph: across by pan, up by interval;
+    // a flattened voice at its note's place; note voices as rings.
+    const auto voicesGlass = screen (g, body);
+    {
+        auto plot = voicesGlass.reduced (voicesGlass.getWidth() * 0.08f, voicesGlass.getHeight() * 0.16f);
+        const auto harmonyOn = raw (ParamIDs::harmonyOn) > 0.5f;
+        const auto sung = processor.getHarmonySungNote();
+        const auto yFor = [&plot] (float semitones) { return plot.getCentreY() - plot.getHeight() * 0.5f * juce::jlimit (-1.0f, 1.0f, semitones / 12.0f); };
+        g.setColour (orange.withAlpha (0.15f));
+        g.drawHorizontalLine ((int) plot.getCentreY(), plot.getX(), plot.getRight());
+        g.drawVerticalLine ((int) plot.getCentreX(), plot.getY(), plot.getBottom());
+        for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        {
+            const auto part = [voice] (const char* name) { return ParamIDs::harmonyVoice (voice, name); };
+            if (raw (part ("Active")) <= 0.5f)
+                continue;
+            auto interval = raw (part ("Pitch"));
+            if (raw (part ("Flatten")) > 0.5f)
+                interval = sung >= 0.0f ? raw (part ("Note")) - sung : 0.0f;
+            const auto x = plot.getCentreX() + plot.getWidth() * 0.5f * raw (part ("Pan"));
+            const auto sounding = harmonyOn && raw (part ("On")) > 0.5f;
+            const auto dot = juce::Rectangle<float> (7.0f, 7.0f).withCentre ({ x, yFor (interval) });
+            g.setColour (orange.withAlpha (sounding ? 0.35f : 0.1f));
+            g.fillEllipse (dot.expanded (2.5f));
+            g.setColour (orange.withAlpha (sounding ? 1.0f : 0.35f));
+            g.fillEllipse (dot);
+        }
+        const auto& engine = processor.getHarmony();
+        for (int voice = 0; voice < effects::Harmony::numNoteVoices; ++voice)
+        {
+            const auto note = engine.getNoteVoiceNote (voice);
+            if (note < 0 || sung < 0.0f)
+                continue;
+            const auto x = plot.getCentreX() + plot.getWidth() * 0.5f * engine.getNoteVoicePan (voice);
+            g.setColour (orange.withAlpha (juce::jlimit (0.3f, 1.0f, engine.getNoteVoiceLevel (voice))));
+            g.drawEllipse (juce::Rectangle<float> (8.0f, 8.0f).withCentre ({ x, yFor ((float) note - sung) }), 1.4f);
+        }
+        g.setColour (orange.withAlpha (0.6f));
+        g.setFont (font (8.0f));
+        g.drawText ("VOICES", voicesGlass.reduced (8.0f, 4.0f), juce::Justification::topLeft, false);
+    }
+    finish (g, voicesGlass);
 }
