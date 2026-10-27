@@ -66,12 +66,40 @@ namespace effects
     // NOTE MAP EDITOR (stage 5): CHORD Custom plays your own map, note by
     // note (SPREAD or FOLD), and SCALE Custom your own scale, each note in it
     // or sent up or down to the next one that is.
+    //
+    // PER-VOICE DELAY, FEEDBACK, FILTER and FLATTEN (stage 6; the guide's
+    // Harmony Panel and Notes Panel): each fixed voice, and the note voices
+    // together, can be filtered (low-pass, high-pass or band-pass, 12 dB per
+    // octave), then delayed (with repeats, FEEDBACK). FLATTEN holds a fixed
+    // voice on one NOTE whatever is sung (still put into the key when its
+    // CORRECT is on, and FINE after that). The order (filter, then delay),
+    // the slope, DELAY 0 meaning none, the 2 s longest echo and FEEDBACK
+    // 100% fading very slowly rather than building forever are our choices:
+    // the guide doesn't give them.
     class Harmony
     {
     public:
         static constexpr int numVoices = 8;
         static constexpr float silentDb = -60.0f;   // levels at or below this are off
         static constexpr double lowestHz = 60.0, highestHz = 1100.0;   // low bass voice to high soprano
+
+        // Saved by number: only ever add to the end.
+        static inline const juce::StringArray filterNames { "Low-pass", "High-pass", "Band-pass" };
+        static constexpr float filterLowestHz = 20.0f, filterHighestHz = 20000.0f;   // LOW-PASS at the top, HIGH-PASS at the bottom: off
+        static constexpr float maxDelayMs = 1000.0f;       // DELAY's range (free)
+        static constexpr double maxEchoSeconds = 2.0;      // the longest echo, synced or not
+        static constexpr float feedbackAtFull = 0.97f;     // the loop's gain at FEEDBACK 100%: repeats fade very slowly
+        static constexpr float flattenDefault = 48.0f;     // FLATTEN's NOTE to start: C3 (MIDI), as in the guide
+
+        // A voice's (or the note voices') DELAY, FEEDBACK and FILTER.
+        struct Fx
+        {
+            float delayMs = 0.0f;      // 0: none (the processor turns a synced time into ms)
+            float feedback = 0.0f;     // 0 to 1
+            int filter = 0;            // filterNames
+            float cutoffHz = filterHighestHz;
+            bool isNeutral() const noexcept;
+        };
 
         struct Voice
         {
@@ -83,6 +111,9 @@ namespace effects
             bool correct = true;    // into the key and scale
             float pan = 0.0f;       // -1 (left) to +1 (right)
             float levelDb = 0.0f;
+            bool flatten = false;   // FLATTEN: play NOTE whatever is sung
+            float note = flattenDefault;
+            Fx fx;
         };
 
         // Saved by number: only ever add to the end.
@@ -151,6 +182,7 @@ namespace effects
             int midiMap = 0;                 // MIDI: 0 As Played, 1 Through Chord
             NoteMap customMap {};            // CHORD Custom
             bool fold = false;
+            Fx fx;                           // shared by the note voices
         };
         static inline const juce::StringArray midiMapNames { "As Played", "Through Chord" };
 
@@ -214,6 +246,22 @@ namespace effects
         static constexpr int mask = bufferSize - 1;
         static constexpr int hop = 128;              // how often the pitch is read
 
+        // FILTER then DELAY (with FEEDBACK), after a voice is made.
+        struct VoiceFx
+        {
+            std::vector<float> line;                 // the echo
+            int write = 0;
+            double delay = 0.0;                      // samples, gliding to `target` (no clicks when DELAY moves)
+            double target = 0.0;
+            float loop = 0.0f;
+            int filter = -1;                         // -1: no filter
+            float a1 = 0.0f, a2 = 0.0f, a3 = 0.0f, k = 1.41421356f, s1 = 0.0f, s2 = 0.0f;
+            int ringing = 0;                         // samples the echo still has to play
+            void set (const Fx&, double sampleRate) noexcept;   // once a block
+            float process (float x) noexcept;
+            void clear() noexcept;
+        };
+
         struct VoiceState
         {
             std::vector<float> output;               // slices overlap-added here, ahead of time
@@ -221,6 +269,7 @@ namespace effects
             bool running = false;
             float ratio = 1.0f, formantRatio = 1.0f;
             float leftGain = 0.0f, rightGain = 0.0f; // where the last block left them
+            VoiceFx fx;
         };
 
         void readPitch (const Settings& settings) noexcept;

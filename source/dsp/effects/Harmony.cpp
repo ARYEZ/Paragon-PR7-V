@@ -27,10 +27,14 @@ namespace effects
             voice.running = false;
             voice.ratio = voice.formantRatio = 1.0f;
             voice.leftGain = voice.rightGain = 0.0f;
+            voice.fx.line.assign ((size_t) (maxEchoSeconds * sampleRate) + 2, 0.0f);
+            voice.fx.clear();
         }
         for (auto& voice : noteVoices)
         {
             voice.state.output.assign ((size_t) bufferSize, 0.0f);
+            voice.state.fx.line.assign ((size_t) (maxEchoSeconds * sampleRate) + 2, 0.0f);
+            voice.state.fx.clear();
             voice.state.running = false;
             voice.state.ratio = voice.state.formantRatio = 1.0f;
             voice.note = -1;
@@ -58,6 +62,87 @@ namespace effects
         sourceGain = 1.0f;
         sungNote = -1.0f;
         bypass.prepare (sampleRate, maxBlockSize);
+    }
+
+    bool Harmony::Fx::isNeutral() const noexcept
+    {
+        const auto noFilter = (filter == 0 && cutoffHz >= filterHighestHz) || (filter == 1 && cutoffHz <= filterLowestHz);
+        return noFilter && delayMs <= 0.0f;
+    }
+
+    void Harmony::VoiceFx::set (const Fx& fx, double sampleRate) noexcept
+    {
+        // The filter: a two-pole state-variable filter (12 dB per octave),
+        // left out entirely where it would do nothing.
+        const auto cutoff = juce::jlimit (filterLowestHz, filterHighestHz, fx.cutoffHz);
+        const auto off = (fx.filter == 0 && cutoff >= filterHighestHz) || (fx.filter == 1 && cutoff <= filterLowestHz);
+        if (off)
+        {
+            filter = -1;
+        }
+        else
+        {
+            if (filter < 0)
+                s1 = s2 = 0.0f;
+            filter = juce::jlimit (0, 2, fx.filter);
+            const auto g = (float) std::tan (juce::MathConstants<double>::pi * juce::jmin ((double) cutoff, 0.45 * sampleRate) / sampleRate);
+            a1 = 1.0f / (1.0f + g * (g + k));
+            a2 = g * a1;
+            a3 = g * a2;
+        }
+        target = juce::jlimit (0.0, (double) line.size() - 2.0, fx.delayMs * 0.001 * sampleRate);
+        if (delay <= 0.0 && ringing <= 0 && target > 0.0)
+        {
+            // Starting (DELAY was off): no glide from wherever it was, and
+            // nothing left in the line from the last time it was used.
+            std::fill (line.begin(), line.end(), 0.0f);
+            write = 0;
+            delay = target;
+        }
+        loop = feedbackAtFull * juce::jlimit (0.0f, 1.0f, fx.feedback);
+    }
+
+    float Harmony::VoiceFx::process (float x) noexcept
+    {
+        if (filter >= 0)
+        {
+            const auto v3 = x - s2;
+            const auto v1 = a1 * s1 + a2 * v3;
+            const auto v2 = s2 + a2 * s1 + a3 * v3;
+            s1 = 2.0f * v1 - s1;
+            s2 = 2.0f * v2 - s2;
+            x = filter == 0 ? v2 : filter == 1 ? x - k * v1 - v2 : k * v1;   // band-pass: unity at the centre
+        }
+        if (target <= 0.0 && delay < 0.5)
+        {
+            delay = 0.0;
+            return x;   // no delay (DELAY at 0): straight through
+        }
+        // A tape-like glide to a new time (about 30 ms), read between samples.
+        delay += 0.0015 * (target - delay);
+        const auto size = (int) line.size();
+        auto position = (double) write - juce::jmax (1.0, delay);
+        if (position < 0.0)
+            position += size;
+        const auto whole = (int) position;
+        const auto fraction = (float) (position - whole);
+        const auto a = line[(size_t) whole], b = line[(size_t) ((whole + 1) % size)];
+        const auto y = a + (b - a) * fraction;
+        line[(size_t) write] = x + loop * y;
+        write = (write + 1) % size;
+        if (std::abs (x) > 1.0e-6f || std::abs (y) > 1.0e-6f)
+            ringing = (int) delay + 2;
+        else if (ringing > 0)
+            --ringing;
+        return y;
+    }
+
+    void Harmony::VoiceFx::clear() noexcept
+    {
+        std::fill (line.begin(), line.end(), 0.0f);
+        s1 = s2 = 0.0f;
+        ringing = 0;
+        delay = 0.0;
     }
 
     float Harmony::readInput (double position) const noexcept
@@ -379,7 +464,15 @@ namespace effects
         {
             const auto& setting = settings.voices[v];
             auto shift = 0.0;   // semitones from the sung pitch
-            if (voiced)
+            if (voiced && setting.flatten)
+            {
+                // FLATTEN: NOTE whatever is sung (into the key with CORRECT on), then FINE.
+                auto target = (double) setting.note;
+                if (setting.correct)
+                    target = Scales::nearest (target, settings.key, settings.scale, &settings.customScale);
+                shift = target + setting.cents / 100.0 - sung;
+            }
+            else if (voiced)
             {
                 if (setting.correct)
                 {
@@ -444,6 +537,7 @@ namespace effects
             voice.envelope = 0.0f;
             voice.state.running = false;
             std::fill (voice.state.output.begin(), voice.state.output.end(), 0.0f);
+            voice.state.fx.clear();
         }
         for (auto* state : { &corrected })
         {
@@ -455,6 +549,7 @@ namespace effects
             std::fill (voice.output.begin(), voice.output.end(), 0.0f);
             voice.running = false;
             voice.leftGain = voice.rightGain = 0.0f;
+            voice.fx.clear();
         }
     }
 
@@ -506,6 +601,10 @@ namespace effects
             // Where each voice's gains are headed this block; they glide
             // there across it, so moving a level or pan doesn't click.
             const auto harmonyGain = gainFor (settings.harmonyDb);
+            for (size_t v = 0; v < voices.size(); ++v)
+                voices[v].fx.set (settings.voices[v].fx, sampleRate);
+            for (auto& noteVoice : noteVoices)
+                noteVoice.state.fx.set (settings.notes.fx, sampleRate);
             std::array<std::pair<float, float>, numVoices> targets {};
             for (size_t v = 0; v < voices.size(); ++v)
             {
@@ -557,7 +656,7 @@ namespace effects
                     const auto sounding = targetLeft > 0.0f || targetRight > 0.0f || state.leftGain > 0.0f || state.rightGain > 0.0f;
                     if (! state.running && ! sounding)
                         continue;
-                    const auto sample = nextFrom (state, latency);
+                    const auto sample = state.fx.process (nextFrom (state, latency));
                     outLeft += (state.leftGain + (targetLeft - state.leftGain) * through) * sample;
                     outRight += (state.rightGain + (targetRight - state.rightGain) * through) * sample;
                 }
@@ -565,15 +664,19 @@ namespace effects
                 for (auto& noteVoice : noteVoices)
                 {
                     const auto gate = voicesOn && noteVoice.note >= 0;
-                    if (! noteVoice.state.running && ! gate)
+                    const auto echoing = noteVoice.state.fx.ringing > 0;
+                    if (! noteVoice.state.running && ! gate && ! echoing)
                         continue;
                     noteVoice.envelope += (gate ? attack : release) * ((gate ? 1.0f : 0.0f) - noteVoice.envelope);
                     noteVoice.pan += panGlide * (noteVoice.panTarget - noteVoice.pan);
-                    const auto sample = nextFrom (noteVoice.state, latency) * noteGain * noteVoice.envelope
-                                        * (0.3f + 0.7f * noteVoice.velocity);
+                    // Its echo carries on after the note has faded.
+                    const auto made = noteVoice.state.running || gate
+                                          ? nextFrom (noteVoice.state, latency) * noteVoice.envelope * (0.3f + 0.7f * noteVoice.velocity)
+                                          : 0.0f;
+                    const auto sample = noteVoice.state.fx.process (made) * noteGain;
                     outLeft += sample * juce::jmin (1.0f, 1.0f - noteVoice.pan);
                     outRight += sample * juce::jmin (1.0f, 1.0f + noteVoice.pan);
-                    if (! gate && noteVoice.envelope < 1.0e-4f)
+                    if (noteVoice.state.running && ! gate && noteVoice.envelope < 1.0e-4f)
                     {
                         // Faded out: stop, and clear what it had laid down ahead.
                         noteVoice.envelope = 0.0f;
@@ -610,9 +713,11 @@ namespace effects
                 state.rightGain = targets[v].second;
                 if (state.running && state.leftGain <= 0.0f && state.rightGain <= 0.0f)
                 {
-                    // Faded out: stop, and clear what it had laid down ahead.
+                    // Faded out: stop, and clear what it had laid down ahead
+                    // (and its echo: a voice switched off is off completely).
                     state.running = false;
                     std::fill (state.output.begin(), state.output.end(), 0.0f);
+                    state.fx.clear();
                 }
             }
         };

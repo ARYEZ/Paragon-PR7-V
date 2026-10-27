@@ -524,6 +524,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         harmonySettings.customScale[(size_t) note] = box == 1 ? 1 : box == 2 ? -1 : 0;
     }
     notes.fold = isOn (ParamIDs::harmonyMapFold);
+    notes.fx = harmonyFx (param (ParamIDs::harmonyNoteDelay), juce::roundToInt (param (ParamIDs::harmonyNoteSync)),
+                          param (ParamIDs::harmonyNoteFeedback), juce::roundToInt (param (ParamIDs::harmonyNoteFilter)),
+                          param (ParamIDs::harmonyNoteCutoff));
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
@@ -536,6 +539,10 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         voice.correct = parts[5]->load() > 0.5f;
         voice.pan = parts[6]->load();
         voice.levelDb = parts[7]->load();
+        voice.flatten = parts[8]->load() > 0.5f;
+        voice.note = parts[9]->load();
+        voice.fx = harmonyFx (parts[10]->load(), juce::roundToInt (parts[11]->load()), parts[12]->load(),
+                              juce::roundToInt (parts[13]->load()), parts[14]->load());
     }
     harmony.process (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings);
 
@@ -779,6 +786,19 @@ void ParagonX1AudioProcessor::useRigFolder (const juce::File& folder)
 {
     rigLibrary = std::make_unique<RigLibrary> (folder);
     rigBroadcaster.sendChangeMessage();
+}
+
+effects::Harmony::Fx ParagonX1AudioProcessor::harmonyFx (float delayMs, int sync, float feedback, int filter, float cutoffHz) const noexcept
+{
+    effects::Harmony::Fx fx;
+    const auto syncs = (int) std::size (effects::Delay::syncBeats);
+    if (sync > 0 && sync < syncs)
+        delayMs = (float) (effects::Delay::syncBeats[sync] * 60000.0 / juce::jmax (20.0, getTempoBpm()));
+    fx.delayMs = juce::jlimit (0.0f, (float) (effects::Harmony::maxEchoSeconds * 1000.0), delayMs);
+    fx.feedback = feedback;
+    fx.filter = filter;
+    fx.cutoffHz = cutoffHz;
+    return fx;
 }
 
 Rig ParagonX1AudioProcessor::captureRig() const

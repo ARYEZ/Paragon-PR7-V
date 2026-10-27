@@ -46,6 +46,10 @@ public:
     // Which MIDI keys are held, for the NOTES graph's keyboard strip.
     void setMidiKeys (std::function<bool (int)> isKeyHeld) { midiKeyHeld = std::move (isKeyHeld); }
     bool isShowingNotes() const noexcept { return notesShown; }
+    // FX: the picked voice's (or, on NOTES, the note voices') DELAY,
+    // FEEDBACK and FILTER, in place of the two rows of controls.
+    void showFx (bool show);
+    bool isShowingFx() const noexcept { return fxShown; }
     // The Note Map Editor (EDIT on the NOTES tab): CHORD becomes Custom; a
     // built-in map is copied in first if the Custom map is empty.
     void openNoteMap();
@@ -74,6 +78,8 @@ private:
 
     void timerCallback() override;
     void bindVoiceControls();
+    void bindFxControls();
+    void updateVisibility();
     void setUp (Knob&, const juce::String& label);
     void setUp (Switch&, const juce::String& label);
     float value (const juce::String& id) const;
@@ -115,6 +121,17 @@ private:
     NoteMapEditor noteMap;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
+    // Stage 6: FLATTEN (the PITCH knob becomes NOTE while it's on), and the FX view.
+    Switch voiceFlatten;
+    Knob flattenNote;
+    bool shownFlatten = false;
+    juce::TextButton fxTab { "FX" };
+    bool fxShown = false;
+    Knob echoDelay, echoFeedback, cutoff;
+    juce::Label syncLabel, filterLabel;
+    juce::ComboBox echoSync, filterType;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> echoSyncAttachment, filterTypeAttachment;
+    juce::String fxId (const char* voicePart, const char* noteId) const;   // the picked voice's part, or the note voices' parameter
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;
 
     juce::Rectangle<float> graph, sungArea, readoutArea;

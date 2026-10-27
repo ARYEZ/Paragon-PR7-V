@@ -4144,3 +4144,151 @@ TEST_CASE ("HARMONY Note Map: FROM CHORD matches every built-in map, note for no
             }
         }
 }
+
+//==============================================================================
+// HARMONY stage 6: per-voice DELAY, FEEDBACK, FILTER and FLATTEN.
+namespace
+{
+    // A sung note after 0.1 s of silence: by then the singer's own voice
+    // has faded out to SOURCE's silence, so the first sound out is the
+    // harmony voice's.
+    std::vector<float> afterSilence (std::vector<float> note)
+    {
+        auto samples = silence (0.1);
+        samples.insert (samples.end(), note.begin(), note.end());
+        return samples;
+    }
+    double voiceOnset (const std::vector<float>& samples) { return onsetOf (samples); }
+}
+
+TEST_CASE ("HARMONY voice DELAY and FEEDBACK: the voice comes later, and repeats", "[effects][harmony][voicefx]")
+{
+    const auto A3 = 220.0;
+    const auto sung = afterSilence (sungVowel (A3, 1.0));
+
+    SECTION ("DELAY 300 ms: the voice starts 300 ms later; synced, a note length at the tempo")
+    {
+        HarmonyRig plain (7.0f);
+        const auto start = voiceOnset (plain.runMono (sung));
+        HarmonyRig delayed (7.0f);
+        delayed.setVoice ("Delay", 300.0f);
+        const auto later = voiceOnset (delayed.runMono (sung));
+        CAPTURE (start, later);
+        CHECK_THAT (later - start, Catch::Matchers::WithinAbs (0.3, 0.01));
+
+        for (auto bpm : { 120.0, 90.0 })
+        {
+            HarmonyRig synced (7.0f);
+            synced.playHead.bpm = bpm;
+            synced.setVoice ("Delay", 300.0f);   // ignored while synced
+            synced.setVoice ("Sync", 3.0f);      // 1/4
+            const auto onset = voiceOnset (synced.runMono (sung));
+            CAPTURE (bpm, onset);
+            CHECK_THAT (onset - start, Catch::Matchers::WithinAbs (60.0 / bpm, 0.01));
+        }
+    }
+
+    SECTION ("FEEDBACK 50%: after the singer stops, each repeat about 6 dB down; 0%: one echo only")
+    {
+        std::vector<float> phrase = sungVowel (A3, 0.4);
+        phrase.resize ((size_t) (2.0 * sampleRate), 0.0f);
+        const auto run = [&phrase] (float feedback)
+        {
+            HarmonyRig rig (7.0f);
+            rig.setVoice ("Delay", 300.0f);
+            rig.setVoice ("Feedback", feedback);
+            return rig.runMono (phrase);
+        };
+        // Sung 0 to 0.4 s: echoes at 0.3-0.7, 0.6-1.0, 0.9-1.3 s (plus the voice's own few ms).
+        const auto repeats = run (0.5f);
+        const auto second = rms (repeats, 0.76, 0.94), third = rms (repeats, 1.06, 1.24);
+        CAPTURE (second, third, dB (third / second));
+        CHECK (second > 1.0e-3f);
+        CHECK_THAT (dB (third / second), Catch::Matchers::WithinAbs (20.0 * std::log10 (0.5 * effects::Harmony::feedbackAtFull), 1.5));
+        const auto once = run (0.0f);
+        CHECK (rms (once, 0.3, 0.6) > 1.0e-3f);     // the one echo
+        CHECK (rms (once, 0.76, 1.5) < 1.0e-5f);    // and nothing after it
+    }
+}
+
+TEST_CASE ("HARMONY voice FILTER: low-pass, high-pass and band-pass shape the voice", "[effects][harmony][voicefx]")
+{
+    // A fifth above a sung A3: E4, 329.6 Hz, and its harmonics.
+    const auto E4 = 329.628;
+    const auto sung = sungVowel (220.0, 1.0);
+    HarmonyRig plain (7.0f);
+    const auto open = plain.runMono (sung);
+    const auto filtered = [&sung] (int type, float hz)
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Filter", (float) type);
+        rig.setVoice ("Cutoff", hz);
+        return rig.runMono (sung);
+    };
+    const auto change = [&open] (const std::vector<float>& out, double hz) { return dB (levelAt (out, hz, 0.5) / levelAt (open, hz, 0.5)); };
+
+    const auto lowPass = filtered (0, 500.0f);
+    CAPTURE (change (lowPass, E4), change (lowPass, 5 * E4));
+    CHECK (change (lowPass, E4) > -3.0f);           // the note stays
+    CHECK (change (lowPass, 5 * E4) < -12.0f);      // 1.6 kHz well down
+
+    const auto highPass = filtered (1, 2000.0f);
+    CAPTURE (change (highPass, E4), change (highPass, 9 * E4));
+    CHECK (change (highPass, E4) < -20.0f);         // the fundamental gone
+    CHECK (change (highPass, 9 * E4) > -4.0f);      // 3 kHz through
+
+    const auto bandPass = filtered (2, 1000.0f);
+    CAPTURE (change (bandPass, E4), change (bandPass, 3 * E4), change (bandPass, 9 * E4));
+    CHECK (std::abs (change (bandPass, 3 * E4)) < 2.0f);   // ~990 Hz: at the centre
+    CHECK (change (bandPass, E4) < -6.0f);
+    CHECK (change (bandPass, 9 * E4) < -6.0f);
+
+    // LOW-PASS at 20 kHz (the start) does nothing at all.
+    CHECK (maxAbsDifference (open, filtered (0, effects::Harmony::filterHighestHz), 0) < 1.0e-6f);
+}
+
+TEST_CASE ("HARMONY FLATTEN: the voice holds its NOTE whatever is sung", "[effects][harmony][voicefx]")
+{
+    const auto C3 = 130.813, Fs3 = 184.997, F3 = 174.614, G3 = 195.998;
+    const auto flattened = [] (float note, bool correct, double sungHz)
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Flatten", 1.0f);
+        rig.setVoice ("Note", note);
+        rig.setVoice ("Correct", correct ? 1.0f : 0.0f);
+        return pitchOf (rig.runMono (sungVowel (sungHz, 1.0)));
+    };
+    for (auto sungHz : { 220.0 /* A3 */, 293.665 /* D4 */ })
+    {
+        const auto heard = flattened (48.0f, true, sungHz);
+        CAPTURE (sungHz, heard);
+        CHECK (std::abs (cents (heard, C3)) < 20.0);
+    }
+    // F#3 in C major: as set with CORRECT off, into the key (F3 or G3) with it on.
+    CHECK (std::abs (cents (flattened (54.0f, false, 220.0), Fs3)) < 20.0);
+    const auto corrected = flattened (54.0f, true, 220.0);
+    CAPTURE (corrected);
+    CHECK (std::min (std::abs (cents (corrected, F3)), std::abs (cents (corrected, G3))) < 20.0);
+}
+
+TEST_CASE ("HARMONY NOTES DELAY and FEEDBACK: the note voices' echo outlasts the key", "[effects][harmony][voicefx][midi]")
+{
+    const auto sung = afterSilence (sungVowel (220.0, 2.0));
+    MidiRig plain;
+    const auto start = voiceOnset (runWithMidi (plain, sung, { { 0.0, keyDown (60) } }));
+    MidiRig delayed;
+    delayed.set (ParamIDs::harmonyNoteDelay, 300.0f);
+    CHECK_THAT (voiceOnset (runWithMidi (delayed, sung, { { 0.0, keyDown (60) } })) - start, Catch::Matchers::WithinAbs (0.3, 0.01));
+
+    // Key let go at 0.5 s (RELEASE 150 ms): with FEEDBACK the repeats carry on.
+    const auto afterRelease = [&sung] (float feedback)
+    {
+        MidiRig rig;
+        rig.set (ParamIDs::harmonyNoteDelay, 300.0f);
+        rig.set (ParamIDs::harmonyNoteFeedback, feedback);
+        return rms (runWithMidi (rig, sung, { { 0.0, keyDown (60) }, { 0.5, keyUp (60) } }), 1.4, 1.9);
+    };
+    CAPTURE (afterRelease (0.6f), afterRelease (0.0f));
+    CHECK (afterRelease (0.6f) > 1.0e-3f);
+    CHECK (afterRelease (0.6f) > 10.0f * afterRelease (0.0f));   // without: only RELEASE's last trace
+}

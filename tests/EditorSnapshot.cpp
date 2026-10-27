@@ -209,6 +209,11 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_NOTEMAP", {}) == "1")
                 harmonyPanel->openNoteMap();
         }
+    // PARAGON_SNAPSHOT_HARMONYFX=1: the HARMONY panel's FX view (the picked
+    // voice's, or with HARMONYNOTES the note voices', DELAY and FILTER).
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYFX", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->showFx (true);
     // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
     // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2; MARS's
     // BANDS, GLOBAL, MOD, SLOTS: 0-3).
