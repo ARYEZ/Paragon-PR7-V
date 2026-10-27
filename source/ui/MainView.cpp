@@ -538,6 +538,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
     harmonyPanel.setMidiKeys ([&processorToShow] (int key) { return processorToShow.isMidiKeyHeld (key); });
+    harmonyPanel.setSnapshotActions ({ [&processorToShow] (int slot) { return processorToShow.getHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot) { processorToShow.storeHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot) { processorToShow.recallHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot, std::optional<Rig::HarmonySnapshot> snapshot) { processorToShow.setHarmonySnapshot (slot, std::move (snapshot)); },
+                                       [&processorToShow] { return juce::roundToInt (processorToShow.getParameters().getRawParameterValue (ParamIDs::harmonySnapshot)->load()); } });
     addChildComponent (doublerPanel);
     addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })

@@ -5,6 +5,7 @@
 #include "ui/ParagonLookAndFeel.h"
 
 #include "dsp/effects/Harmony.h"
+#include "ui/HarmonySnapshotsView.h"
 #include "ui/NoteMapEditor.h"
 
 // HARMONY's knobs, shown when the PITCH block is picked: laid out after
@@ -54,6 +55,13 @@ public:
     // voices, over the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT).
     void showGlobal (bool show);
     bool isShowingGlobal() const noexcept { return globalShown; }
+    // SNAPSHOTS (stage 8): the page over the graph, opened by the button on
+    // the graph. Needs the processor's snapshot functions (set by MainView).
+    void setSnapshotActions (HarmonySnapshotsView::Actions);
+    void openSnapshots();
+    void closeSnapshots();
+    bool isShowingSnapshots() const noexcept { return snapshots.isVisible(); }
+    HarmonySnapshotsView& getSnapshots() noexcept { return snapshots; }
     // Re-reads the sung note, the voices and GLOBAL's state now (the timer
     // does it; screenshots call it directly).
     void updateReadings() { timerCallback(); }
@@ -126,6 +134,8 @@ private:
     Knob minNote, tolerance, toleranceTime, noteLevel, noteWidth, noteFormant, noteAttack, noteRelease;
     juce::TextButton editMap { "EDIT" };
     NoteMapEditor noteMap;
+    juce::TextButton snapshotsButton { "SNAPSHOTS" };
+    HarmonySnapshotsView snapshots;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
     // Stage 6: FLATTEN (the PITCH knob becomes NOTE while it's on), and the FX view.

@@ -36,7 +36,8 @@ descriptions below still talk about guitar.
 | V8 | Harmony stage 5: Note Map Editor (CHORD Custom, SCALE Custom, Spread/Fold) | ✅ Done (0.21.0) |
 | V9 | Harmony stage 6: per-voice DELAY, FEEDBACK, FILTER and FLATTEN | ✅ Done (0.22.0) |
 | V10 | Harmony stage 7: GLOBAL glide, pitch and formant | ✅ Done (0.26.0) |
-| V11 | Harmony: snapshots, modulators | Next |
+| V11 | Harmony stage 8: SNAPSHOTS (32 slots, SNAPSHOT parameter) | ✅ Done (0.27.0) |
+| V12 | Harmony: modulators | Next |
 
 ## Using it
 
@@ -112,6 +113,8 @@ descriptions below still talk about guitar.
       (low-pass, high-pass or band-pass) and **CUTOFF**; on the NOTES tab, the note voices' shared set.
       **GLOBAL** (beside the HARMONY switch): **GLIDE** (how long the voices take to reach a new note, or synced),
       **PITCH** and **FORMANT** for every harmony voice at once, with the mix; it reads GLOBAL* when one is changed.
+      **SNAPSHOTS** (on the graph's top right): 32 slots of stored voices; click one to recall it, STORE, COPY, PASTE,
+      DELETE. The **SNAPSHOT** parameter switches them from your DAW (automation or MIDI).
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

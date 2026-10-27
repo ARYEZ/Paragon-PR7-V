@@ -652,7 +652,28 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeChoice (ParamIDs::harmonyGlideSync, "Harmony Glide Sync", v44, effects::Delay::syncNames, 0));
     layout.add (makeFloat (ParamIDs::harmonyGlobalPitch, "Harmony Global Pitch", { -12.0f, 12.0f, 1.0f }, 0.0f, v44, asInterval));
     layout.add (makeFloat (ParamIDs::harmonyGlobalFormant, "Harmony Global Formant", { -12.0f, 12.0f, 0.1f }, 0.0f, v44, asSemitoneShift));
+
+    // Added in plugin version 45: HARMONY's SNAPSHOT selector (stage 8),
+    // the guide's Snapshot Selection knob: automatable, so a DAW or a MIDI
+    // controller can switch harmonies.
+    constexpr int v45 = 45;
+    juce::StringArray snapshotChoices { "-" };
+    for (int slot = 1; slot <= 32; ++slot)
+        snapshotChoices.add (juce::String (slot));
+    layout.add (makeChoice (ParamIDs::harmonySnapshot, "Harmony Snapshot", v45, snapshotChoices, 0));
     return layout;
+}
+
+juce::StringArray ParamIDs::harmonySnapshotIds()
+{
+    juce::StringArray ids;
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (const auto& part : harmonyVoiceParts)
+            ids.add (harmonyVoice (voice, part));
+    for (const auto* id : { harmonyNoteLevel, harmonyNoteWidth, harmonyNoteFormant, harmonyNoteAttack, harmonyNoteRelease,
+                            harmonyNoteDelay, harmonyNoteSync, harmonyNoteFeedback, harmonyNoteFilter, harmonyNoteCutoff })
+        ids.add (id);
+    return ids;
 }
 
 juce::String ParamIDs::marsTargetParameter (int target)

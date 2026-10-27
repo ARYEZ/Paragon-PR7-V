@@ -2,6 +2,26 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.27.0
+
+- **HARMONY's GLOBAL controls were meant to be 0.26.0.** That build stopped on Linux with a crash inside the plugin checker, so 0.26.0 was never published. They arrive in this release (see 0.26.0 below).
+- **HARMONY stage 8: SNAPSHOTS.** Inspired by the snapshots in Waves Harmony's guide: store up to 32 sets of harmony voices and switch between them instantly.
+  - **Opening them:** the **SNAPSHOTS** button in the top-right corner of the HARMONY graph opens the snapshot page.
+  - **The slots:** 32 of them, each showing the voices it holds (for example "+4 +7", or a flattened voice's note). The one in use is lit.
+  - **Click a stored slot** to bring it back.
+  - **STORE** saves the voices as they are now into the picked slot (the first empty one if none is picked).
+  - **COPY, PASTE and DELETE** work on the picked slot; right-click a slot for the same.
+- **What a snapshot holds** (as in the guide, "harmony controls only"):
+  - **Stored:** every voice's settings (on, pitch, fine, formant, correct, pan, level, FLATTEN, delay, feedback, filter) and the note voices' sound.
+  - **Left alone:** KEY, SCALE, the GLOBAL controls, the note generator and chord map, and the mix.
+- **Switch them from your DAW:** the new **SNAPSHOT** parameter (–, 1 to 32) can be automated or controlled by MIDI. Moving it brings that snapshot back, which is handy for changing harmonies between song sections. An empty slot does nothing.
+- **Saved with your rig and your project,** and storing, pasting or deleting can be undone.
+- **Our design where the guide doesn't say:**
+  - A recall switches straight to the stored settings.
+  - Recalling from the DAW happens within about a 30th of a second of the parameter moving, not on the exact sample.
+  - Loading a rig or project never recalls a snapshot by itself.
+- **Not built:** the guide's Snapshot Selection *knob* on the panel. Its job is done by the SNAPSHOT parameter from your DAW, and by clicking a slot.
+
 ## 0.26.0
 
 - **HARMONY stage 7: GLOBAL controls.** Inspired by the Global Controls section of Waves Harmony's guide. The new **GLOBAL** button sits beside the HARMONY switch.

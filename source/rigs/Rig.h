@@ -2,6 +2,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <array>
 #include <map>
 #include <optional>
 
@@ -29,6 +30,18 @@ struct Rig
     // rig resets any parameter it doesn't mention to its default, so rigs
     // saved before a parameter existed get that parameter's neutral setting.
     std::map<juce::String, float> parameters;
+
+    // HARMONY's SNAPSHOTS (stage 8, inspired by Waves Harmony's): up to 32
+    // stored sets of the harmony voices' settings (ParamIDs::harmonySnapshotIds,
+    // real values by ID), recalled with a click or the SNAPSHOT parameter.
+    // Saved in the rig (and the project) beside the parameters; older
+    // plugins ignore them.
+    static constexpr int numHarmonySnapshots = 32;
+    using HarmonySnapshot = std::map<juce::String, float>;
+    using HarmonySnapshots = std::array<std::optional<HarmonySnapshot>, numHarmonySnapshots>;
+    HarmonySnapshots harmonySnapshots;
+    static void writeSnapshots (const HarmonySnapshots&, juce::XmlElement& parent);
+    static HarmonySnapshots readSnapshots (const juce::XmlElement& parent);
 
     juce::String getSlotName() const;           // e.g. "A01"
     static juce::String bankName (int bank);    // "A".."F"

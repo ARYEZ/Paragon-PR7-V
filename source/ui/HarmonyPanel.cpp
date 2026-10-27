@@ -259,6 +259,14 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     addAndMakeVisible (editMap);
     noteMap.onDone = [this] { closeNoteMap(); };
     addChildComponent (noteMap);   // last: on top of everything when open
+    snapshotsButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217).withAlpha (0.85f));
+    snapshotsButton.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    snapshotsButton.setTooltip ("SNAPSHOTS: store the voices in up to 32 slots and switch between them (the SNAPSHOT parameter switches them from your DAW)");
+    snapshotsButton.onClick = [this] { openSnapshots(); };
+    snapshotsButton.setEnabled (false);   // until the processor's snapshots are connected
+    addAndMakeVisible (snapshotsButton);
+    snapshots.onDone = [this] { closeSnapshots(); };
+    addChildComponent (snapshots);
 
     selectVoice (0);
     showNotes (false);
@@ -337,6 +345,27 @@ void HarmonyPanel::openNoteMap()
     }
     noteMap.setVisible (true);
     noteMap.toFront (false);
+}
+
+void HarmonyPanel::setSnapshotActions (HarmonySnapshotsView::Actions actions)
+{
+    snapshots.setActions (std::move (actions));
+    snapshotsButton.setEnabled (snapshots.hasActions());
+}
+
+void HarmonyPanel::openSnapshots()
+{
+    if (! snapshots.hasActions())
+        return;
+    noteMap.setVisible (false);
+    snapshots.setVisible (true);
+    snapshots.toFront (false);
+}
+
+void HarmonyPanel::closeSnapshots()
+{
+    snapshots.setVisible (false);
+    repaint();
 }
 
 void HarmonyPanel::closeNoteMap()
@@ -655,6 +684,7 @@ void HarmonyPanel::resized()
     left.removeFromTop (4);
     sungArea = left.toFloat();
     noteMap.setBounds (area);   // over the graph and the controls
+    snapshots.setBounds (area);
 
     // CORRECT (Waves Harmony puts it by SOURCE; here there's room in the
     // header, left of the GRAPHIC EQ button the main view places).
@@ -669,6 +699,8 @@ void HarmonyPanel::resized()
     area.removeFromLeft (10);
     readoutArea = middle.removeFromBottom (16).toFloat();
     graph = middle.toFloat();
+    // SNAPSHOTS in the graph's top right corner (above its 0 dB line).
+    snapshotsButton.setBounds (middle.withSizeKeepingCentre (middle.getWidth(), middle.getHeight()).removeFromTop (20).removeFromRight (74).reduced (3, 3));
 
     // Right: voice tabs, the picked voice, then the mix.
     auto right = area;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <mutex>
 
 #include "LevelMeterSource.h"
 #include "dsp/InputTap.h"
@@ -87,6 +88,16 @@ public:
 
     // The current sound as a rig (not saved anywhere yet).
     Rig captureRig() const;
+
+    // HARMONY's SNAPSHOTS (stage 8): 32 stored sets of the harmony voices'
+    // settings, saved with the rig and the project, part of undo. Slots
+    // are 0-31. Recalling sets the SNAPSHOT parameter too; the timer
+    // recalls when that parameter is changed from the DAW or by MIDI.
+    std::optional<Rig::HarmonySnapshot> getHarmonySnapshot (int slot) const;
+    void storeHarmonySnapshot (int slot);                                    // the voices as they are now
+    void setHarmonySnapshot (int slot, std::optional<Rig::HarmonySnapshot>); // paste one, or empty the slot
+    void recallHarmonySnapshot (int slot);
+    void followSnapshotParameter();   // the timer: recall if SNAPSHOT was moved (by the DAW or MIDI); public for tests
 
     void loadRig (const RigLibrary::Entry& entry);
 
@@ -193,6 +204,10 @@ private:
     void parameterChanged (const juce::String& parameterId, float newValue) override;
     void markModified() noexcept;
     void applyRig (const Rig& rig);
+    void applyHarmonySnapshot (const Rig::HarmonySnapshot&);
+    Rig::HarmonySnapshots harmonySnapshots;     // message thread (and state saving: hence the lock)
+    mutable std::mutex harmonySnapshotsLock;
+    int appliedSnapshot = 0;                    // the SNAPSHOT value last acted on
 
     // Undo snapshots: the sound and which rig it is.
     struct Snapshot
@@ -203,7 +218,8 @@ private:
 
         bool operator== (const Snapshot& other) const
         {
-            return rig.parameters == other.rig.parameters && current == other.current;
+            return rig.parameters == other.rig.parameters && rig.harmonySnapshots == other.rig.harmonySnapshots
+                   && current == other.current;
         }
     };
     Snapshot takeSnapshot() const;

@@ -206,6 +206,14 @@ namespace ParamIDs
     inline constexpr auto harmonyGlideSync      = "harmonyGlideSync";      // Delay::syncNames (0: Off, use ms)
     inline constexpr auto harmonyGlobalPitch    = "harmonyGlobalPitch";    // semitones
     inline constexpr auto harmonyGlobalFormant  = "harmonyGlobalFormant";  // semitones
+    // Version 45: HARMONY's SNAPSHOT selector (stage 8): 0 none, 1-32 the
+    // snapshot to recall (from the DAW or a MIDI controller as well as the
+    // panel). Not in rigs: it only picks which stored set to bring back.
+    inline constexpr auto harmonySnapshot       = "harmonySnapshot";
+    // What a snapshot stores (the guide: "Harmony controls only"): every
+    // part of the eight voices and the note voices' sound; not KEY/SCALE,
+    // GLOBAL, the note generator and chord map, or the mix.
+    juce::StringArray harmonySnapshotIds();
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     // Saved by name; the processor reads them in this order: only add to the end.
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level",
@@ -306,7 +314,7 @@ namespace ParamIDs
     inline const juce::StringArray notInRigs = []
     {
         juce::StringArray ids { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
-                                harmonyKey, harmonyScale };
+                                harmonyKey, harmonyScale, harmonySnapshot };
         for (int note = 0; note < 12; ++note)
             ids.add (harmonyScaleNote (note));
         return ids;

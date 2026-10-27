@@ -215,6 +215,23 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYFX", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
             harmonyPanel->showFx (true);
+    // PARAGON_SNAPSHOT_STORE=1,2,5: store the voices in those snapshot slots
+    // first (each a step higher, so they differ); PARAGON_SNAPSHOT_SNAPSHOTS=1
+    // opens the SNAPSHOTS page.
+    if (const auto store = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_STORE", {}); store.isNotEmpty())
+    {
+        auto step = 0.0f;
+        for (const auto& slot : juce::StringArray::fromTokens (store, ",", {}))
+        {
+            auto* pitch = processor.getParameters().getParameter (ParamIDs::harmonyVoice (0, "Pitch"));
+            pitch->setValueNotifyingHost (pitch->convertTo0to1 (4.0f + step));
+            processor.storeHarmonySnapshot (slot.getIntValue() - 1);
+            step += 1.0f;
+        }
+    }
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_SNAPSHOTS", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->openSnapshots();
     // PARAGON_SNAPSHOT_HARMONYGLOBAL=1: its GLOBAL view.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYGLOBAL", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))

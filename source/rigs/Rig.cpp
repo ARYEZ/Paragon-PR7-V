@@ -17,6 +17,42 @@ namespace
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
+    const juce::Identifier snapshotTag { "HarmonySnapshot" };
+}
+
+void Rig::writeSnapshots (const HarmonySnapshots& snapshots, juce::XmlElement& parent)
+{
+    for (int i = 0; i < numHarmonySnapshots; ++i)
+    {
+        const auto& snapshot = snapshots[(size_t) i];
+        if (! snapshot.has_value())
+            continue;
+        auto* element = parent.createNewChildElement (snapshotTag);
+        element->setAttribute ("slot", i + 1);
+        for (const auto& [id, value] : *snapshot)
+        {
+            auto* parameter = element->createNewChildElement (parameterTag);
+            parameter->setAttribute ("id", id);
+            parameter->setAttribute ("value", value);
+        }
+    }
+}
+
+Rig::HarmonySnapshots Rig::readSnapshots (const juce::XmlElement& parent)
+{
+    HarmonySnapshots snapshots;
+    for (const auto* element : parent.getChildWithTagNameIterator (snapshotTag))
+    {
+        const auto slot = element->getIntAttribute ("slot", 0) - 1;
+        if (slot < 0 || slot >= numHarmonySnapshots)
+            continue;
+        HarmonySnapshot snapshot;
+        for (const auto* parameter : element->getChildWithTagNameIterator (parameterTag))
+            if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
+                snapshot[id] = (float) parameter->getDoubleAttribute ("value");
+        snapshots[(size_t) slot] = std::move (snapshot);
+    }
+    return snapshots;
 }
 
 juce::String Rig::bankName (int bankIndex)
@@ -46,6 +82,7 @@ std::unique_ptr<juce::XmlElement> Rig::toXml() const
         parameter->setAttribute ("id", id);
         parameter->setAttribute ("value", value);
     }
+    writeSnapshots (harmonySnapshots, *xml);
     return xml;
 }
 
@@ -72,6 +109,7 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     for (const auto* parameter : xml.getChildWithTagNameIterator (parameterTag))
         if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
             rig.parameters[id] = (float) parameter->getDoubleAttribute ("value");
+    rig.harmonySnapshots = readSnapshots (xml);
 
     // Saved before the drive had a MODEL: it was the original overdrive,
     // model 0. Without this it would load as the newer default.

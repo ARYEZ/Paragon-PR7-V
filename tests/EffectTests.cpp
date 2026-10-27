@@ -4,6 +4,7 @@
 
 #include "Parameters.h"
 #include "PluginProcessor.h"
+#include "rigs/Rig.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Mars.h"
@@ -4358,4 +4359,85 @@ TEST_CASE ("HARMONY GLIDE: the voices slide to a new note instead of jumping", "
     CHECK (shiftAt (glide300, soon) < 6.0);                      // still sliding up from E4
     CHECK (shiftAt (synced, soon) < shiftAt (glide300, soon));   // the longer glide, further behind
     CHECK (std::abs (shiftAt (glide300, 0.6 + 0.45) - 7.0) < 0.3);   // there within GLIDE (plus the note's detection)
+}
+
+//==============================================================================
+// HARMONY stage 8: SNAPSHOTS.
+TEST_CASE ("HARMONY SNAPSHOTS: store, recall (from the panel or the SNAPSHOT parameter), save", "[effects][harmony][snapshots]")
+{
+    const auto A3 = 220.0, E4 = 329.628;
+    const auto sung = sungVowel (A3, 1.0);
+    const auto pitchOfVoice = [&sung] (HarmonyRig& rig) { return pitchOf (rig.runMono (sung)); };
+    const auto pitchId = ParamIDs::harmonyVoice (0, "Pitch");
+
+    SECTION ("Recall brings back what was stored, and the voice sounds it")
+    {
+        HarmonyRig rig (7.0f);   // a fifth: E4
+        rig.processor.storeHarmonySnapshot (0);
+        rig.setVoice ("Pitch", 4.0f);   // a third up (C4 in C major): not E4
+        CHECK (std::abs (cents (pitchOfVoice (rig), E4)) > 100.0);
+        rig.processor.recallHarmonySnapshot (0);
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 7.0f);
+        CHECK (std::abs (cents (pitchOfVoice (rig), E4)) < 20.0);
+        CHECK (juce::roundToInt (rig.processor.getParameters().getRawParameterValue (ParamIDs::harmonySnapshot)->load()) == 1);
+    }
+
+    SECTION ("Moving the SNAPSHOT parameter (automation, MIDI) recalls; an empty slot does nothing")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (2);
+        rig.setVoice ("Pitch", 4.0f);
+        rig.set (ParamIDs::harmonySnapshot, 5.0f);   // slot 5: empty
+        rig.processor.followSnapshotParameter();
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 4.0f);
+        rig.set (ParamIDs::harmonySnapshot, 3.0f);   // slot 3: stored
+        rig.processor.followSnapshotParameter();
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 7.0f);
+    }
+
+    SECTION ("Only the harmony voices: KEY, GLOBAL and the mix are left alone")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (0);
+        rig.set (ParamIDs::harmonyKey, 2.0f);
+        rig.set (ParamIDs::harmonyGlobalPitch, 5.0f);
+        rig.set (ParamIDs::harmonyLevel, -6.0f);
+        rig.processor.recallHarmonySnapshot (0);
+        auto& state = rig.processor.getParameters();
+        CHECK (state.getRawParameterValue (ParamIDs::harmonyKey)->load() == 2.0f);
+        CHECK (state.getRawParameterValue (ParamIDs::harmonyGlobalPitch)->load() == 5.0f);
+        CHECK (state.getRawParameterValue (ParamIDs::harmonyLevel)->load() == -6.0f);
+    }
+
+    SECTION ("Saved with the project and in rig files; loading isn't a recall")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (4);
+        rig.setVoice ("Pitch", 4.0f);   // changed since, and saved like that
+        juce::MemoryBlock project;
+        rig.processor.getStateInformation (project);
+        HarmonyRig other (0.0f);
+        other.processor.setStateInformation (project.getData(), (int) project.getSize());
+        other.processor.followSnapshotParameter();   // SNAPSHOT is 5 in the project: not recalled on load
+        CHECK (other.processor.getParameters().getRawParameterValue (pitchId)->load() == 4.0f);
+        REQUIRE (other.processor.getHarmonySnapshot (4).has_value());
+        CHECK (other.processor.getHarmonySnapshot (4)->at (pitchId) == 7.0f);
+        CHECK_FALSE (other.processor.getHarmonySnapshot (0).has_value());
+
+        const auto xml = rig.processor.captureRig().toXml();
+        const auto reloaded = Rig::fromXml (*xml);
+        REQUIRE (reloaded.has_value());
+        CHECK (reloaded->harmonySnapshots == rig.processor.captureRig().harmonySnapshots);
+    }
+
+    SECTION ("Undo takes back a stored snapshot")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.flushUndoStep();
+        rig.processor.storeHarmonySnapshot (0);
+        rig.processor.flushUndoStep();
+        REQUIRE (rig.processor.getHarmonySnapshot (0).has_value());
+        rig.processor.undo();
+        CHECK_FALSE (rig.processor.getHarmonySnapshot (0).has_value());
+    }
 }

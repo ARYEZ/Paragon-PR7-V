@@ -996,3 +996,45 @@ TEST_CASE ("HARMONY's GLOBAL view: GLIDE, SYNC, PITCH, FORMANT, and its asterisk
     CHECK_FALSE (panel.isShowingGlobal());
     CHECK (labelShown ("FLATTEN"));
 }
+
+TEST_CASE ("HARMONY's SNAPSHOTS page: pick to recall, STORE, COPY / PASTE, DELETE", "[ui][harmony][snapshots]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<HarmonyPanel*> panels;
+    findAll (*editor, panels);
+    REQUIRE (panels.size() == 1);
+    auto& panel = *panels[0];
+    panel.openSnapshots();
+    CHECK (panel.isShowingSnapshots());
+    auto& page = panel.getSnapshots();
+    const auto pitch = [&processor] { return processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (0, "Pitch"))->load(); };
+
+    // STORE with nothing picked: the first empty slot.
+    page.storeHere();
+    CHECK (page.getPicked() == 0);
+    REQUIRE (processor.getHarmonySnapshot (0).has_value());
+    CHECK (HarmonySnapshotsView::summary (*processor.getHarmonySnapshot (0)) == "+4 +7");   // the two starting voices
+
+    // Change the voice, store in slot 3, and pick slot 1 again: it's recalled.
+    set (processor, ParamIDs::harmonyVoice (0, "Pitch").toRawUTF8(), 3.0f);
+    page.pick (2);
+    page.storeHere();
+    page.pick (0);
+    CHECK (pitch() == 4.0f);
+    page.pick (2);
+    CHECK (pitch() == 3.0f);
+
+    // COPY slot 3, PASTE into slot 8; DELETE it again.
+    page.copyPicked();
+    page.pick (7);   // empty: just picked
+    CHECK (pitch() == 3.0f);
+    page.pastePicked();
+    REQUIRE (processor.getHarmonySnapshot (7).has_value());
+    CHECK (*processor.getHarmonySnapshot (7) == *processor.getHarmonySnapshot (2));
+    page.deletePicked();
+    CHECK_FALSE (processor.getHarmonySnapshot (7).has_value());
+
+    panel.closeSnapshots();
+    CHECK_FALSE (panel.isShowingSnapshots());
+}
