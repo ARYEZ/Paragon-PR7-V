@@ -2,6 +2,31 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.25.0
+
+- **FACEPLATE stage 3: every block now has its own faceplate,** built from the same PR7 parts as the others.
+- **MODULATION** is named for its TYPE ("CHORUS", "UNI-VIBE", "ROTARY"…).
+  - A screen draws the wobble as a wave at its RATE and DEPTH, with a dot riding it. It keeps time with RATE, not the audio.
+  - RATE shows in seven-segment Hz, or as the note length while synced.
+  - DEPTH and MIX are on knobs.
+- **FILTER / PITCH** is named for its TYPE:
+  - Auto-Wah shows its filter's peak (sharper with RESONANCE), with SENS and MIX knobs.
+  - Talk Box shows its vowel filter, with RES and MIX knobs.
+  - Pitch Shifter shows its interval, with a MIX knob.
+  - Whammy-Wah shows its program, with a MIX knob.
+- **DE-ESSER:**
+  - A live meter of how much it's turning the esses down, and the band it works on.
+  - FREQUENCY in kHz.
+  - An AMOUNT knob and a LISTEN key.
+- **GLITCH** is named for its MODE.
+  - A 16-step pattern, with more steps active the higher DENSITY is, and a light stepping through it at LENGTH. It keeps time with LENGTH, not the audio. PRE or POST is marked.
+  - LENGTH in ms, or the note length.
+  - DENSITY and MIX knobs.
+- **DOUBLER:** its four voices on a screen, across by pan and down by delay (bigger when louder), with DIRECT marked, and a key per voice lit while it's on.
+- **GRAPHIC EQ:** the EQ's own response curve (the same calculation its panel draws), its LEVEL, and a LEVEL knob.
+- **LO-FI** is named for its TYPE. A wave shows what AMOUNT does (squashed, or stepped for Bitcrusher) and what NOISE adds, with AMOUNT and MIX knobs.
+- **Settings or audio:** DE-ESSER (like DYNAMICS and MARS) shows live audio. The others draw from their settings, so they change as you turn the controls.
+
 ## 0.24.0
 
 - **FACEPLATE stage 2: DELAY, REVERB and PITCH get their own faceplates,** built from the same PR7 parts as the first ones.

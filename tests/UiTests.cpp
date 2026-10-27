@@ -8,6 +8,7 @@
 #include "ui/DoublerPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/Faceplate.h"
+#include "ui/SignalChain.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/HarmonyPanel.h"
 #include "dsp/effects/Delay.h"
@@ -872,8 +873,8 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
                { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
     REQUIRE (footswitches.size() == 7);
 
-    // The graphic EQ shows first: the shared rack unit.
-    CHECK (faceplate.getLook() == Faceplate::Look::generic);
+    // The graphic EQ shows first.
+    CHECK (faceplate.getLook() == Faceplate::Look::eq);
 
     // DYNAMICS (stomp 1's name): the faceplate follows its TYPE.
     footswitches[0]->onSelect();
@@ -891,8 +892,20 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
     CHECK (faceplate.getLook() == Faceplate::Look::delay);
     footswitches[6]->onSelect();   // REVERB
     CHECK (faceplate.getLook() == Faceplate::Look::reverb);
-    footswitches[4]->onSelect();   // MODULATION: not yet its own
-    CHECK (faceplate.getLook() == Faceplate::Look::generic);
+    // Every block in the signal chain has its own faceplate now.
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    const Faceplate::Look expected[] = { Faceplate::Look::harmony, Faceplate::Look::revival /* TYPE set above */, Faceplate::Look::deEsser,
+                                         Faceplate::Look::filterPitch, Faceplate::Look::mars, Faceplate::Look::eq,
+                                         Faceplate::Look::glitch, Faceplate::Look::doubler, Faceplate::Look::modulation,
+                                         Faceplate::Look::delay, Faceplate::Look::reverb, Faceplate::Look::loFi };
+    for (int block = 0; block < (int) std::size (expected); ++block)
+    {
+        chains[0]->onSelect (block);
+        CAPTURE (block);
+        CHECK (faceplate.getLook() == expected[block]);
+    }
 
     // A loud note: the compressor's needle swings, MARS's driven band glows.
     const auto play = [&processor]
