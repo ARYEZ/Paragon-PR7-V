@@ -4406,7 +4406,7 @@ TEST_CASE ("HARMONY SNAPSHOTS: store, recall (from the panel or the SNAPSHOT par
         auto& state = rig.processor.getParameters();
         CHECK (state.getRawParameterValue (ParamIDs::harmonyKey)->load() == 2.0f);
         CHECK (state.getRawParameterValue (ParamIDs::harmonyGlobalPitch)->load() == 5.0f);
-        CHECK (state.getRawParameterValue (ParamIDs::harmonyLevel)->load() == -6.0f);
+        CHECK_THAT (state.getRawParameterValue (ParamIDs::harmonyLevel)->load(), WithinAbs (-6.0, 0.001));   // a smooth range: -5.999999 on macOS
     }
 
     SECTION ("Saved with the project and in rig files; loading isn't a recall")
