@@ -9,6 +9,7 @@
 #include "ui/Footswitch.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/HarmonyPanel.h"
+#include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
 #include "ui/PerformanceControls.h"
@@ -785,4 +786,69 @@ TEST_CASE ("The PITCH stomp switches TUNE VOICE too: off means the plain voice, 
     pitch.toggle();                   // on: Hard again, not another mode, and not HARMONY
     CHECK (correct() == (int) effects::Harmony::Correct::hard);
     CHECK (state.getRawParameterValue (ParamIDs::harmonyOn)->load() < 0.5f);
+}
+
+TEST_CASE ("HARMONY's FLATTEN and FX view", "[ui][harmony][voicefx]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    HarmonyPanel panel (parameters, [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::Slider*> sliders;
+    std::vector<juce::ComboBox*> boxes;
+    findAll (panel, sliders);
+    findAll (panel, boxes);
+    // The visible slider (or box) bound to `id` right now, if any.
+    const auto sliderFor = [&] (const juce::String& id) -> juce::Slider*
+    {
+        auto* parameter = dynamic_cast<juce::RangedAudioParameter*> (parameters.getParameter (id));
+        for (auto* slider : sliders)
+            if (slider->isVisible() && slider->getRange().getEnd() == parameter->getNormalisableRange().end
+                && juce::approximatelyEqual ((float) slider->getValue(), parameter->convertFrom0to1 (parameter->getValue())))
+                return slider;
+        return nullptr;
+    };
+    const auto boxWith = [&] (const juce::StringArray& choices) -> juce::ComboBox*
+    {
+        for (auto* box : boxes)
+            if (box->isVisible() && box->getNumItems() == choices.size() && box->getItemText (0) == choices[0])
+                return box;
+        return nullptr;
+    };
+
+    // FLATTEN: PITCH's knob gives way to NOTE (C1 to C5).
+    panel.selectVoice (0);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Pitch")) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) == nullptr);
+    set (processor, ParamIDs::harmonyVoice (0, "Flatten").toRawUTF8(), 1.0f);
+    panel.selectVoice (0);   // (the panel's timer does this in the plugin)
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Pitch")) == nullptr);
+
+    // FX: the voice's DELAY, SYNC, FEEDBACK, FILTER, CUTOFF instead.
+    CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
+    panel.showFx (true);
+    CHECK (panel.isShowingFx());
+    auto* filter = boxWith (effects::Harmony::filterNames);
+    REQUIRE (filter != nullptr);
+    CHECK (boxWith (effects::Delay::syncNames) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) == nullptr);
+
+    // Switching to HIGH-PASS with CUTOFF at 20 kHz (silence) starts it at 20 Hz.
+    const auto cutoffOf = [&parameters] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    filter->setSelectedItemIndex (1, juce::sendNotificationSync);
+    CHECK (juce::roundToInt (cutoffOf (ParamIDs::harmonyVoice (0, "Filter"))) == 1);
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));
+
+    // On NOTES, FX is the note voices' (still at their own starting values).
+    panel.showNotes (true);
+    filter = boxWith (effects::Harmony::filterNames);
+    REQUIRE (filter != nullptr);
+    CHECK (filter->getSelectedItemIndex() == 0);
+    filter->setSelectedItemIndex (2, juce::sendNotificationSync);   // band-pass: from 20 kHz to 1 kHz
+    CHECK (juce::roundToInt (cutoffOf (ParamIDs::harmonyNoteFilter)) == 2);
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyNoteCutoff), Catch::Matchers::WithinAbs (1000.0, 1.0));
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));   // voice 1 untouched
+    panel.showFx (false);
+    CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
 }

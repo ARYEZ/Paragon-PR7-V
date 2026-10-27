@@ -267,7 +267,10 @@ private:
     effects::Harmony harmony;   // HARMONY: first in the stereo part, before the doubler
     juce::AudioBuffer<float> cleanVoice;   // the voice just after LOW CUT, for HARMONY to read the note from
     // HARMONY's eight voices' settings, looked up once rather than by name every block.
-    struct HarmonyVoiceParameters { std::atomic<float>* parts[8] {}; };
+    struct HarmonyVoiceParameters { std::atomic<float>* parts[15] {}; };   // harmonyVoiceParts
+    // A HARMONY voice's (or the note voices') DELAY, FEEDBACK and FILTER, a
+    // synced DELAY turned into ms at the tempo now.
+    effects::Harmony::Fx harmonyFx (float delayMs, int sync, float feedback, int filter, float cutoffHz) const noexcept;
     std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
     effects::Doubler doubler;
     struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };

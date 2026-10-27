@@ -2,6 +2,30 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.22.0
+
+- **HARMONY stage 6: each voice gets its own DELAY, FEEDBACK and FILTER, and FLATTEN.** Inspired by the Harmony Panel and Notes Panel in Waves Harmony's guide.
+- **FLATTEN** (beside ON and CORRECT) holds a voice on one note, whatever you sing: a drone or pedal note under your melody.
+  - While it's on, the PITCH knob becomes **NOTE** (C1 to C5; it starts at C3, as in the guide).
+  - CORRECT still keeps that note in the key, and FINE still applies.
+  - On the graph, a flattened voice shows its note name (e.g. C3) instead of an interval.
+- **FX** (the new button after NOTES) swaps the controls under the tabs for the selected voice's:
+  - **DELAY:** brings the voice in later, from Off up to 1 second, or **SYNC**ed to a note length at the song's tempo (DELAY greys out while it is).
+  - **FEEDBACK:** repeats of the delayed voice, from none to almost endless.
+  - **FILTER:** low-pass, high-pass or band-pass, with **CUTOFF** from 20 Hz to 20 kHz.
+  - On the NOTES tab, FX sets the note voices' shared DELAY, FEEDBACK and FILTER. Their echoes carry on after you let go of a key.
+- **Everything starts switched off,** so your rigs and projects sound exactly as before.
+- **Our design where the guide doesn't say:**
+  - Each voice is filtered first, then delayed, so every repeat has the filtered tone.
+  - The filter is 12 dB per octave.
+  - DELAY can be Off (the guide starts at 1 ms).
+  - The longest echo is 2 seconds, even when synced. 1/1 is capped at 2 seconds below 120 BPM.
+  - At 100% FEEDBACK the repeats fade very slowly rather than building up forever.
+  - Choosing HIGH-PASS with CUTOFF at 20 kHz (or LOW-PASS at 20 Hz) would silence the voice, so CUTOFF moves to where you can hear it (20 Hz for high-pass, 1 kHz for band-pass).
+  - Turning a voice OFF stops its echoes too ("turns the harmony off completely", as the guide says).
+- **Not the guide's full range:** SYNC uses PR7-V's usual note lengths (1/1 down to 1/16, with dotted and triplet ones), not the guide's 1/64 triplet to 1 bar.
+- **Layout:** the HARMONY graph is a little narrower (196 rather than 212 points) so the voice row has room for FLATTEN with full-size knobs.
+
 ## 0.21.2
 
 - **The SIGNAL CHAIN now matches the rest of the PR7 family** (as on the PR7-E and PR7-G). Every block is coloured by its place in the chain, along one red, hot pink and orange gradient: red at PITCH, hot pink in the middle (EQ, DOUBLER), orange at LO-FI. Before, each block had its own unrelated colour. Switched-off blocks still show their colour dimmed.

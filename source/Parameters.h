@@ -193,8 +193,18 @@ namespace ParamIDs
     inline juce::String harmonyMap (int note, int part) { return "harmonyMap" + juce::String (note + 1) + juce::String::charToString ((juce::juce_wchar) ('A' + part)); }
     inline juce::String harmonyScaleNote (int note) { return "harmonyScaleNote" + juce::String (note + 1); }
     inline const juce::StringArray scaleNoteChoices { "In", "Up", "Down" };
+    // Version 43: per-voice DELAY, FEEDBACK, FILTER and FLATTEN (HARMONY
+    // stage 6): the note voices' shared set here, the fixed voices' in
+    // harmonyVoiceParts (from "Flatten" on).
+    inline constexpr auto harmonyNoteDelay      = "harmonyNoteDelay";      // ms (0: none)
+    inline constexpr auto harmonyNoteSync       = "harmonyNoteSync";       // Delay::syncNames (0: Off, use ms)
+    inline constexpr auto harmonyNoteFeedback   = "harmonyNoteFeedback";   // 0 to 1
+    inline constexpr auto harmonyNoteFilter     = "harmonyNoteFilter";     // Harmony::filterNames
+    inline constexpr auto harmonyNoteCutoff     = "harmonyNoteCutoff";     // Hz
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
-    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
+    // Saved by name; the processor reads them in this order: only add to the end.
+    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level",
+                                                       "Flatten", "Note", "Delay", "Sync", "Feedback", "Filter", "Cutoff" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
 
     // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).

@@ -613,6 +613,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (std::make_unique<juce::AudioParameterChoice> (
             juce::ParameterID { ParamIDs::harmonyScaleNote (note), v42 }, "Harmony Custom Scale " + juce::String (note + 1),
             ParamIDs::scaleNoteChoices, 0, juce::AudioParameterChoiceAttributes().withAutomatable (false)));
+
+    // Added in plugin version 43: HARMONY stage 6, per-voice DELAY,
+    // FEEDBACK, FILTER (and the note voices' shared set) and FLATTEN. All
+    // start where they do nothing, so rigs and projects sound as before.
+    constexpr int v43 = 43;
+    const ToText asEchoTime = [] (float ms, int) { return ms < 0.5f ? juce::String ("Off") : juce::String (juce::roundToInt (ms)) + " ms"; };
+    const ToText asCutoff = [] (float hz, int)
+    {
+        return hz >= 1000.0f ? juce::String (hz / 1000.0f, hz >= 9950.0f ? 1 : 2) + " kHz" : juce::String (juce::roundToInt (hz)) + " Hz";
+    };
+    const auto echoRange = skewed (0.0f, effects::Harmony::maxDelayMs, 150.0f, 1.0f);
+    const auto cutoffRange = skewed (effects::Harmony::filterLowestHz, effects::Harmony::filterHighestHz, 1000.0f, 1.0f);
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::harmonyVoice (voice, part); };
+        const auto name = "Harmony " + juce::String (voice + 1) + " ";
+        layout.add (makeSwitch (id ("Flatten").toRawUTF8(), name + "Flatten", v43, false));
+        layout.add (makeFloat (id ("Note").toRawUTF8(), name + "Flatten Note", { 24.0f, 72.0f, 1.0f },   // C1 to C5, as in the guide
+                               effects::Harmony::flattenDefault, v43, asNote));
+        layout.add (makeFloat (id ("Delay").toRawUTF8(), name + "Delay", echoRange, 0.0f, v43, asEchoTime));
+        layout.add (makeChoice (id ("Sync").toRawUTF8(), name + "Delay Sync", v43, effects::Delay::syncNames, 0));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v43, asPercent));
+        layout.add (makeChoice (id ("Filter").toRawUTF8(), name + "Filter", v43, effects::Harmony::filterNames, 0));
+        layout.add (makeFloat (id ("Cutoff").toRawUTF8(), name + "Cutoff", cutoffRange, effects::Harmony::filterHighestHz, v43, asCutoff));
+    }
+    layout.add (makeFloat (ParamIDs::harmonyNoteDelay, "Harmony Note Delay", echoRange, 0.0f, v43, asEchoTime));
+    layout.add (makeChoice (ParamIDs::harmonyNoteSync, "Harmony Note Delay Sync", v43, effects::Delay::syncNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyNoteFeedback, "Harmony Note Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v43, asPercent));
+    layout.add (makeChoice (ParamIDs::harmonyNoteFilter, "Harmony Note Filter", v43, effects::Harmony::filterNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyNoteCutoff, "Harmony Note Cutoff", cutoffRange, effects::Harmony::filterHighestHz, v43, asCutoff));
     return layout;
 }
 

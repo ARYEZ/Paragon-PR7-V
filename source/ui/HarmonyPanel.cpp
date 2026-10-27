@@ -4,6 +4,7 @@
 #include "Parameters.h"
 #include "ParagonLookAndFeel.h"
 #include "dsp/PitchDetector.h"
+#include "dsp/effects/Delay.h"
 
 namespace
 {
@@ -56,6 +57,9 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     setUp (voiceOn, "ON");
     setUp (voiceCorrect, "CORRECT");
     voiceCorrect.button.setTooltip ("Keep this voice in the key and scale");
+    setUp (voiceFlatten, "FLATTEN");
+    voiceFlatten.button.setTooltip ("Hold this voice on one NOTE, whatever you sing (CORRECT still keeps it in the key)");
+    setUp (flattenNote, "NOTE");
 
     for (auto [label, box, id, text] : { std::tuple { &keyLabel, &key, ParamIDs::harmonyKey, "KEY" },
                                          std::tuple { &scaleLabel, &scale, ParamIDs::harmonyScale, "SCALE" },
@@ -166,6 +170,56 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
         knob->slider.setTooltip (tip);
     }
 
+    // FX: DELAY, SYNC, FEEDBACK, FILTER and CUTOFF, per voice or for the note voices.
+    fxTab.setClickingTogglesState (true);
+    fxTab.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    fxTab.setColour (juce::TextButton::textColourOnId, ParagonColours::accent);
+    fxTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    fxTab.setTooltip ("The picked voice's DELAY, FEEDBACK and FILTER (on NOTES: the note voices')");
+    fxTab.onClick = [this] { showFx (fxTab.getToggleState()); };
+    addAndMakeVisible (fxTab);
+    setUp (echoDelay, "DELAY");
+    setUp (echoFeedback, "FEEDBACK");
+    setUp (cutoff, "CUTOFF");
+    echoDelay.slider.setTooltip ("How late the voice comes in (Off: with you). Greyed while SYNC sets it");
+    echoFeedback.slider.setTooltip ("Repeats of the delayed voice: higher, more of them");
+    cutoff.slider.setTooltip ("Where the FILTER cuts");
+    for (auto [label, box, text, choices] : { std::tuple { &syncLabel, &echoSync, "SYNC", effects::Delay::syncNames },
+                                              std::tuple { &filterLabel, &filterType, "FILTER", effects::Harmony::filterNames } })
+    {
+        styleLabel (*label, text);
+        addAndMakeVisible (*label);
+        box->addItemList (choices, 1);
+        box->setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
+        box->setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
+        box->setColour (juce::ComboBox::textColourId, ParagonColours::accent);
+        box->setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
+        addAndMakeVisible (*box);
+    }
+    echoSync.setTooltip ("DELAY as a note length at the song's tempo (Off: in ms)");
+    filterType.setTooltip ("Low-pass keeps the lows (20 kHz: off), high-pass the highs (20 Hz: off), band-pass a band around CUTOFF");
+    filterType.onChange = [this]
+    {
+        // A switch that would silence the voice (high-pass at the top, or
+        // low-pass at the bottom) starts CUTOFF somewhere it can be heard.
+        const auto id = fxId ("Cutoff", ParamIDs::harmonyNoteCutoff);
+        const auto hz = value (id);
+        const auto type = filterType.getSelectedItemIndex();
+        auto wanted = hz;
+        if (type == 0 && hz <= 21.0f)
+            wanted = effects::Harmony::filterHighestHz;
+        else if (type == 1 && hz >= 19000.0f)
+            wanted = effects::Harmony::filterLowestHz;
+        else if (type == 2 && (hz <= 21.0f || hz >= 19000.0f))
+            wanted = 1000.0f;
+        if (! juce::approximatelyEqual (wanted, hz))
+        {
+            beginGesture (id);
+            set (id, wanted);
+            endGesture (id);
+        }
+    };
+
     editMap.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
     editMap.setColour (juce::TextButton::textColourOffId, noteBlue);
     editMap.setTooltip ("The Note Map Editor: your own map of what each note plays (CHORD Custom), and a Custom scale");
@@ -266,38 +320,80 @@ void HarmonyPanel::showNotes (bool show)
         notesTab.setToggleState (true, juce::dontSendNotification);
     else
         tabs[(size_t) selected].setToggleState (true, juce::dontSendNotification);
-    for (auto* knob : { &pitch, &fine, &formant, &source, &harmony, &spread, &correctFormant })
-    {
-        knob->label.setVisible (! show);
-        knob->slider.setVisible (! show);
-    }
-    for (auto* control : { &voiceOn, &voiceCorrect })
-    {
-        control->label.setVisible (! show);
-        control->button.setVisible (! show);
-    }
-    for (auto* knob : { &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
-    {
-        knob->label.setVisible (show);
-        knob->slider.setVisible (show);
-    }
-    generate.label.setVisible (show);
-    generate.button.setVisible (show);
-    chordLabel.setVisible (show);
-    chord.setVisible (show);
-    midiLabel.setVisible (show);
-    midiMap.setVisible (show);
-    editMap.setVisible (show);
     if (! show)
         noteMap.setVisible (false);
+    bindFxControls();
+    updateVisibility();
+}
+
+void HarmonyPanel::showFx (bool show)
+{
+    fxShown = show;
+    fxTab.setToggleState (show, juce::dontSendNotification);
+    updateVisibility();
+}
+
+void HarmonyPanel::updateVisibility()
+{
+    // Three views: the picked voice (with the mix), NOTES, or FX (either's).
+    const auto voiceMain = ! notesShown && ! fxShown, notesMain = notesShown && ! fxShown;
+    shownFlatten = value (voiceId (selected, "Flatten")) > 0.5f;
+    const auto show = [] (auto& control, bool visible)
+    {
+        control.label.setVisible (visible);
+        if constexpr (std::is_same_v<std::decay_t<decltype (control)>, Knob>)
+            control.slider.setVisible (visible);
+        else
+            control.button.setVisible (visible);
+    };
+    for (auto* knob : { &fine, &formant, &source, &harmony, &spread, &correctFormant })
+        show (*knob, voiceMain);
+    show (pitch, voiceMain && ! shownFlatten);
+    show (flattenNote, voiceMain && shownFlatten);
+    for (auto* control : { &voiceOn, &voiceCorrect, &voiceFlatten })
+        show (*control, voiceMain);
+    for (auto* knob : { &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
+        show (*knob, notesMain);
+    show (generate, notesMain);
+    for (auto* component : std::initializer_list<juce::Component*> { &chordLabel, &chord, &midiLabel, &midiMap, &editMap })
+        component->setVisible (notesMain);
+    for (auto* knob : { &echoDelay, &echoFeedback, &cutoff })
+        show (*knob, fxShown);
+    for (auto* component : std::initializer_list<juce::Component*> { &syncLabel, &echoSync, &filterLabel, &filterType })
+        component->setVisible (fxShown);
     resized();
     repaint();
+}
+
+juce::String HarmonyPanel::fxId (const char* voicePart, const char* noteId) const
+{
+    return notesShown ? juce::String (noteId) : voiceId (selected, voicePart);
+}
+
+void HarmonyPanel::bindFxControls()
+{
+    // FX follows the picked voice, or the note voices on NOTES.
+    for (auto [knob, part, noteId] : { std::tuple { &echoDelay, "Delay", ParamIDs::harmonyNoteDelay },
+                                       std::tuple { &echoFeedback, "Feedback", ParamIDs::harmonyNoteFeedback },
+                                       std::tuple { &cutoff, "Cutoff", ParamIDs::harmonyNoteCutoff } })
+    {
+        knob->attachment.reset();
+        const auto id = fxId (part, noteId);
+        knob->attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id, knob->slider);
+        auto* parameter = parameters.getParameter (id);
+        knob->slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
+    }
+    echoSyncAttachment.reset();
+    filterTypeAttachment.reset();
+    echoSyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, fxId ("Sync", ParamIDs::harmonyNoteSync), echoSync);
+    filterTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, fxId ("Filter", ParamIDs::harmonyNoteFilter), filterType);
+    echoDelay.slider.setEnabled (juce::roundToInt (value (fxId ("Sync", ParamIDs::harmonyNoteSync))) == 0);
 }
 
 void HarmonyPanel::bindVoiceControls()
 {
     // The voice controls follow whichever voice is picked.
-    for (auto [control, part] : { std::pair { &voiceOn, "On" }, std::pair { &voiceCorrect, "Correct" } })
+    for (auto [control, part] : { std::pair { &voiceOn, "On" }, std::pair { &voiceCorrect, "Correct" }, std::pair { &voiceFlatten, "Flatten" } })
     {
         control->attachment.reset();
         control->attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (parameters, voiceId (selected, part), control->button);
@@ -310,13 +406,22 @@ void HarmonyPanel::bindVoiceControls()
         knob->slider.setDoubleClickReturnValue (true, 0.0);
     }
     pitch.slider.setTooltip ("Voice " + juce::String (selected + 1) + "'s interval from your note, in semitones (+4 a third up, +7 a fifth); CORRECT keeps it in the key");
+    flattenNote.attachment.reset();
+    flattenNote.attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, voiceId (selected, "Note"), flattenNote.slider);
+    flattenNote.slider.setDoubleClickReturnValue (true, effects::Harmony::flattenDefault);
+    flattenNote.slider.setTooltip ("Voice " + juce::String (selected + 1) + " stays on this note, whatever you sing");
+    bindFxControls();
+    updateVisibility();
 }
 
 void HarmonyPanel::addVoiceAt (int voice, float pan, float levelDb)
 {
     // A new voice starts at unison (U), as on Waves Harmony: set its interval next.
     const std::pair<const char*, float> fresh[] = { { "On", 1.0f }, { "Pitch", 0.0f }, { "Fine", 0.0f }, { "Formant", 0.0f },
-                                                    { "Correct", 1.0f }, { "Pan", pan }, { "Level", levelDb }, { "Active", 1.0f } };
+                                                    { "Correct", 1.0f }, { "Pan", pan }, { "Level", levelDb },
+                                                    { "Flatten", 0.0f }, { "Note", effects::Harmony::flattenDefault }, { "Delay", 0.0f },
+                                                    { "Sync", 0.0f }, { "Feedback", 0.0f }, { "Filter", 0.0f },
+                                                    { "Cutoff", effects::Harmony::filterHighestHz }, { "Active", 1.0f } };
     for (const auto& [part, plain] : fresh)
     {
         const auto id = voiceId (voice, part);
@@ -433,6 +538,9 @@ void HarmonyPanel::timerCallback()
     // The voices can move from the DAW (automation, undo, a rig), and the
     // sung note changes all the time: keep both up to date.
     refreshTabs();
+    if ((value (voiceId (selected, "Flatten")) > 0.5f) != shownFlatten)
+        updateVisibility();   // PITCH becomes NOTE, or back
+    echoDelay.slider.setEnabled (juce::roundToInt (value (fxId ("Sync", ParamIDs::harmonyNoteSync))) == 0);
     const auto note = sungNote ? sungNote() : -1.0f;
     juce::String text ("--");
     if (note >= 0.0f)
@@ -484,7 +592,7 @@ void HarmonyPanel::resized()
     correctLabel.setBounds (header.removeFromRight (62));
 
     // Middle: the graph, and the picked voice's pan and level under it.
-    auto middle = area.removeFromLeft (notesShown ? 150 : 212);   // NOTES: a narrower graph, room for its controls
+    auto middle = area.removeFromLeft (notesShown ? 150 : 196);   // NOTES: a narrower graph, room for its controls
     area.removeFromLeft (10);
     readoutArea = middle.removeFromBottom (16).toFloat();
     graph = middle.toFloat();
@@ -492,6 +600,8 @@ void HarmonyPanel::resized()
     // Right: voice tabs, the picked voice, then the mix.
     auto right = area;
     auto tabRow = right.removeFromTop (22);
+    fxTab.setBounds (tabRow.removeFromRight (34));
+    tabRow.removeFromRight (4);
     notesTab.setBounds (tabRow.removeFromRight (56));
     tabRow.removeFromRight (6);
     const auto tabWidth = (tabRow.getWidth() - 3 * ((int) tabs.size() - 1)) / (int) tabs.size();
@@ -502,6 +612,32 @@ void HarmonyPanel::resized()
     }
     right.removeFromTop (6);
     const auto rowHeight = (right.getHeight() - 6) / 2;
+
+    if (fxShown)
+    {
+        // FX: DELAY, SYNC, FEEDBACK; then FILTER and CUTOFF.
+        const auto knobIn = [] (Knob& knob, juce::Rectangle<int> cell)
+        {
+            knob.label.setBounds (cell.removeFromTop (14));
+            knob.slider.setBounds (cell.reduced (1, 0));
+        };
+        const auto boxIn = [] (juce::Label& label, juce::ComboBox& box, juce::Rectangle<int> cell)
+        {
+            cell = cell.reduced (4, 0);
+            label.setBounds (cell.removeFromTop (14));
+            box.setBounds (cell.withSizeKeepingCentre (cell.getWidth(), 24).translated (0, -8));
+        };
+        auto top = right.removeFromTop (rowHeight);
+        const auto unit = top.getWidth() / 4;
+        knobIn (echoDelay, top.removeFromLeft (unit));
+        boxIn (syncLabel, echoSync, top.removeFromLeft (unit * 2));
+        knobIn (echoFeedback, top);
+        right.removeFromTop (6);
+        auto bottom = right;
+        boxIn (filterLabel, filterType, bottom.removeFromLeft (unit * 2));
+        knobIn (cutoff, bottom.removeFromLeft (unit));
+        return;
+    }
 
     if (notesShown)
     {
@@ -548,11 +684,15 @@ void HarmonyPanel::resized()
         else
             widget.setBounds (cell.reduced (1, 0));
     };
-    const auto switchWidth = 44;
-    place (voiceOn.label, voiceOn.button, voiceRow.removeFromLeft (switchWidth), true);
-    place (voiceCorrect.label, voiceCorrect.button, voiceRow.removeFromLeft (switchWidth + 8), true);
+    // Three switches: just wide enough for their names, to leave the knobs room.
+    place (voiceOn.label, voiceOn.button, voiceRow.removeFromLeft (34), true);
+    place (voiceCorrect.label, voiceCorrect.button, voiceRow.removeFromLeft (50), true);
+    place (voiceFlatten.label, voiceFlatten.button, voiceRow.removeFromLeft (50), true);
     const auto knobWidth = voiceRow.getWidth() / 3;
-    for (auto* knob : { &pitch, &fine, &formant })
+    const auto pitchCell = voiceRow.removeFromLeft (knobWidth);
+    place (pitch.label, pitch.slider, pitchCell, false);
+    place (flattenNote.label, flattenNote.slider, pitchCell, false);   // in PITCH's place while FLATTEN is on
+    for (auto* knob : { &fine, &formant })
         place (knob->label, knob->slider, voiceRow.removeFromLeft (knobWidth), false);
 
     right.removeFromTop (6);
@@ -643,7 +783,12 @@ void HarmonyPanel::paint (juce::Graphics& g)
         }
         g.setColour (juce::Colour (0xff101418));
         g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        g.drawText (intervalText (value (voiceId (voice, "Pitch"))), dot, juce::Justification::centred, false);
+        // A flattened voice shows its note (as on Waves Harmony), the others their interval.
+        const auto flatNote = juce::roundToInt (value (voiceId (voice, "Note")));
+        const auto named = PitchDetector::toNote (Scales::hzFromMidi ((float) flatNote));
+        g.drawText (value (voiceId (voice, "Flatten")) > 0.5f ? named.name + juce::String (named.octave)
+                                                               : intervalText (value (voiceId (voice, "Pitch"))),
+                    dot, juce::Justification::centred, false);
     };
     for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
         if (isActive (voice) && voice != selected)
