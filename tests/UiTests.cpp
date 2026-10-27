@@ -7,6 +7,7 @@
 #include "PluginProcessor.h"
 #include "ui/DoublerPanel.h"
 #include "ui/Footswitch.h"
+#include "ui/Faceplate.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/HarmonyPanel.h"
 #include "dsp/effects/Delay.h"
@@ -851,4 +852,76 @@ TEST_CASE ("HARMONY's FLATTEN and FX view", "[ui][harmony][voicefx]")
     CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));   // voice 1 untouched
     panel.showFx (false);
     CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
+}
+
+TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meters", "[ui][faceplate]")
+{
+    ParagonX1AudioProcessor processor;
+    constexpr double rate = 48000.0;
+    constexpr int blockSize = 256;
+    processor.setPlayConfigDetails (1, 2, rate, blockSize);
+    processor.prepareToPlay (rate, blockSize);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    auto& faceplate = *faceplates[0];
+    std::vector<Footswitch*> footswitches;
+    findAll (*editor, footswitches);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+               { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    REQUIRE (footswitches.size() == 7);
+
+    // The graphic EQ shows first: the shared rack unit.
+    CHECK (faceplate.getLook() == Faceplate::Look::generic);
+
+    // DYNAMICS (stomp 1's name): the faceplate follows its TYPE.
+    footswitches[0]->onSelect();
+    for (auto [type, look] : { std::pair { 0, Faceplate::Look::classic }, std::pair { 1, Faceplate::Look::daybreak },
+                               std::pair { 2, Faceplate::Look::revival } })
+    {
+        set (processor, ParamIDs::compType, (float) type);
+        CHECK (faceplate.getLook() == look);
+    }
+    footswitches[1]->onSelect();   // SATURATION
+    CHECK (faceplate.getLook() == Faceplate::Look::mars);
+    footswitches[5]->onSelect();   // DELAY
+    CHECK (faceplate.getLook() == Faceplate::Look::generic);
+
+    // A loud note: the compressor's needle swings, MARS's driven band glows.
+    const auto play = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        for (int b = 0, n = 0; b < 100; ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i, ++n)
+                buffer.setSample (0, i, 0.5f * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * n / rate));
+            processor.processBlock (buffer, midi);
+        }
+    };
+    footswitches[0]->onSelect();
+    set (processor, ParamIDs::compType, 0.0f);
+    set (processor, ParamIDs::compOn, 1.0f);
+    set (processor, ParamIDs::compThreshold, -40.0f);
+    set (processor, ParamIDs::compRatio, 8.0f);
+    set (processor, ParamIDs::driveOn, 1.0f);
+    set (processor, ParamIDs::marsBand (0, "On").toRawUTF8(), 1.0f);
+    set (processor, ParamIDs::marsBand (0, "Drive").toRawUTF8(), 0.9f);
+    play();
+    for (int tick = 0; tick < 30; ++tick)
+        faceplate.updateMeters();
+    CAPTURE (processor.getCompGainReductionDb(), faceplate.getShownReduction(), faceplate.getShownDrive (0), faceplate.getShownDrive (1));
+    CHECK (faceplate.getShownReduction() < -6.0f);
+    CHECK_THAT (faceplate.getShownReduction(), Catch::Matchers::WithinAbs (processor.getCompGainReductionDb(), 1.0));
+    CHECK (faceplate.getShownDrive (0) > 0.1f);
+    CHECK (faceplate.getShownDrive (1) < 1.0e-3f);   // band 2 isn't in use
+
+    // DYNAMICS off: the needle comes back to rest.
+    set (processor, ParamIDs::compOn, 0.0f);
+    play();
+    for (int tick = 0; tick < 60; ++tick)
+        faceplate.updateMeters();
+    CHECK (faceplate.getShownReduction() > -0.5f);
 }

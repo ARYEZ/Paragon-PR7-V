@@ -1,4 +1,5 @@
 #include "ui/EffectPanel.h"
+#include "ui/Faceplate.h"
 #include "ui/HarmonyPanel.h"
 #include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
@@ -242,6 +243,10 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);
     editor->resized();
+    // The FACEPLATE's meters settle as they would over a second of the timer.
+    if (auto* faceplate = findType<Faceplate> (*editor))
+        for (int tick = 0; tick < 30; ++tick)
+            faceplate->updateMeters();
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
 
     juce::File file (juce::File::getCurrentWorkingDirectory().getChildFile (path));

@@ -4,6 +4,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/DockPanels.h"
+#include "ui/Faceplate.h"
 #include "ui/EffectPanel.h"
 #include "ui/Finish.h"
 #include "ui/GraphicEqPanel.h"
@@ -157,8 +158,7 @@ private:
     int ticks = 0;
 
     // Dock and signal chain
-    RigNavigator rigNavigator;
-    SelectedRigPanel selectedRig;
+    Faceplate faceplate;   // the selected block as hardware, beside its knobs
     ExpressionPanel expressionPanel;
     std::array<std::unique_ptr<EffectPanel>, numBlocks> panels;   // empty at eqBlock: the EQ has its own panel
     GraphicEqPanel eqPanel;
