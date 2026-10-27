@@ -696,16 +696,18 @@ void MainView::layoutDock()
     // at the height they were designed for (the dock's) and as wide as the
     // screen allows at that height, then scaled to fit it, so nothing in
     // them is squeezed.
-    // (The GRAPHIC EQ has its own rack layout, on the face at full size.)
+    // (The GRAPHIC EQ and the DOUBLER have their own rack layouts, on the face at full size.)
     eqPanel.setRack (true);
     eqPanel.setBounds (controls);
-    const std::initializer_list<juce::Component*> editors { &harmonyPanel, &doublerPanel, &marsPanel };
+    doublerPanel.setRack (true);
+    doublerPanel.setBounds (controls);
+    const std::initializer_list<juce::Component*> editors { &harmonyPanel, &marsPanel };
     juce::Component* editorShowing = nullptr;
     for (auto* editor : editors)
         if (editor->isVisible())
             editorShowing = editor;
     faceplate.setWindow (editorShowing != nullptr ? controls - faceplate.getPosition() : juce::Rectangle<int>());
-    harmonyPanel.showTitle = doublerPanel.showTitle = marsPanel.showTitle = false;
+    harmonyPanel.showTitle = marsPanel.showTitle = false;
     const auto glass = (editorShowing != nullptr ? faceplate.getWindowGlass() + faceplate.getPosition() : controls).toFloat();
     const auto designHeight = mockF (0, 568, 0, 822).getHeight();
     const auto scale = juce::jmin (1.0f, glass.getHeight() / designHeight);
@@ -718,8 +720,9 @@ void MainView::layoutDock()
     for (auto& panel : panels)
         if (panel != nullptr && panel->isVisible())
             panel->toFront (false);
-    if (eqPanel.isVisible())
-        eqPanel.toFront (false);
+    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel })
+        if (panel->isVisible())
+            panel->toFront (false);
     for (auto* editor : editors)
         if (editor->isVisible())
             editor->toFront (false);

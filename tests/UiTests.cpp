@@ -918,7 +918,8 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
         CHECK (shown.getRight() <= expression[0]->getX());
         // An editor sits in its screen on the face, scaled to fit, and a
         // click on it lands on it (the scaling also moves where it's clicked).
-        if (dynamic_cast<EffectPanel*> (showing) == nullptr && dynamic_cast<GraphicEqPanel*> (showing) == nullptr)
+        if (dynamic_cast<EffectPanel*> (showing) == nullptr && dynamic_cast<GraphicEqPanel*> (showing) == nullptr
+            && dynamic_cast<DoublerPanel*> (showing) == nullptr)
         {
             CHECK (shown == rack.getWindowGlass() + rack.getPosition());
             const auto centre = shown.getCentre();
@@ -933,6 +934,24 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
             CHECK (shown == rack.getControlArea() + rack.getPosition());
         }
     }
+
+    // The DOUBLER on the rack: its number boxes set their voices' settings.
+    chains[0]->onSelect (7);
+    auto* doublerPanel = dynamic_cast<DoublerPanel*> (editors[2]);
+    REQUIRE (doublerPanel != nullptr);
+    CHECK (doublerPanel->isRack());
+    std::vector<juce::Slider*> numbers;
+    findAll (*doublerPanel, numbers);
+    REQUIRE (! numbers.empty());
+    // The first box in reading order is voice 1's GAIN.
+    std::sort (numbers.begin(), numbers.end(), [] (auto* a, auto* b) { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    juce::Slider* gain = nullptr;
+    for (auto* number : numbers)
+        if (gain == nullptr && number->getX() < doublerPanel->getWidth() / 2)
+            gain = number;
+    REQUIRE (gain != nullptr);
+    gain->setValue (-9.0, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (0, "Gain"))->load(), Catch::Matchers::WithinAbs (-9.0, 0.05));
 
     // The GRAPHIC EQ's faders on the rack set their bands.
     chains[0]->onSelect (5);

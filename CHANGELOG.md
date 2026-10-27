@@ -2,6 +2,15 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.30.0
+
+- **The DOUBLER rebuilt for the rack, at full size** (the second of the four editors; MARS and HARMONY follow). In 0.28.0 it was shrunk into a screen in the rack; now it's laid out on the rack's face, its numbers larger than they've ever been.
+  - **The display** on the left shows the voices by pan and delay, as before.
+  - **The voice table:** a row per voice across the face (VOICE, GAIN, PAN, DELAY, FDBK, OCT, DETUNE, DEPTH, RATE, DRIFT), each number on a small orange screen, VOICE and OCT as the unit's keys (lit while on), the voice numbers printed in red. Drag a number up or down, or double-click it to reset, as before.
+  - **Beside it:** DIRECT (key, GAIN, PAN) and OUTPUT, the LOW and HIGH shelves on the doubles (key, GAIN, FREQ), and FB HIGH-PASS.
+  - **MOD RESET** is a key in the top row.
+  - Nothing changes in the sound or your settings.
+
 ## 0.29.0
 
 - **The GRAPHIC EQ rebuilt for the rack, at full size** (the first of the four editors; the DOUBLER, MARS and HARMONY follow, in that order). In 0.28.0 it was shrunk to fit a screen in the rack; now it's laid out on the rack's face like the other blocks, nothing shrunk.

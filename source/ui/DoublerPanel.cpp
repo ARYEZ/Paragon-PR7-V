@@ -3,6 +3,8 @@
 #include "Icons.h"
 #include "Parameters.h"
 #include "ParagonLookAndFeel.h"
+#include "ui/Finish.h"
+#include "ui/LedDisplay.h"
 
 namespace
 {
@@ -80,9 +82,104 @@ DoublerPanel::Switch& DoublerPanel::makeSwitch (const juce::String& id, const ju
     return *switches.back();
 }
 
+void DoublerPanel::setRack (bool inRack)
+{
+    if (rack == inRack)
+        return;
+    rack = inRack;
+    for (auto& box : boxes)
+    {
+        box->slider.setColour (juce::Slider::textBoxTextColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+        box->slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    }
+    for (auto& control : switches)
+        control->button.getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
+    modReset.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    resized();
+    repaint();
+}
+
+void DoublerPanel::layOutRack()
+{
+    // The top row: MOD RESET (GRAPHIC EQ, placed by the main view, at the right).
+    auto area = getLocalBounds();
+    auto keys = area.removeFromTop (24);
+    modReset.setBounds (keys.removeFromLeft (110));
+    area.removeFromTop (8);
+
+    // Left, about two thirds: the voice table, a row per voice.
+    const auto gap = 4;
+    auto tableArea = area.removeFromLeft (area.getWidth() * 64 / 100);
+    area.removeFromLeft (22);
+    int totalWidth = 0;
+    for (auto width : columnWidths)
+        totalWidth += width;
+    const auto scale = (float) (tableArea.getWidth() - gap * (numColumns - 1)) / (float) totalWidth;
+    auto headings = tableArea.removeFromTop (14);
+    std::array<juce::Range<int>, numColumns> columns;
+    for (int column = 0; column < numColumns; ++column)
+    {
+        const auto cell = headings.removeFromLeft (juce::roundToInt ((float) columnWidths[column] * scale));
+        columns[(size_t) column] = { cell.getX(), cell.getRight() };
+        labels.push_back ({ columnNames[column], cell.expanded (2, 0) });
+        headings.removeFromLeft (gap);
+    }
+    tableArea.removeFromTop (2);
+    const auto rowHeight = tableArea.getHeight() / effects::Doubler::numVoices;
+    for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
+    {
+        const auto row = tableArea.removeFromTop (rowHeight).reduced (0, 4);
+        for (int column = 0; column < numColumns; ++column)
+        {
+            const auto cell = juce::Rectangle<int> (columns[(size_t) column].getStart(), row.getY(), columns[(size_t) column].getLength(), row.getHeight());
+            auto* widget = table[(size_t) voice][(size_t) column];
+            if (column == 0)
+            {
+                labels.push_back ({ juce::String (voice + 1), cell.withWidth (12) });
+                widget->setBounds (cell.withTrimmedLeft (12).withSizeKeepingCentre (juce::jmin (36, cell.getWidth() - 12), 22));
+            }
+            else if (column == 5)
+                widget->setBounds (cell.withSizeKeepingCentre (juce::jmin (36, cell.getWidth()), 22));
+            else
+                widget->setBounds (cell.reduced (2, 2));
+        }
+    }
+
+    // Right: DIRECT and OUTPUT, the LOW and HIGH shelves on the doubles, FB HIGH-PASS.
+    const auto cellWidth = area.getWidth() / 4;
+    const auto rowHeight2 = area.getHeight() / 4;
+    const auto rowOf = [&] (std::initializer_list<std::pair<const char*, juce::Component*>> cells)
+    {
+        auto row = area.removeFromTop (rowHeight2);
+        for (const auto& [name, widget] : cells)
+        {
+            auto cell = row.removeFromLeft (cellWidth);
+            if (name != nullptr)
+                labels.push_back ({ name, cell.removeFromTop (13) });
+            else
+                cell.removeFromTop (13);
+            if (widget == nullptr)
+                continue;
+            if (dynamic_cast<juce::ToggleButton*> (widget) != nullptr)
+                widget->setBounds (cell.withSizeKeepingCentre (juce::jmin (40, cell.getWidth() - 4), 22));
+            else
+                widget->setBounds (cell.reduced (4, 3));
+        }
+    };
+    rowOf ({ { "DIRECT", directOn }, { "GAIN", directGain }, { "PAN", directPan }, { "OUTPUT", output } });
+    rowOf ({ { "LOW", lowOn }, { "GAIN", lowGain }, { "FREQ", lowFreq }, { nullptr, nullptr } });
+    rowOf ({ { "HIGH", highOn }, { "GAIN", highGain }, { "FREQ", highFreq }, { nullptr, nullptr } });
+    rowOf ({ { nullptr, nullptr }, { "FB HIGH-PASS", feedbackHighPass }, { nullptr, nullptr }, { nullptr, nullptr } });
+}
+
 void DoublerPanel::resized()
 {
     labels.clear();
+    if (rack)
+    {
+        layOutRack();
+        return;
+    }
     auto area = getLocalBounds().reduced (16, 10);
     area.removeFromTop (34);   // header: icon and name (and GRAPHIC EQ, placed by the main view)
 
@@ -159,8 +256,38 @@ void DoublerPanel::setAccent (juce::Colour colour)
     repaint();
 }
 
+void DoublerPanel::paintOverChildren (juce::Graphics& g)
+{
+    for (const auto& glass : glasses)
+        LedDisplay::paintGlassOverlay (g, glass, 0.3f);
+}
+
 void DoublerPanel::paint (juce::Graphics& g)
 {
+    if (rack)
+    {
+        // On the unit's face: each number on a small screen, names stamped
+        // in the finish's ink, the voice numbers printed in its red.
+        glasses.clear();
+        for (const auto& box : boxes)
+            glasses.push_back (LedDisplay::paintScreen (g, box->slider.getBounds().toFloat().expanded (2.0f, 2.0f), 0.3f));
+        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+        for (const auto& [text, where] : labels)
+        {
+            const auto isVoiceNumber = text.length() == 1 && juce::CharacterFunctions::isDigit (text[0]);
+            if (isVoiceNumber)
+            {
+                g.setColour (Finish::printedRed());
+                g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+                g.drawText (text, where, juce::Justification::centredLeft, false);
+                g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+                continue;
+            }
+            ParagonLookAndFeel::drawStampedText (g, text, where.toFloat(), juce::Justification::centred, Finish::ink());
+        }
+        return;
+    }
+
     // The same dark panel and header as the other blocks' panels.
     const auto bounds = getLocalBounds().toFloat();
     g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
