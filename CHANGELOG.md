@@ -2,6 +2,17 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.28.0
+
+- **The rack: one unit under the floorboard.** The faceplate, the controls beside it and EXPRESSION ASSIGN are now one wide PR7 rack unit: the "brain" to go with the floorboard processor. Your idea; the layout is ours.
+  - **On the left, the block's display:** the faceplate's screens, live as before (the delay's repeats, the reverb's shape, the compressor's needle or meter, MARS's tubes, the note you sing...). The knobs and keys it used to *draw* are gone, as the real ones are right beside it.
+  - **In the middle, the block's real controls,** in the PR7's own parts: the floorboard's big knobs with each value on a small orange screen, menus on screens, switches as small keys with a light stripe, pages (MAIN / STEREO / COLOUR...) as keys, names stamped on the face. Every one works as before (they're the same controls, with the same settings, automation and undo).
+  - **HARMONY, the GRAPHIC EQ, the DOUBLER and MARS** are whole editors (graphs, tables, faders), so each sits on a big screen set into the face. They're laid out as before, a little wider, then scaled to fit the rack (the text is about four-fifths its old size): nothing in them is squeezed or cut off.
+  - **At the right end, EXPRESSION ASSIGN:** its list screen, MIN / MAX, and its scroll arrows as the unit's keys.
+  - **Printed red lines** divide the three parts, as the lines on the floorboard do.
+  - **All three finishes:** Pearl White, Pearl White + Neon (neon knobs and keys) and Pearl Black.
+- **Readouts fit their screens:** big seven-segment numbers (6.0 kHz, 0.80 Hz...) now shrink to fit a narrow screen instead of running off its edge.
+
 ## 0.27.0
 
 - **HARMONY's GLOBAL controls were meant to be 0.26.0.** That build stopped on Linux with a crash inside the plugin checker, so 0.26.0 was never published. They arrive in this release (see 0.26.0 below).

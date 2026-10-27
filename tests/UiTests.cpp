@@ -6,6 +6,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "ui/DoublerPanel.h"
+#include "ui/EffectPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/Faceplate.h"
 #include "ui/SignalChain.h"
@@ -14,6 +15,7 @@
 #include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
+#include "ui/ParagonLookAndFeel.h"
 #include "ui/PerformanceControls.h"
 
 using Catch::Matchers::WithinAbs;
@@ -853,6 +855,103 @@ TEST_CASE ("HARMONY's FLATTEN and FX view", "[ui][harmony][voicefx]")
     CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));   // voice 1 untouched
     panel.showFx (false);
     CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
+}
+
+TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN on one unit", "[ui][faceplate][rack]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    auto& rack = *faceplates[0];
+    REQUIRE (rack.isRack());
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    std::vector<EffectPanel*> effectPanels;
+    findAll (*editor, effectPanels);
+    std::vector<juce::Component*> editors;   // HARMONY, the EQ, the DOUBLER, MARS
+    {
+        std::vector<HarmonyPanel*> harmony; findAll (*editor, harmony);
+        std::vector<GraphicEqPanel*> eq; findAll (*editor, eq);
+        std::vector<DoublerPanel*> doubler; findAll (*editor, doubler);
+        std::vector<MarsPanel*> mars; findAll (*editor, mars);
+        REQUIRE ((harmony.size() == 1 && eq.size() == 1 && doubler.size() == 1 && mars.size() == 1));
+        editors = { harmony[0], eq[0], doubler[0], mars[0] };
+    }
+    auto* parent = rack.getParentComponent();
+    const auto rackBounds = rack.getBounds();
+
+    // EXPRESSION ASSIGN at the rack's right end, on the same unit.
+    std::vector<ExpressionPanel*> expression;
+    findAll (*editor, expression);
+    REQUIRE (expression.size() == 1);
+    CHECK (expression[0]->getBounds() == rack.getSideArea() + rack.getPosition());
+    CHECK (expression[0]->getRight() > rack.getControlArea().getRight() + rack.getX());
+
+    for (int block = 0; block < 12; ++block)
+    {
+        CAPTURE (block);
+        chains[0]->onSelect (block);
+        // Exactly one set of controls showing, on the rack's face, between
+        // its display and EXPRESSION ASSIGN.
+        juce::Component* showing = nullptr;
+        int count = 0;
+        for (auto* panel : effectPanels)
+            if (panel->isVisible())
+            {
+                CHECK (panel->isRack());
+                showing = panel;
+                ++count;
+            }
+        for (auto* panel : editors)
+            if (panel->isVisible())
+            {
+                showing = panel;
+                ++count;
+            }
+        REQUIRE (count == 1);
+        const auto shown = showing->getBoundsInParent();   // as drawn, scaled for an editor
+        CHECK (rackBounds.contains (shown));
+        CHECK (shown.getX() >= rack.getX() + rack.getControlArea().getX());
+        CHECK (shown.getRight() <= expression[0]->getX());
+        // An editor sits in its screen on the face, scaled to fit, and a
+        // click on it lands on it (the scaling also moves where it's clicked).
+        if (dynamic_cast<EffectPanel*> (showing) == nullptr)
+        {
+            CHECK (shown == rack.getWindowGlass() + rack.getPosition());
+            const auto centre = shown.getCentre();
+            auto* hit = parent->getComponentAt (centre);
+            CHECK ((hit == showing || showing->isParentOf (hit)));
+        }
+        else
+        {
+            CHECK (rack.getWindowGlass().isEmpty());
+        }
+    }
+
+    // On the rack the controls are the real ones: DELAY's FEEDBACK knob
+    // (one of the unit's big knobs) sets the delay's feedback.
+    chains[0]->onSelect (9);
+    EffectPanel* delay = nullptr;
+    for (auto* panel : effectPanels)
+        if (panel->isVisible())
+            delay = panel;
+    REQUIRE (delay != nullptr);
+    juce::Label* feedbackName = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* label = dynamic_cast<juce::Label*> (child); label != nullptr && label->getText() == "FEEDBACK")
+            feedbackName = label;
+    REQUIRE (feedbackName != nullptr);
+    juce::Slider* feedback = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* slider = dynamic_cast<juce::Slider*> (child); slider != nullptr && slider->getBounds().contains (feedbackName->getBounds().getCentreX(), slider->getY() + 1))
+            feedback = slider;
+    REQUIRE (feedback != nullptr);
+    CHECK ((bool) feedback->getProperties()[ParagonLookAndFeel::pedalKnobProperty]);
+    feedback->setValue (0.8, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::delayFeedback)->load(), Catch::Matchers::WithinAbs (0.8, 0.01));
 }
 
 TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meters", "[ui][faceplate]")

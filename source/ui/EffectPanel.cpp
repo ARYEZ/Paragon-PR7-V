@@ -423,7 +423,7 @@ void EffectPanel::resized()
                 shown.back().push_back (control);
     }
 
-    area.removeFromTop (pageButtons.empty() && rack ? 0 : (rack ? 30 : 34));   // header (in the rack, just the page keys)
+    area.removeFromTop (rack ? 30 : 34);   // header (on the rack, the row of keys: pages, GRAPHIC EQ)
     if (groupsShowing.size() > 1)
         area.removeFromTop (rack ? 14 : 20);   // group names
     area.removeFromBottom (4);

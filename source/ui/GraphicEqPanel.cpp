@@ -186,11 +186,14 @@ void GraphicEqPanel::paint (juce::Graphics& g)
 
     // Header: icon and name, as on the other blocks' panels.
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::eq, header.removeFromLeft (26.0f).withSizeKeepingCentre (20.0f, 20.0f), accent, 1.6f, true);
-    header.removeFromLeft (8.0f);
-    g.setColour (ParagonColours::text);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-    g.drawText ("GRAPHIC EQ", header, juce::Justification::centredLeft, false);
+    if (showTitle)
+    {
+        Icons::draw (g, Icons::Type::eq, header.removeFromLeft (26.0f).withSizeKeepingCentre (20.0f, 20.0f), accent, 1.6f, true);
+        header.removeFromLeft (8.0f);
+        g.setColour (ParagonColours::text);
+        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.drawText ("GRAPHIC EQ", header, juce::Justification::centredLeft, false);
+    }
 
     // The graph: a dark screen with 0 / +-6 / +-12 dB lines.
     const auto on = onButton.getToggleState();

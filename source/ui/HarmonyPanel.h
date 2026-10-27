@@ -35,6 +35,7 @@ public:
     void setAccent (juce::Colour colour);
 
     void paint (juce::Graphics&) override;
+    bool showTitle = true;   // its icon and name in the header (not on the rack, which shows the name)
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;

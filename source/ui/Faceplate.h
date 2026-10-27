@@ -61,6 +61,11 @@ public:
     // the rest of its face, at getControlArea(). 0: the faceplate alone.
     void setRackDisplayWidth (float width, float sideWidth = 0.0f);   // sideWidth: a section on the right (EXPRESSION ASSIGN), at getSideArea()
     juce::Rectangle<int> getSideArea() const;
+    // A screen's frame on the face round `area` (in this component), for a
+    // block whose controls are a whole editor (HARMONY, the EQ...): it sits
+    // in the glass, getWindowGlass(), as on the unit's big screen. Empty: none.
+    void setWindow (juce::Rectangle<int> area);
+    juce::Rectangle<int> getWindowGlass() const;
     bool isRack() const noexcept { return rackDisplayWidth > 0.0f; }
     juce::Rectangle<int> getControlArea() const;
 
@@ -77,6 +82,8 @@ public:
 private:
     void timerCallback() override;
     void changeListenerCallback (juce::ChangeBroadcaster*) override;   // the finish changed
+    juce::Rectangle<float> settingsColumn (juce::Rectangle<float>& body, float share) const;
+    juce::Rectangle<float> readoutArea (juce::Graphics&, juce::Rectangle<float>& settings, const juce::String& name) const;
     float raw (const juce::String& id) const;
     float normalised (const juce::String& id) const;
     juce::String text (const juce::String& id) const;
@@ -108,6 +115,7 @@ private:
     juce::Colour colour;   // the block's colour in the chain (the faders' light)
     juce::Image satin;     // the pearl's grain, as on the unit
     float rackDisplayWidth = 0.0f, rackSideWidth = 0.0f;
+    juce::Rectangle<int> window;
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less

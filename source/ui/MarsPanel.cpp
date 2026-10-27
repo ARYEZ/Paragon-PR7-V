@@ -453,11 +453,14 @@ void MarsPanel::paint (juce::Graphics& g)
     g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::drive, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
-    header.removeFromLeft (8.0f);
-    g.setColour (ParagonColours::text);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-    g.drawText ("SATURATION", header, juce::Justification::centredLeft, false);
+    if (showTitle)
+    {
+        Icons::draw (g, Icons::Type::drive, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
+        header.removeFromLeft (8.0f);
+        g.setColour (ParagonColours::text);
+        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.drawText ("SATURATION", header, juce::Justification::centredLeft, false);
+    }
 
     if (page != 0 || display.isEmpty())
         return;

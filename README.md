@@ -166,19 +166,23 @@ descriptions below still talk about guitar.
   pedal's position aren't undone.
 - **Expression pedal** (right of the unit): drag it, use the mouse wheel, or send MIDI CC 11 (or the CC chosen in SETTINGS) from a
   real expression pedal (route your MIDI track to the plugin). Assign it on the small EXPRESSION screen beside it (click a line, or scroll; it also shows the
-  pedal's position) or with EXPRESSION ASSIGN in the dock, to
+  pedal's position) or with EXPRESSION ASSIGN on the rack, to
   **VOLUME**, **WAH / FILTER** (a wah before the saturation), **MORPH / FX** (fades the doubler, modulation, delay
   and reverb in from the heel), **PITCH / WHAMMY** (bends the pitch shifter from no shift at the heel to its
   INTERVAL at the toe), **LO-FI** (fades the lo-fi effect in: full band at the heel, lo-fi at the toe) or
   **WHAMMY-WAH** (plays the FILTER / PITCH block's Whammy-Wah). MIN and MAX set where the heel and toe land. The assignment and range
   are saved with each rig.
-- **Bottom panels:** the **FACEPLATE** shows the block you pick as a small PR7 unit (same chassis, screens, knobs,
-  keys and lights, in your finish), following its TYPE, with live readings on its screens: DYNAMICS with a
-  gain-reduction needle (Classic), its knobs, INTENSITY key and a meter (Daybreak) or its curve and faders (Revival);
-  SATURATION as MARS, a glowing tube per band; DELAY with its repeats and TIME; REVERB with its shape and DECAY;
-  PITCH with the note you sing and the harmony voices; and every other block with its own screen and controls
-  (MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...). The other blocks show a rack unit with their name and TYPE for now. Beside it, the graphic EQ, or the knobs
-  of whichever block you pick (click a signal-chain block or a footswitch name); **GRAPHIC EQ** goes back to the EQ.
+- **The rack** (under the floorboard): one wide PR7 unit, the "brain" to go with the floorboard (same chassis,
+  screens, knobs, keys and lights, in your finish), for the block you pick (click a signal-chain block or a
+  footswitch name); **GRAPHIC EQ** goes back to the EQ.
+  - **On the left, its display**, following its TYPE, with live readings: DYNAMICS with a gain-reduction needle
+    (Classic), a meter (Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
+    DELAY with its repeats and TIME; REVERB with its shape and DECAY; PITCH with the note you sing and the harmony
+    voices; MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...
+  - **In the middle, its controls**, the real ones: the unit's big knobs with their values on small screens, menus
+    on screens, switches as keys with light stripes, pages as keys. HARMONY, the GRAPHIC EQ, the DOUBLER and
+    MARS are whole editors, shown on a big screen in the face.
+  - **At the right end, EXPRESSION ASSIGN.**
   Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
 - **SETTINGS:** the tuner's reference pitch, mute while tuning, and the expression pedal's MIDI CC.
 - The paths of the loaded files are saved in your DAW project. If a file is missing when the project

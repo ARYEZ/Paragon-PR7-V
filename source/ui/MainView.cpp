@@ -674,39 +674,77 @@ void MainView::selectBlock (int block)
 
 void MainView::layoutDock()
 {
-    // The rack: the faceplate and the block's controls as one wide unit, the
-    // display on the left and the real controls on its face. For now (the
-    // owner's example) only DELAY; the rest keep the faceplate beside the panel.
-    const auto rack = selectedBlock == delayBlock;
-    closePanel.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);   // one of the unit's keys, on the rack
-    for (auto& panel : panels)
-        if (panel != nullptr)
-            panel->setRack (rack && panel == panels[delayBlock]);
+    // The rack: one wide unit across the dock, the "brain" to go with the
+    // floorboard. The selected block's display on the left (the faceplate),
+    // its real controls in the middle, EXPRESSION ASSIGN at the right end.
+    faceplate.setBounds (mock (12, 568, 1662, 822));
+    faceplate.setRackDisplayWidth (mockF (0, 0, 380, 0).getWidth(), mockF (0, 0, 270, 0).getWidth());
+    expressionPanel.setRack (true);
+    expressionPanel.setBounds (faceplate.getSideArea() + faceplate.getPosition());
+    expressionPanel.toFront (false);
 
-    const auto summaryArea = mock (662, 568, 1334, 822);
-    if (rack)
-    {
-        // EXPRESSION ASSIGN on the same unit, at its right end.
-        faceplate.setBounds (mock (12, 568, 1662, 822));
-        faceplate.setRackDisplayWidth (mockF (0, 0, 380, 0).getWidth(), mockF (0, 0, 270, 0).getWidth());
-        expressionPanel.setRack (true);
-        expressionPanel.setBounds (faceplate.getSideArea() + faceplate.getPosition());
-        expressionPanel.toFront (false);
-        const auto controls = faceplate.getControlArea() + faceplate.getPosition();
-        panels[delayBlock]->setBounds (controls);
-        panels[delayBlock]->toFront (false);
-        closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
-        return;
-    }
-    faceplate.setRackDisplayWidth (0.0f);
-    faceplate.setBounds (mock (12, 568, 652, 822));
-    expressionPanel.setRack (false);
-    expressionPanel.setBounds (mock (1344, 568, 1662, 822));
+    const auto controls = faceplate.getControlArea() + faceplate.getPosition();
     for (auto& panel : panels)
         if (panel != nullptr)
-            panel->setBounds (summaryArea);
-    closePanel.setBounds (summaryArea.withSizeKeepingCentre (0, 0).withX (summaryArea.getRight() - 130).withY (summaryArea.getY() + 10)
-                              .withSize (118, 24));
+        {
+            panel->setRack (true);
+            panel->setBounds (controls);
+        }
+
+    // HARMONY, the EQ, the DOUBLER and MARS are whole editors: each sits in
+    // a screen on the face, as on the unit's big screen. They're laid out
+    // at the height they were designed for (the dock's) and as wide as the
+    // screen allows at that height, then scaled to fit it, so nothing in
+    // them is squeezed.
+    const std::initializer_list<juce::Component*> editors { &eqPanel, &harmonyPanel, &doublerPanel, &marsPanel };
+    juce::Component* editorShowing = nullptr;
+    for (auto* editor : editors)
+        if (editor->isVisible())
+            editorShowing = editor;
+    faceplate.setWindow (editorShowing != nullptr ? controls - faceplate.getPosition() : juce::Rectangle<int>());
+    eqPanel.showTitle = harmonyPanel.showTitle = doublerPanel.showTitle = marsPanel.showTitle = false;
+    const auto glass = (editorShowing != nullptr ? faceplate.getWindowGlass() + faceplate.getPosition() : controls).toFloat();
+    const auto designHeight = mockF (0, 568, 0, 822).getHeight();
+    const auto scale = juce::jmin (1.0f, glass.getHeight() / designHeight);
+    for (auto* editor : editors)
+    {
+        editor->setTransform ({});
+        editor->setBounds (juce::Rectangle<float> (glass.getX(), glass.getY(), glass.getWidth() / scale, designHeight).toNearestInt());
+        editor->setTransform (juce::AffineTransform::scale (scale, scale, glass.getX(), glass.getY()));
+    }
+    for (auto& panel : panels)
+        if (panel != nullptr && panel->isVisible())
+            panel->toFront (false);
+    for (auto* editor : editors)
+        if (editor->isVisible())
+            editor->toFront (false);
+
+    // The unit's keys: GRAPHIC EQ (back to the default block) top right,
+    // PITCH's HARMONY / OCTAVE views top left: over the controls' row of
+    // keys, or in an editor's header (where its name was).
+    closePanel.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
+    for (auto* view : { &harmonyView, &octaveView })
+        view->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
+    if (editorShowing != nullptr)
+    {
+        const auto inEditor = [&] (float x, float y, float w, float h)
+        {
+            return juce::Rectangle<float> (glass.getX() + x * scale, glass.getY() + y * scale, w * scale, h * scale).toNearestInt();
+        };
+        const auto width = glass.getWidth() / scale;
+        closePanel.setBounds (inEditor (width - 130.0f, 10.0f, 118.0f, 24.0f));
+        harmonyView.setBounds (inEditor (16.0f, 10.0f, 92.0f, 24.0f));
+        octaveView.setBounds (inEditor (114.0f, 10.0f, 132.0f, 24.0f));
+    }
+    else
+    {
+        closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
+        harmonyView.setBounds (controls.getX(), controls.getY(), 92, 24);
+        octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 132, 24);
+    }
+    for (auto* button : std::initializer_list<juce::Component*> { &closePanel, &harmonyView, &octaveView })
+        if (button->isVisible())
+            button->toFront (false);
 }
 
 void MainView::showPage (Page newPage)
@@ -986,16 +1024,8 @@ void MainView::resized()
     expressionPedal.setBounds (mock (1342, 46, 1553, 562));
 
     // Dock
-    // The FACEPLATE where the RIG BROWSER and SELECTED RIG panels were: both
-    // only repeated the PRESETS page and the unit's own display and SAVE buttons.
-    const auto summaryArea = mock (662, 568, 1334, 822);
-    eqPanel.setBounds (summaryArea);
-    harmonyPanel.setBounds (summaryArea);
-    doublerPanel.setBounds (summaryArea);
-    marsPanel.setBounds (summaryArea);
-    // PITCH's view tabs sit in its header, after the icon and name.
-    harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
-    octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);
+    // The rack, where the RIG BROWSER, SELECTED RIG, the edit panel and
+    // EXPRESSION ASSIGN were (see layoutDock).
     layoutDock();
 
     signalChain.setBounds (mock (12, 832, 1662, 930));
