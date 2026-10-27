@@ -169,7 +169,9 @@ descriptions below still talk about guitar.
 - **Bottom panels:** the **FACEPLATE** shows the block you pick as a small PR7 unit (same chassis, screens, knobs,
   keys and lights, in your finish), following its TYPE, with live readings on its screens: DYNAMICS with a
   gain-reduction needle (Classic), its knobs, INTENSITY key and a meter (Daybreak) or its curve and faders (Revival);
-  SATURATION as MARS, a glowing tube per band. The other blocks show a rack unit with their name and TYPE for now. Beside it, the graphic EQ, or the knobs
+  SATURATION as MARS, a glowing tube per band; DELAY with its repeats and TIME; REVERB with its shape and DECAY;
+  PITCH with the note you sing and the harmony voices; and every other block with its own screen and controls
+  (MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...). The other blocks show a rack unit with their name and TYPE for now. Beside it, the graphic EQ, or the knobs
   of whichever block you pick (click a signal-chain block or a footswitch name); **GRAPHIC EQ** goes back to the EQ.
   Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
 - **SETTINGS:** the tuner's reference pitch, mute while tuning, and the expression pedal's MIDI CC.

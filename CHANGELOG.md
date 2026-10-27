@@ -2,6 +2,49 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.25.0
+
+- **FACEPLATE stage 3: every block now has its own faceplate,** built from the same PR7 parts as the others.
+- **MODULATION** is named for its TYPE ("CHORUS", "UNI-VIBE", "ROTARY"…).
+  - A screen draws the wobble as a wave at its RATE and DEPTH, with a dot riding it. It keeps time with RATE, not the audio.
+  - RATE shows in seven-segment Hz, or as the note length while synced.
+  - DEPTH and MIX are on knobs.
+- **FILTER / PITCH** is named for its TYPE:
+  - Auto-Wah shows its filter's peak (sharper with RESONANCE), with SENS and MIX knobs.
+  - Talk Box shows its vowel filter, with RES and MIX knobs.
+  - Pitch Shifter shows its interval, with a MIX knob.
+  - Whammy-Wah shows its program, with a MIX knob.
+- **DE-ESSER:**
+  - A live meter of how much it's turning the esses down, and the band it works on.
+  - FREQUENCY in kHz.
+  - An AMOUNT knob and a LISTEN key.
+- **GLITCH** is named for its MODE.
+  - A 16-step pattern, with more steps active the higher DENSITY is, and a light stepping through it at LENGTH. It keeps time with LENGTH, not the audio. PRE or POST is marked.
+  - LENGTH in ms, or the note length.
+  - DENSITY and MIX knobs.
+- **DOUBLER:** its four voices on a screen, across by pan and down by delay (bigger when louder), with DIRECT marked, and a key per voice lit while it's on.
+- **GRAPHIC EQ:** the EQ's own response curve (the same calculation its panel draws), its LEVEL, and a LEVEL knob.
+- **LO-FI** is named for its TYPE. A wave shows what AMOUNT does (squashed, or stepped for Bitcrusher) and what NOISE adds, with AMOUNT and MIX knobs.
+- **Settings or audio:** DE-ESSER (like DYNAMICS and MARS) shows live audio. The others draw from their settings, so they change as you turn the controls.
+
+## 0.24.0
+
+- **FACEPLATE stage 2: DELAY, REVERB and PITCH get their own faceplates,** built from the same PR7 parts as the first ones.
+- **DELAY** is named for its TYPE ("TAPE ECHO", "ANALOG DELAY", "SHIMMER DELAY"…).
+  - A screen shows the repeats laid out in time, each as loud as FEEDBACK leaves it. With DUAL on there's a row for each side, and PING-PONG is marked.
+  - A light runs along the repeats at the delay time. It keeps time with your delay setting, not the audio itself.
+  - TIME shows in the main display's seven-segment digits, or as the note length while synced.
+  - FEEDBACK and MIX are on the unit's big knobs.
+- **REVERB** is named for its TYPE ("HALL", "PLATE", "SPRING"…).
+  - A screen draws its shape: the PRE-DELAY gap, the early reflections (as tall as EARLY), then the tail fading over the real decay time. SPRING ripples, and REVERSE swells up and cuts off.
+  - DECAY shows in seconds in seven-segment digits.
+  - SIZE and MIX are on knobs.
+- **PITCH (HARMONY)** has two screens and three keys:
+  - **Note screen:** the note you're singing, with TUNE VOICE's target beside it when it's on, and the KEY and SCALE.
+  - **Voices screen:** the harmony voices by pan and interval, like a small version of the HARMONY graph. A flattened voice sits at its note, and note voices show as rings.
+  - **Keys:** small keys for HARMONY, OCTAVE and FREEZE, lit while each is on.
+- **Still the shared rack unit:** MODULATION, FILTER / PITCH, DE-ESSER, GLITCH, DOUBLER, GRAPHIC EQ and LO-FI, until stage 3.
+
 ## 0.23.1
 
 - **The faceplates are now part of the PR7 line** (the owner's request): every one is built from the PR7's own parts instead of their own looks.
