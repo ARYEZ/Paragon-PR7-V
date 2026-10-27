@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.32.0
+
+- **HARMONY rebuilt for the rack, at full size** (the last of the four editors: now nothing on the rack is shrunk). In 0.28.0 it was scaled down into a screen in the rack.
+  - **The display** is HARMONY's own: KEY and SCALE on screens, the note you're singing on a screen under them (with TUNE VOICE's target), and the voice graph on the unit's screen beside them. You play the graph as before: click an empty spot to add a voice, drag one to move it, scroll over one for its interval, right-click to remove it. SNAPSHOTS sits in the graph's corner.
+  - **Along the top:** HARMONY / OCTAVE-FREEZE, then HARMONY's own key (on/off), GLOBAL and TUNE VOICE.
+  - **Then the voice keys 1-8** (a voice not in use is lettered dimmer), **NOTES** and **FX**.
+  - **Then the view's controls in one row,** at full size: the voice's ON, CORRECT and FLATTEN keys and its PITCH (or NOTE), FINE, FORMANT with the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT); or NOTES (GENERATE, CHORD with EDIT, MIDI and the note voices' eight knobs); or FX (DELAY, SYNC, FEEDBACK, FILTER, CUTOFF); or GLOBAL (GLIDE, SYNC, PITCH, FORMANT and the mix). The unit's big knobs, values on small screens, lists on screens.
+  - **The Note Map and SNAPSHOTS** open on one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
 ## 0.31.0
 
 - **MARS (SATURATION) rebuilt for the rack, at full size** (the third of the four editors; HARMONY is last). In 0.28.0 it was shrunk into a screen in the rack.

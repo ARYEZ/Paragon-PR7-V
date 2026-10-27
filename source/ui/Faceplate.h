@@ -62,11 +62,10 @@ public:
     void setRackDisplayWidth (float width, float sideWidth = 0.0f);   // sideWidth: a section on the right (EXPRESSION ASSIGN), at getSideArea()
     juce::Rectangle<int> getSideArea() const;
     juce::Rectangle<int> getDisplayArea() const;   // on the rack: where the block's display is, under its name
-    // A screen's frame on the face round `area` (in this component), for a
-    // block whose controls are a whole editor (HARMONY, the EQ...): it sits
-    // in the glass, getWindowGlass(), as on the unit's big screen. Empty: none.
-    void setWindow (juce::Rectangle<int> area);
-    juce::Rectangle<int> getWindowGlass() const;
+    // On the rack, HARMONY's and MARS's panels draw their own display
+    // (their graph, their band display) over the display area: the
+    // faceplate then draws only the block's name there.
+    void setDisplayCovered (bool covered);
     bool isRack() const noexcept { return rackDisplayWidth > 0.0f; }
     juce::Rectangle<int> getControlArea() const;
 
@@ -116,7 +115,7 @@ private:
     juce::Colour colour;   // the block's colour in the chain (the faders' light)
     juce::Image satin;     // the pearl's grain, as on the unit
     float rackDisplayWidth = 0.0f, rackSideWidth = 0.0f;
-    juce::Rectangle<int> window;
+    bool displayCovered = false;
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less

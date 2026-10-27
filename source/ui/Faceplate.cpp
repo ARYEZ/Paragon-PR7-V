@@ -305,22 +305,13 @@ juce::Rectangle<int> Faceplate::getControlArea() const
     return content.toNearestInt();
 }
 
-void Faceplate::setWindow (juce::Rectangle<int> area)
+void Faceplate::setDisplayCovered (bool covered)
 {
-    window = area;
-    repaint();
-}
-
-namespace { constexpr float windowFrame = 0.35f; }   // the window's frame, against the main display's
-
-juce::Rectangle<int> Faceplate::getWindowGlass() const
-{
-    if (window.isEmpty())
-        return {};
-    // The glass paintScreen would give, measured on a scratch image.
-    juce::Image scratch (juce::Image::ARGB, 1, 1, true);
-    juce::Graphics g (scratch);
-    return LedDisplay::paintScreen (g, window.toFloat(), windowFrame).getSmallestIntegerContainer().reduced (1);
+    if (displayCovered != covered)
+    {
+        displayCovered = covered;
+        repaint();
+    }
 }
 
 juce::Rectangle<int> Faceplate::getDisplayArea() const
@@ -360,8 +351,6 @@ void Faceplate::paint (juce::Graphics& g)
     auto header = content.removeFromTop (30.0f);
     ParagonLookAndFeel::drawNeonBar (g, header.removeFromRight (34.0f).withSizeKeepingCentre (30.0f, 6.0f).translated (0.0f, -6.0f), isOn());
     content.removeFromTop (6.0f);
-    if (! window.isEmpty())
-        LedDisplay::paintScreen (g, window.toFloat(), windowFrame);
     if (isRack())
     {
         // The display on the left; a printed red line between it and the
@@ -611,8 +600,8 @@ void Faceplate::paintMars (juce::Graphics& g, juce::Rectangle<float> header, juc
     // A valve unit: behind one long screen, a tube for each band, glowing
     // in the LED orange as hard as the band is driven, its STYLE under it.
     nameplate (g, header, "MARS", "MULTIBAND SATURATION");
-    if (isRack())
-        return;   // on the rack, MARS's own band display is the display (MarsPanel draws it here)
+    if (displayCovered)
+        return;   // MARS's own band display is the display (MarsPanel draws it here)
     const auto on = isOn();
     const auto glass = screen (g, body);
     auto inside = glass.reduced (glass.getWidth() * 0.03f, glass.getHeight() * 0.08f);
@@ -806,6 +795,8 @@ void Faceplate::paintHarmony (juce::Graphics& g, juce::Rectangle<float> header, 
     // The voice processor: the note sung on one screen, the voices on
     // another, and keys for HARMONY, OCTAVE and FREEZE.
     nameplate (g, header, "HARMONY", "VOICE PROCESSOR");
+    if (displayCovered)
+        return;   // HARMONY's own panel draws its display here (KEY, SCALE, the note sung, the graph)
 
     // Keys down the right, each with its light stripe and name.
     auto keys = isRack() ? juce::Rectangle<float>() : body.removeFromRight (98.0f);   // the rack has the real HARMONY, OCTAVE, FREEZE keys

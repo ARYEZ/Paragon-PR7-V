@@ -914,26 +914,19 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
         REQUIRE (count == 1);
         const auto shown = showing->getBoundsInParent();   // as drawn, scaled for an editor
         CHECK (rackBounds.contains (shown));
-        CHECK (shown.getX() >= rack.getX() + (dynamic_cast<MarsPanel*> (showing) != nullptr ? rack.getDisplayArea() : rack.getControlArea()).getX());
+        CHECK (shown.getX() >= rack.getX() + rack.getDisplayArea().getX());
         CHECK (shown.getRight() <= expression[0]->getX());
-        // An editor sits in its screen on the face, scaled to fit, and a
-        // click on it lands on it (the scaling also moves where it's clicked).
-        if (dynamic_cast<EffectPanel*> (showing) == nullptr && dynamic_cast<GraphicEqPanel*> (showing) == nullptr
-            && dynamic_cast<DoublerPanel*> (showing) == nullptr && dynamic_cast<MarsPanel*> (showing) == nullptr)
+        // On the face at full size, nothing shrunk. HARMONY and MARS cover
+        // the rack's display too (their graph and band display are the
+        // display), and a click there lands on them.
+        CHECK (showing->getTransform().isIdentity());
+        const auto controls = rack.getControlArea() + rack.getPosition();
+        const auto coversDisplay = dynamic_cast<MarsPanel*> (showing) != nullptr || dynamic_cast<HarmonyPanel*> (showing) != nullptr;
+        CHECK (shown == (coversDisplay ? controls.getUnion (rack.getDisplayArea() + rack.getPosition()) : controls));
+        if (coversDisplay)
         {
-            CHECK (shown == rack.getWindowGlass() + rack.getPosition());
-            const auto centre = shown.getCentre();
-            auto* hit = parent->getComponentAt (centre);
+            auto* hit = parent->getComponentAt ((rack.getDisplayArea() + rack.getPosition()).getCentre());
             CHECK ((hit == showing || showing->isParentOf (hit)));
-        }
-        else
-        {
-            // On the face at full size, not shrunk into a screen.
-            CHECK (rack.getWindowGlass().isEmpty());
-            CHECK (showing->getTransform().isIdentity());
-            // (MARS covers the rack's display too: its band display is the display.)
-            const auto controls = rack.getControlArea() + rack.getPosition();
-            CHECK (shown == (dynamic_cast<MarsPanel*> (showing) != nullptr ? controls.getUnion (rack.getDisplayArea() + rack.getPosition()) : controls));
         }
     }
 
@@ -994,6 +987,37 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
     CHECK_THAT (processor.getParameters().getRawParameterValue ("eq250")->load(), Catch::Matchers::WithinAbs (-5.0, 0.05));
     eqFaders[9]->setValue (3.0, juce::sendNotificationSync);    // LEVEL
     CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::eqLevel)->load(), Catch::Matchers::WithinAbs (3.0, 0.05));
+
+    // HARMONY on the rack: its graph is in the rack's display, and a click
+    // on an empty spot there adds a voice, as before.
+    chains[0]->onSelect (0);
+    auto* harmonyPanel = dynamic_cast<HarmonyPanel*> (editors[0]);
+    REQUIRE (harmonyPanel != nullptr);
+    REQUIRE (harmonyPanel->isVisible());
+    CHECK (harmonyPanel->isRack());
+    // (Voices 1 and 2 start in use; a click on an empty spot adds the first free one, voice 3.)
+    REQUIRE (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() < 0.5f);
+    const auto spot = harmonyPanel->pointFor (0.6f, -12.0f);
+    const auto harmonyDisplay = rack.getDisplayArea() + rack.getPosition() - harmonyPanel->getPosition();
+    CHECK (harmonyDisplay.toFloat().contains (spot));
+    harmonyPanel->mouseDown (mouseAt (*harmonyPanel, spot));
+    harmonyPanel->mouseUp (mouseAt (*harmonyPanel, spot));
+    CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() > 0.5f);
+    CHECK (harmonyPanel->getSelectedVoice() == 2);
+    // The Note Map opens on the wide screen, hiding what's under it; closing it brings that back.
+    harmonyPanel->showNotes (true);
+    harmonyPanel->openNoteMap();
+    CHECK (harmonyPanel->getNoteMap().getX() < harmonyDisplay.getRight());   // across the display too
+    std::vector<juce::TextButton*> harmonyButtons;
+    findAll (*harmonyPanel, harmonyButtons);
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (! button->isVisible());
+    harmonyPanel->closeNoteMap();
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (button->isVisible());
+    harmonyPanel->showNotes (false);
 
     // On the rack the controls are the real ones: DELAY's FEEDBACK knob
     // (one of the unit's big knobs) sets the delay's feedback.

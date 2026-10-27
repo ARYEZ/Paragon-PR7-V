@@ -77,6 +77,8 @@ public:
     // Set this on a ToggleButton to draw it as one of the unit's small keys,
     // its light stripe lit while it's on (the rack unit's switches).
     static constexpr const char* rackKeyProperty = "rackKey";
+    // Set this on a pedalButton to letter it dimmer (HARMONY's keys for voices not in use).
+    static constexpr const char* dimTextProperty = "dimText";
 
     // Set this on a vertical slider to draw it as a graphic-EQ fader: a thin
     // groove lit from its centre (0 dB) to the cap, and a small black cap.

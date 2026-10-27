@@ -34,8 +34,19 @@ public:
     // The colour of the header icon, the graph, the fixed voices and the note sung: the PITCH block's colour in the chain. (Note voices stay blue.)
     void setAccent (juce::Colour colour);
 
+    // On the rack unit's face (see Faceplate), at full size. The panel then
+    // covers the rack's display too (`displayArea`, in this component): KEY,
+    // SCALE and the note sung on the left of it, the graph on a screen beside
+    // them, played with the mouse as before. Along the top (after the view
+    // keys the main view places), HARMONY's key, GLOBAL and TUNE VOICE; then
+    // the voice keys 1-8, NOTES and FX; then the view's controls in one row
+    // (the unit's big knobs, lists on screens, switches as keys). The Note
+    // Map and SNAPSHOTS open on one wide screen across the display and the controls.
+    void setRack (bool inRack, juce::Rectangle<int> displayArea);
+    bool isRack() const noexcept { return rack; }
+
     void paint (juce::Graphics&) override;
-    bool showTitle = true;   // its icon and name in the header (not on the rack, which shows the name)
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -160,5 +171,13 @@ private:
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;
 
     juce::Rectangle<float> graph, sungArea, readoutArea;
+    bool rack = false;
+    juce::Rectangle<int> rackDisplay;          // on the rack: where the rack's display is
+    juce::Rectangle<float> graphFrame, wideScreen, sungFrame;   // on the rack: the screens drawn
+    juce::Colour inkColour;
+    mutable std::vector<juce::Rectangle<float>> glasses;
+    void layOutRack();
+    void styleForRack();
+    void rackOverlayChanged();
     juce::String shownSung, shownTuned;
 };

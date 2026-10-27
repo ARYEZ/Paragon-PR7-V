@@ -178,6 +178,8 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     const auto neonKey = Finish::neonKeys();
     g.setColour (button.isEnabled() ? (on ? (neonKey ? juce::Colour (0xffffe9a8) : ParagonColours::accent) : (neonKey ? juce::Colours::white : ParagonColours::text))
                                     : (neonKey ? juce::Colours::white.withAlpha (0.5f) : ParagonColours::textDim));
+    if (button.getProperties()[dimTextProperty] && ! on)
+        g.setColour (neonKey ? juce::Colours::white.withAlpha (0.45f) : ParagonColours::textDim.withAlpha (0.6f));
     g.drawFittedText (button.getButtonText(), area.toNearestInt(), juce::Justification::centred, 1);
 }
 

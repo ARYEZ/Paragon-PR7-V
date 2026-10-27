@@ -683,79 +683,42 @@ void MainView::layoutDock()
     expressionPanel.setBounds (faceplate.getSideArea() + faceplate.getPosition());
     expressionPanel.toFront (false);
 
+    // The controls, on the face at full size. The GRAPHIC EQ and the DOUBLER
+    // have their own rack layouts; HARMONY and MARS cover the rack's display
+    // too, as their graph and band display are the display.
     const auto controls = faceplate.getControlArea() + faceplate.getPosition();
+    const auto display = faceplate.getDisplayArea() + faceplate.getPosition();
     for (auto& panel : panels)
         if (panel != nullptr)
         {
             panel->setRack (true);
             panel->setBounds (controls);
         }
-
-    // HARMONY, the EQ, the DOUBLER and MARS are whole editors: each sits in
-    // a screen on the face, as on the unit's big screen. They're laid out
-    // at the height they were designed for (the dock's) and as wide as the
-    // screen allows at that height, then scaled to fit it, so nothing in
-    // them is squeezed.
-    // (The GRAPHIC EQ and the DOUBLER have their own rack layouts, on the face at full size.)
     eqPanel.setRack (true);
     eqPanel.setBounds (controls);
     doublerPanel.setRack (true);
     doublerPanel.setBounds (controls);
-    // MARS covers the rack's display too: its band display is the display.
-    {
-        const auto displayArea = faceplate.getDisplayArea() + faceplate.getPosition();
-        marsPanel.setBounds (controls.getUnion (displayArea));
-        marsPanel.setRack (true, displayArea - marsPanel.getPosition());
-    }
-    const std::initializer_list<juce::Component*> editors { &harmonyPanel };
-    juce::Component* editorShowing = nullptr;
-    for (auto* editor : editors)
-        if (editor->isVisible())
-            editorShowing = editor;
-    faceplate.setWindow (editorShowing != nullptr ? controls - faceplate.getPosition() : juce::Rectangle<int>());
-    harmonyPanel.showTitle = false;
-    const auto glass = (editorShowing != nullptr ? faceplate.getWindowGlass() + faceplate.getPosition() : controls).toFloat();
-    const auto designHeight = mockF (0, 568, 0, 822).getHeight();
-    const auto scale = juce::jmin (1.0f, glass.getHeight() / designHeight);
-    for (auto* editor : editors)
-    {
-        editor->setTransform ({});
-        editor->setBounds (juce::Rectangle<float> (glass.getX(), glass.getY(), glass.getWidth() / scale, designHeight).toNearestInt());
-        editor->setTransform (juce::AffineTransform::scale (scale, scale, glass.getX(), glass.getY()));
-    }
+    for (auto* editor : { static_cast<juce::Component*> (&marsPanel), static_cast<juce::Component*> (&harmonyPanel) })
+        editor->setBounds (controls.getUnion (display));
+    marsPanel.setRack (true, display - marsPanel.getPosition());
+    harmonyPanel.setRack (true, display - harmonyPanel.getPosition());
+    faceplate.setDisplayCovered (marsPanel.isVisible() || harmonyPanel.isVisible());
+
     for (auto& panel : panels)
         if (panel != nullptr && panel->isVisible())
             panel->toFront (false);
-    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel, &marsPanel })
+    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel, &marsPanel, &harmonyPanel })
         if (panel->isVisible())
             panel->toFront (false);
-    for (auto* editor : editors)
-        if (editor->isVisible())
-            editor->toFront (false);
 
-    // The unit's keys: GRAPHIC EQ (back to the default block) top right,
-    // PITCH's HARMONY / OCTAVE views top left: over the controls' row of
-    // keys, or in an editor's header (where its name was).
+    // The unit's keys over the controls' top row: GRAPHIC EQ (back to the
+    // default block) at the right, PITCH's HARMONY / OCTAVE views at the left.
     closePanel.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
     for (auto* view : { &harmonyView, &octaveView })
         view->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
-    if (editorShowing != nullptr)
-    {
-        const auto inEditor = [&] (float x, float y, float w, float h)
-        {
-            return juce::Rectangle<float> (glass.getX() + x * scale, glass.getY() + y * scale, w * scale, h * scale).toNearestInt();
-        };
-        const auto width = glass.getWidth() / scale;
-        closePanel.setBounds (inEditor (width - 130.0f, 10.0f, 118.0f, 24.0f));
-        harmonyView.setBounds (inEditor (16.0f, 10.0f, 92.0f, 24.0f));
-        octaveView.setBounds (inEditor (114.0f, 10.0f, 132.0f, 24.0f));
-    }
-    else
-    {
-        closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
-        harmonyView.setBounds (controls.getX(), controls.getY(), 92, 24);
-        octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 132, 24);
-    }
+    closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
+    harmonyView.setBounds (controls.getX(), controls.getY(), 92, 24);
+    octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 132, 24);
     for (auto* button : std::initializer_list<juce::Component*> { &closePanel, &harmonyView, &octaveView })
         if (button->isVisible())
             button->toFront (false);
