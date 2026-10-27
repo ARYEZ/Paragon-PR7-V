@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ui/ParagonLookAndFeel.h"
+
 #include "MarsModUi.h"
 #include "MarsSlotsView.h"
 #include "MarsSourcesView.h"
@@ -32,6 +34,9 @@ public:
     MarsPanel (juce::AudioProcessorValueTreeState&, std::function<float (int)> bandDrive, const effects::Mars* mars = nullptr);
     ~MarsPanel() override;
 
+    // The colour of the header icon: the SATURATION block's colour in the chain. (The bands keep their own colours.)
+    void setAccent (juce::Colour colour);
+
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
@@ -57,6 +62,7 @@ public:
     void removeBand (int band);
 
 private:
+    juce::Colour accent = ParagonColours::drive;
     using Knob = MarsModUi::Knob;
     using Choice = MarsModUi::Choice;
     using Switch = MarsModUi::Switch;

@@ -32,6 +32,16 @@ namespace ParagonColours
     inline const juce::Colour delay      { 0xff45b4ff };
     inline const juce::Colour reverb     { 0xff4fe3dd };
     inline const juce::Colour eq         { 0xffff5a2c };
+
+    // A signal-chain block's colour, by its place in the chain: the red,
+    // hot pink and orange gradient of the PR7 family's chains (as on the
+    // PR7-E), red first, orange last. Its edit panel uses the same colour.
+    inline juce::Colour chainColour (int index, int count)
+    {
+        juce::ColourGradient gradient (juce::Colour (0xffe0103c), 0.0f, 0.0f, juce::Colour (0xffff7a1a), 1.0f, 0.0f, false);
+        gradient.addColour (0.5, juce::Colour (0xffff2f7a));
+        return gradient.getColourAtPosition ((double) index / juce::jmax (1, count - 1));
+    }
     inline const juce::Colour filterPitch { 0xffb8f040 };   // lime
     inline const juce::Colour glitch     { 0xffff4fd8 };   // hot magenta
     inline const juce::Colour pitch      { 0xffbfe6ff };   // ice blue

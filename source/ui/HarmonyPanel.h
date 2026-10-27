@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ui/ParagonLookAndFeel.h"
+
 #include "dsp/effects/Harmony.h"
 #include "ui/NoteMapEditor.h"
 
@@ -28,6 +30,9 @@ public:
                   const effects::Harmony* harmony = nullptr);
     ~HarmonyPanel() override;
 
+    // The colour of the header icon, the graph, the fixed voices and the note sung: the PITCH block's colour in the chain. (Note voices stay blue.)
+    void setAccent (juce::Colour colour);
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -53,6 +58,7 @@ public:
     std::pair<float, float> panAndLevelAt (juce::Point<float>) const;
 
 private:
+    juce::Colour accent = ParagonColours::pitch;
     struct Knob
     {
         juce::Label label;

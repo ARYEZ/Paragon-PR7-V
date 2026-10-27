@@ -228,6 +228,12 @@ juce::Rectangle<float> HarmonyPanel::keyboardArea() const
     return graph.reduced (8.0f, 0.0f).removeFromBottom (14.0f).translated (0.0f, -4.0f);
 }
 
+void HarmonyPanel::setAccent (juce::Colour colour)
+{
+    accent = colour;
+    repaint();
+}
+
 void HarmonyPanel::openNoteMap()
 {
     const auto customChord = (float) effects::Harmony::customChord;
@@ -567,7 +573,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
     g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), ParagonColours::pitch, 1.6f, true);
+    Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
     header.removeFromLeft (8.0f);
     g.setColour (ParagonColours::text);
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
@@ -580,7 +586,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
         g.setColour (ParagonColours::textDim);
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawText ("SINGING", area.removeFromTop (14.0f), juce::Justification::centred, false);
-        g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : ParagonColours::pitch);
+        g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : accent);
         g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
         const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
         g.drawText (shownSung, area, juce::Justification::centred, false);
@@ -601,13 +607,13 @@ void HarmonyPanel::paint (juce::Graphics& g)
     for (const auto db : { 0, -6, -12, -24 })
     {
         const auto y = pointFor (0.0f, (float) db).y;
-        g.setColour (ParagonColours::pitch.withAlpha (db == 0 ? 0.18f : 0.08f));
+        g.setColour (accent.withAlpha (db == 0 ? 0.18f : 0.08f));
         g.drawHorizontalLine (juce::roundToInt (y), graph.getX() + 4.0f, graph.getRight() - 4.0f);
         g.setColour (ParagonColours::textDim.withAlpha (0.7f));
         g.drawText (juce::String (juce::roundToInt (db)), juce::Rectangle<float> (graph.getX() + 4.0f, y - 11.0f, 24.0f, 10.0f),
                     juce::Justification::centredLeft, false);
     }
-    g.setColour (ParagonColours::pitch.withAlpha (0.12f));
+    g.setColour (accent.withAlpha (0.12f));
     g.drawVerticalLine (juce::roundToInt (graph.getCentreX()), graph.getY() + 4.0f, graph.getBottom() - 4.0f);
     g.setColour (ParagonColours::textDim.withAlpha (0.7f));
     g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
@@ -622,7 +628,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
         const auto centre = pointFor (value (voiceId (voice, "Pan")), value (voiceId (voice, "Level")));
         const auto dot = juce::Rectangle<float> (dotRadius * 2.0f, dotRadius * 2.0f).withCentre (centre);
         const auto sounding = harmonyIsOn && value (voiceId (voice, "On")) > 0.5f;
-        const auto colour = value (voiceId (voice, "On")) > 0.5f ? ParagonColours::pitch : ParagonColours::textDim;
+        const auto colour = value (voiceId (voice, "On")) > 0.5f ? accent : ParagonColours::textDim;
         if (sounding)
         {
             g.setColour (colour.withAlpha (0.2f));

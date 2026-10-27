@@ -2,6 +2,18 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.21.2
+
+- **The SIGNAL CHAIN now matches the rest of the PR7 family** (as on the PR7-E and PR7-G). Every block is coloured by its place in the chain, along one red, hot pink and orange gradient: red at PITCH, hot pink in the middle (EQ, DOUBLER), orange at LO-FI. Before, each block had its own unrelated colour. Switched-off blocks still show their colour dimmed.
+- **The edit panels match their blocks:** each panel's header icon and the bars above its controls use its block's colour.
+  - The GRAPHIC EQ's faders and response curve take the EQ block's hot pink.
+  - PR7-V's own panels follow too:
+    - HARMONY's graph, voices and SINGING note take the PITCH block's red, while the NOTES tab's note voices stay blue so generated notes stand out.
+    - MARS's header icon matches SATURATION, while its bands keep their own colours so you can tell them apart.
+    - DOUBLER's voice numbers match its block.
+  - The knob rings and buttons keep the plugin's orange.
+- **Nothing changes in the sound.**
+
 ## 0.21.1
 
 - **Fixed: PITCH wouldn't turn off once TUNE VOICE was on.** TUNE VOICE (HARMONY's pitch correction) works without HARMONY, but the PITCH stomp didn't switch it. With the stomp's light out, your voice stayed tuned and 40 ms late, so PITCH seemed stuck on.
