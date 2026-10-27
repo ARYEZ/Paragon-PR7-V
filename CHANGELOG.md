@@ -2,6 +2,38 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.21.2
+
+- **The SIGNAL CHAIN now matches the rest of the PR7 family** (as on the PR7-E and PR7-G). Every block is coloured by its place in the chain, along one red, hot pink and orange gradient: red at PITCH, hot pink in the middle (EQ, DOUBLER), orange at LO-FI. Before, each block had its own unrelated colour. Switched-off blocks still show their colour dimmed.
+- **The edit panels match their blocks:** each panel's header icon and the bars above its controls use its block's colour.
+  - The GRAPHIC EQ's faders and response curve take the EQ block's hot pink.
+  - PR7-V's own panels follow too:
+    - HARMONY's graph, voices and SINGING note take the PITCH block's red, while the NOTES tab's note voices stay blue so generated notes stand out.
+    - MARS's header icon matches SATURATION, while its bands keep their own colours so you can tell them apart.
+    - DOUBLER's voice numbers match its block.
+  - The knob rings and buttons keep the plugin's orange.
+- **Nothing changes in the sound.**
+
+## 0.21.1
+
+- **Fixed: PITCH wouldn't turn off once TUNE VOICE was on.** TUNE VOICE (HARMONY's pitch correction) works without HARMONY, but the PITCH stomp didn't switch it. With the stomp's light out, your voice stayed tuned and 40 ms late, so PITCH seemed stuck on.
+- **The PITCH stomp now switches TUNE VOICE too,** with HARMONY and the octaver. Off means your plain voice, with no delay. Pressing it again brings back exactly what was on, TUNE VOICE in the mode it had (Natural, Hard or Notes). The stomp's light, its hover text and the PITCH block in the signal chain all show when TUNE VOICE is on.
+- **Unchanged:** HARMONY's own switch in the panel still switches only the harmony voices. That way you can still use TUNE VOICE on its own, with no harmonies.
+
+## 0.21.0
+
+- **HARMONY stage 5: the Note Map Editor.** Inspired by Waves Harmony's Note Map Editor. Click **EDIT** beside CHORD on the NOTES tab to make your own map of what each note plays.
+  - **CHORD** gains a 19th map, **Custom**: yours. The first time you click EDIT it starts as a copy of the map you were using, so you change it rather than starting from nothing.
+  - **PLAYS:** pick a note (C to B), then click keys on the keyboard to add or remove what that note plays (a purple dot). Each note can play anything up to just under two octaves above or below, any number of notes. A sung note that's out of the key has its own row too, so it can have a different harmony.
+  - **SPREAD / FOLD:** SPREAD (to start) moves the harmony with the octave you sing in. FOLD keeps the notes where you set them on the keyboard, whatever octave you sing.
+  - **SCALE Custom** (a new scale): the SCALE row sets each note In, **>** (moved up to the next note in the scale) or **<** (moved down). It's kept relative to KEY, so it follows a key change. With any other scale, the row shows what that scale does.
+  - **FROM CHORD** starts from any built-in map, and **ERASE** clears the map. A blue ring shows each note as it will sound once the scale is applied. Keys held on a MIDI keyboard light up pink.
+  - Played MIDI keys set to **Through Chord** go through your map as well.
+- **Our design where the guide doesn't say:** the range (±23 semitones from the note), and that FOLD moves a note an octave nearer when it's more than two octaves from what you sing. That's the most a harmony voice can shift, and past it the note would come out wrong.
+- **Saved with your rig/project:** the map and SPREAD/FOLD. The Custom scale boxes are global, like KEY and SCALE, so changing rigs keeps your scale.
+- **Not built yet:** per-note velocity and level in the map, and named, saved maps.
+- **Also:** CHORD on the NOTES tab is a little narrower to make room for EDIT, so long map names are cut short in the box; the full names are in its list.
+
 ## 0.20.0
 
 - **HARMONY stage 4: MIDI notes.** Inspired by Waves Harmony's MIDI keyboard input. Send MIDI to PR7-V (a MIDI track or keyboard routed to it in your DAW) and the keys you play become harmony voices made from your own voice.

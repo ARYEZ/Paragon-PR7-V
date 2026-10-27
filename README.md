@@ -33,7 +33,8 @@ descriptions below still talk about guitar.
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
 | V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
 | V7 | Harmony stage 4: MIDI note input (As Played / Through Chord, velocity, sustain) | ✅ Done (0.20.0) |
-| V8 | Harmony: Note Map Editor, per-voice delay/filter, snapshots, modulators | Next |
+| V8 | Harmony stage 5: Note Map Editor (CHORD Custom, SCALE Custom, Spread/Fold) | ✅ Done (0.21.0) |
+| V9 | Harmony: per-voice delay/filter, snapshots, modulators | Next |
 
 ## Using it
 
@@ -42,7 +43,9 @@ descriptions below still talk about guitar.
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
-  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.) The **PITCH** stomp switches
+  HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
+  what was on (TUNE VOICE in the mode it had).
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
     **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
     DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
@@ -98,6 +101,10 @@ descriptions below still talk about guitar.
       become note voices too: **As Played** (exactly the keys) or **Through Chord** (each key through the CHORD map);
       velocity sets their level and the sustain pedal holds them, and TUNE VOICE's Notes then follows the nearest held
       key. A keyboard strip under the graph shows the keys held (pink) and the generated note (blue).
+      **EDIT** (beside CHORD) opens the **Note Map Editor**: CHORD becomes **Custom**, starting as a copy of the map
+      you had. Pick a note in **PLAYS**, then click keys to set what it plays; **SPREAD** moves the harmony with the octave
+      you sing, **FOLD** keeps it where it's set. **SCALE Custom** lets each note of the scale row be In, moved up
+      (**>**) or down (**<**). **FROM CHORD** starts from a built-in map, **ERASE** clears it, **DONE** closes it.
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).

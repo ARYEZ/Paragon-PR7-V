@@ -671,3 +671,118 @@ TEST_CASE ("HARMONY's NOTES tab: the note controls in place of the voice's", "[u
     panel.showNotes (false);
     CHECK_FALSE ((*chordBox)->isVisible());
 }
+
+TEST_CASE ("HARMONY's Note Map Editor: EDIT, keys, SCALE boxes and DONE", "[ui][harmony][notemap]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    HarmonyPanel panel (parameters, [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    panel.showNotes (true);
+    const auto plain = [&parameters] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    auto& editor = panel.getNoteMap();
+    const auto mapOfA = [&editor] { return editor.mapOf (9); };
+    const auto bit = [] (int offset) { return std::uint64_t { 1 } << (offset + effects::Harmony::mapSpan); };
+
+    // EDIT: CHORD becomes Custom, starting from the map that was playing
+    // (3rd + 5th Above in C major: A plays C and E above).
+    CHECK_FALSE (panel.isShowingNoteMap());
+    panel.openNoteMap();
+    CHECK (panel.isShowingNoteMap());
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyChord)) == effects::Harmony::customChord);
+    CHECK (mapOfA() == (bit (3) | bit (7)));
+
+    // A key click adds or removes what the picked note plays.
+    editor.selectNote (9);
+    editor.toggleKey (60 + 9 + 12);   // A4: an octave above
+    CHECK (mapOfA() == (bit (3) | bit (7) | bit (12)));
+    CHECK (plain (ParamIDs::harmonyMap (9, 1)) > 0.0f);
+    editor.toggleKey (60 + 9 + 3);    // C5 off
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+
+    // SCALE boxes: only with SCALE Custom; In → Up → Down → In.
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 0);
+    auto* scale = parameters.getParameter (ParamIDs::harmonyScale);
+    scale->setValueNotifyingHost (scale->convertTo0to1 ((float) Scales::Scale::custom));
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 1);
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 2);
+
+    // A second EDIT keeps your map; ERASE clears it; DONE (or leaving NOTES) closes.
+    panel.closeNoteMap();
+    panel.openNoteMap();
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+    editor.erase();
+    CHECK (mapOfA() == 0);
+    panel.showNotes (false);
+    CHECK_FALSE (panel.isShowingNoteMap());
+}
+
+TEST_CASE ("The PITCH stomp switches TUNE VOICE too: off means the plain voice, on brings its mode back", "[ui][harmony][correct]")
+{
+    // 0.21.0 and before: TUNE VOICE works without HARMONY, and the stomp
+    // didn't switch it, so with the stomp's light out the voice stayed
+    // tuned and 40 ms late: PITCH seemed impossible to turn off.
+    ParagonX1AudioProcessor processor;
+    constexpr double rate = 48000.0;
+    constexpr int blockSize = 256;
+    processor.setPlayConfigDetails (1, 2, rate, blockSize);
+    set (processor, ParamIDs::inputLowCut, 20.0f);
+    processor.prepareToPlay (rate, blockSize);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Footswitch*> footswitches;
+    findAll (*editor, footswitches);
+    REQUIRE (footswitches.size() == 7);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+               { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    auto& pitch = *footswitches[3];
+    auto& state = processor.getParameters();
+    const auto correct = [&state] { return juce::roundToInt (state.getRawParameterValue (ParamIDs::harmonyCorrect)->load()); };
+
+    // The largest difference between what goes in and what comes out over
+    // the last half of a second of a slightly flat A3 (a voice to tune).
+    const auto changeToVoice = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        auto worst = 0.0f;
+        const auto blocks = (int) rate / blockSize;
+        for (int n = 0; n < blocks; ++n)
+        {
+            std::array<float, blockSize> in {};
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const auto t = (double) (n * blockSize + i) / rate;
+                for (int h = 1; h <= 6; ++h)
+                    in[(size_t) i] += (float) (0.15 / h * std::sin (juce::MathConstants<double>::twoPi * 214.0 * h * t));
+                buffer.setSample (0, i, in[(size_t) i]);
+            }
+            processor.processBlock (buffer, midi);
+            if (n >= blocks / 2)
+                for (int i = 0; i < blockSize; ++i)
+                    worst = std::max (worst, std::abs (buffer.getSample (0, i) - in[(size_t) i]));
+        }
+        return worst;
+    };
+
+    set (processor, ParamIDs::harmonyCorrect, (float) effects::Harmony::Correct::hard);
+    processor.updateLatency();
+    CHECK (processor.getLatencySamples() > 0);
+    CHECK (changeToVoice() > 0.1f);   // tuned (and late)
+    pitch.refresh();
+    CHECK (pitch.isAnyOn());          // the stomp's light shows it
+
+    pitch.toggle();                   // off
+    processor.updateLatency();
+    CHECK (correct() == (int) effects::Harmony::Correct::off);
+    CHECK (processor.getLatencySamples() == 0);
+    CHECK (changeToVoice() < 1.0e-5f);   // the plain voice, untouched
+    CHECK_FALSE (pitch.isAnyOn());
+
+    pitch.toggle();                   // on: Hard again, not another mode, and not HARMONY
+    CHECK (correct() == (int) effects::Harmony::Correct::hard);
+    CHECK (state.getRawParameterValue (ParamIDs::harmonyOn)->load() < 0.5f);
+}

@@ -46,7 +46,8 @@ namespace
 
 HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::function<float()> sungNoteSource,
                             std::function<float()> correctNoteSource, const effects::Harmony* harmonyToShow)
-    : parameters (state), sungNote (std::move (sungNoteSource))
+    : parameters (state), sungNote (std::move (sungNoteSource)),
+      noteMap (state, [this] (int midiNote) { return midiKeyHeld != nullptr && midiKeyHeld (midiNote); })
 {
     correctNote = std::move (correctNoteSource);
     harmonyEngine = harmonyToShow;
@@ -165,6 +166,14 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
         knob->slider.setTooltip (tip);
     }
 
+    editMap.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    editMap.setColour (juce::TextButton::textColourOffId, noteBlue);
+    editMap.setTooltip ("The Note Map Editor: your own map of what each note plays (CHORD Custom), and a Custom scale");
+    editMap.onClick = [this] { openNoteMap(); };
+    addAndMakeVisible (editMap);
+    noteMap.onDone = [this] { closeNoteMap(); };
+    addChildComponent (noteMap);   // last: on top of everything when open
+
     selectVoice (0);
     showNotes (false);
     refreshTabs();
@@ -219,6 +228,37 @@ juce::Rectangle<float> HarmonyPanel::keyboardArea() const
     return graph.reduced (8.0f, 0.0f).removeFromBottom (14.0f).translated (0.0f, -4.0f);
 }
 
+void HarmonyPanel::setAccent (juce::Colour colour)
+{
+    accent = colour;
+    repaint();
+}
+
+void HarmonyPanel::openNoteMap()
+{
+    const auto customChord = (float) effects::Harmony::customChord;
+    const auto chordNow = juce::roundToInt (value (ParamIDs::harmonyChord));
+    if (chordNow != effects::Harmony::customChord)
+    {
+        auto empty = true;
+        for (int note = 0; note < 12; ++note)
+            empty = empty && noteMap.mapOf (note) == 0;
+        if (empty)
+            noteMap.fillFromChord (chordNow);   // start from what you were hearing
+        beginGesture (ParamIDs::harmonyChord);
+        set (ParamIDs::harmonyChord, customChord);
+        endGesture (ParamIDs::harmonyChord);
+    }
+    noteMap.setVisible (true);
+    noteMap.toFront (false);
+}
+
+void HarmonyPanel::closeNoteMap()
+{
+    noteMap.setVisible (false);
+    repaint();
+}
+
 void HarmonyPanel::showNotes (bool show)
 {
     notesShown = show;
@@ -247,6 +287,9 @@ void HarmonyPanel::showNotes (bool show)
     chord.setVisible (show);
     midiLabel.setVisible (show);
     midiMap.setVisible (show);
+    editMap.setVisible (show);
+    if (! show)
+        noteMap.setVisible (false);
     resized();
     repaint();
 }
@@ -431,6 +474,7 @@ void HarmonyPanel::resized()
     scale.setBounds (left.removeFromTop (26).reduced (4, 0));
     left.removeFromTop (4);
     sungArea = left.toFloat();
+    noteMap.setBounds (area);   // over the graph and the controls
 
     // CORRECT (Waves Harmony puts it by SOURCE; here there's room in the
     // header, left of the GRAPHIC EQ button the main view places).
@@ -463,13 +507,16 @@ void HarmonyPanel::resized()
     {
         // NOTES: what makes the notes, then how the note voices sound.
         auto top = right.removeFromTop (rowHeight);
-        const auto unit = (float) top.getWidth() / 6.0f;   // GENERATE 0.7, CHORD 2.2, the knobs about 1 each
-        generate.label.setBounds (top.removeFromLeft (juce::roundToInt (unit * 0.7f)).removeFromTop (14));
+        const auto unit = (float) top.getWidth() / 6.0f;   // GENERATE 0.62, CHORD 2.48 (with EDIT), the knobs about 1 each
+        generate.label.setBounds (top.removeFromLeft (juce::roundToInt (unit * 0.62f)).removeFromTop (14));
         generate.button.setBounds (juce::Rectangle<int> (generate.label.getX(), generate.label.getBottom(), generate.label.getWidth(), top.getHeight() - 14)
                                        .withSizeKeepingCentre (26, 26));
-        auto chordCell = top.removeFromLeft (juce::roundToInt (unit * 2.2f)).reduced (2, 0);
+        auto chordCell = top.removeFromLeft (juce::roundToInt (unit * 2.48f)).reduced (2, 0);
         chordLabel.setBounds (chordCell.removeFromTop (14));
-        chord.setBounds (chordCell.withSizeKeepingCentre (chordCell.getWidth(), 24).translated (0, -8));
+        auto chordRow = chordCell.withSizeKeepingCentre (chordCell.getWidth(), 24).translated (0, -8);
+        editMap.setBounds (chordRow.removeFromRight (40));
+        chordRow.removeFromRight (3);
+        chord.setBounds (chordRow);
         const auto knobWidth = top.getWidth() / 3;
         for (auto* knob : { &minNote, &tolerance, &toleranceTime })
         {
@@ -526,7 +573,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
     g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), ParagonColours::pitch, 1.6f, true);
+    Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
     header.removeFromLeft (8.0f);
     g.setColour (ParagonColours::text);
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
@@ -539,7 +586,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
         g.setColour (ParagonColours::textDim);
         g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawText ("SINGING", area.removeFromTop (14.0f), juce::Justification::centred, false);
-        g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : ParagonColours::pitch);
+        g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : accent);
         g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
         const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
         g.drawText (shownSung, area, juce::Justification::centred, false);
@@ -560,13 +607,13 @@ void HarmonyPanel::paint (juce::Graphics& g)
     for (const auto db : { 0, -6, -12, -24 })
     {
         const auto y = pointFor (0.0f, (float) db).y;
-        g.setColour (ParagonColours::pitch.withAlpha (db == 0 ? 0.18f : 0.08f));
+        g.setColour (accent.withAlpha (db == 0 ? 0.18f : 0.08f));
         g.drawHorizontalLine (juce::roundToInt (y), graph.getX() + 4.0f, graph.getRight() - 4.0f);
         g.setColour (ParagonColours::textDim.withAlpha (0.7f));
         g.drawText (juce::String (juce::roundToInt (db)), juce::Rectangle<float> (graph.getX() + 4.0f, y - 11.0f, 24.0f, 10.0f),
                     juce::Justification::centredLeft, false);
     }
-    g.setColour (ParagonColours::pitch.withAlpha (0.12f));
+    g.setColour (accent.withAlpha (0.12f));
     g.drawVerticalLine (juce::roundToInt (graph.getCentreX()), graph.getY() + 4.0f, graph.getBottom() - 4.0f);
     g.setColour (ParagonColours::textDim.withAlpha (0.7f));
     g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
@@ -581,7 +628,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
         const auto centre = pointFor (value (voiceId (voice, "Pan")), value (voiceId (voice, "Level")));
         const auto dot = juce::Rectangle<float> (dotRadius * 2.0f, dotRadius * 2.0f).withCentre (centre);
         const auto sounding = harmonyIsOn && value (voiceId (voice, "On")) > 0.5f;
-        const auto colour = value (voiceId (voice, "On")) > 0.5f ? ParagonColours::pitch : ParagonColours::textDim;
+        const auto colour = value (voiceId (voice, "On")) > 0.5f ? accent : ParagonColours::textDim;
         if (sounding)
         {
             g.setColour (colour.withAlpha (0.2f));
@@ -653,18 +700,18 @@ void HarmonyPanel::paint (juce::Graphics& g)
         for (int note = lowest; note <= highest; ++note)
             if (! isBlack (note))
             {
-                const auto key = juce::Rectangle<float> (keys.getX() + white * whiteWidth, keys.getY(), whiteWidth, keys.getHeight()).reduced (0.5f, 0.0f);
+                const auto whiteKey = juce::Rectangle<float> (keys.getX() + white * whiteWidth, keys.getY(), whiteWidth, keys.getHeight()).reduced (0.5f, 0.0f);
                 g.setColour (colourFor (note, juce::Colour (0xffd8d4da)));
-                g.fillRect (key);
-                xOf[(size_t) note] = key.getRight();
+                g.fillRect (whiteKey);
+                xOf[(size_t) note] = whiteKey.getRight();
                 ++white;
             }
         for (int note = lowest; note <= highest; ++note)
             if (isBlack (note))
             {
-                const auto key = juce::Rectangle<float> (whiteWidth * 0.6f, keys.getHeight() * 0.6f).withCentre ({ xOf[(size_t) note - 1], keys.getY() + keys.getHeight() * 0.3f });
+                const auto blackKey = juce::Rectangle<float> (whiteWidth * 0.6f, keys.getHeight() * 0.6f).withCentre ({ xOf[(size_t) note - 1], keys.getY() + keys.getHeight() * 0.3f });
                 g.setColour (colourFor (note, juce::Colour (0xff1a171c)));
-                g.fillRect (key);
+                g.fillRect (blackKey);
             }
 
         g.setColour (ParagonColours::textDim);

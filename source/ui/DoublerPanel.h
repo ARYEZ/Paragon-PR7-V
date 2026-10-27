@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ui/ParagonLookAndFeel.h"
+
 #include "dsp/effects/Doubler.h"
 
 // DOUBLER's knobs, shown when its block is picked: laid out after the lower
@@ -16,10 +18,14 @@ class DoublerPanel final : public juce::Component
 public:
     DoublerPanel (juce::AudioProcessorValueTreeState&, std::function<void()> resetModulation);
 
+    // The colour of the header icon and the voice numbers: the DOUBLER block's colour in the chain.
+    void setAccent (juce::Colour colour);
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
+    juce::Colour accent = ParagonColours::doubler;
     struct Box
     {
         juce::Slider slider { juce::Slider::LinearBarVertical, juce::Slider::TextBoxBelow };

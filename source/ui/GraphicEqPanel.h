@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ui/ParagonLookAndFeel.h"
+
 #include "dsp/effects/GraphicEq.h"
 
 // The graphic EQ's knobs, shown in place of the rig summary when the EQ
@@ -14,10 +16,14 @@ class GraphicEqPanel final : public juce::Component
 public:
     explicit GraphicEqPanel (juce::AudioProcessorValueTreeState&);
 
+    // The colour of the faders, the curve and the header icon: the EQ block's colour in the chain.
+    void setAccent (juce::Colour colour);
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
+    juce::Colour accent = ParagonColours::eq;
     float xForFrequency (float frequency) const;
     float yForDb (float db) const;
     void flatten();

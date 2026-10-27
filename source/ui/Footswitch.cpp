@@ -29,26 +29,34 @@ bool Footswitch::isAnyOn() const
 
 void Footswitch::toggle()
 {
-    juce::StringArray turnOn;
+    // What each parameter is set to (0 to 1): off, or what to bring back.
+    std::map<juce::String, float> turnTo;
     if (isAnyOn())
     {
-        // Off: remember what was on, to bring exactly that back.
+        // Off: remember what was on, and how (TUNE VOICE's Natural, Hard
+        // or Notes, not just "on"), to bring exactly that back.
         wereOn.clear();
         for (const auto& id : onParameterIds)
             if (parameters.getRawParameterValue (id)->load() > 0.5f)
-                wereOn.add (id);
+                wereOn[id] = parameters.getParameter (id)->getValue();
+    }
+    else if (! wereOn.empty())
+    {
+        turnTo = wereOn;
     }
     else
     {
-        turnOn = ! wereOn.isEmpty() ? wereOn : ! firstOnIds.isEmpty() ? firstOnIds : onParameterIds;
+        for (const auto& id : firstOnIds.isEmpty() ? onParameterIds : firstOnIds)
+            turnTo[id] = 1.0f;
     }
 
     for (const auto& id : onParameterIds)
     {
         auto* parameter = parameters.getParameter (id);
+        const auto found = turnTo.find (id);
         // Begin/end tell the DAW this is one user action, for automation recording.
         parameter->beginChangeGesture();
-        parameter->setValueNotifyingHost (turnOn.contains (id) ? 1.0f : 0.0f);
+        parameter->setValueNotifyingHost (found != turnTo.end() ? found->second : 0.0f);
         parameter->endChangeGesture();
     }
     refresh();

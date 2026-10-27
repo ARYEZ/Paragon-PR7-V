@@ -192,20 +192,22 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
       marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); },
                  &processorToShow.getMars()),
+      // Each block in the red to pink to orange of the PR7 family's chains, by
+      // its place in the chain: red first, orange last.
       signalChain (processorToShow.getParameters(), {
-          { "PITCH", Icons::Type::pitch, ParagonColours::pitch,
-            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn },
-          { "DYNAMICS", Icons::Type::comp, ParagonColours::comp, ParamIDs::compOn },
-          { "DE-ESS", Icons::Type::deEsser, ParagonColours::deEsser, ParamIDs::deessOn },
-          { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::filterPitch, ParamIDs::fpOn },
-          { "SATURATION", Icons::Type::drive, ParagonColours::drive, ParamIDs::driveOn },
-          { "EQ", Icons::Type::eq, ParagonColours::eq, ParamIDs::eqOn },
-          { "GLITCH", Icons::Type::glitch, ParagonColours::glitch, ParamIDs::glitchOn },
-          { "DOUBLER", Icons::Type::doubler, ParagonColours::doubler, ParamIDs::doublerOn },
-          { "MOD", Icons::Type::modulation, ParagonColours::modulation, ParamIDs::modOn },   // MODULATION: short, to fit the strip
-          { "DELAY", Icons::Type::delay, ParagonColours::delay, ParamIDs::delayOn },
-          { "REVERB", Icons::Type::reverb, ParagonColours::reverb, ParamIDs::reverbOn },
-          { "LO-FI", Icons::Type::loFi, ParagonColours::loFi, ParamIDs::lofiOn } }),
+          { "PITCH", Icons::Type::pitch, ParagonColours::chainColour (0, numBlocks),
+            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect },
+          { "DYNAMICS", Icons::Type::comp, ParagonColours::chainColour (1, numBlocks), ParamIDs::compOn },
+          { "DE-ESS", Icons::Type::deEsser, ParagonColours::chainColour (2, numBlocks), ParamIDs::deessOn },
+          { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::chainColour (3, numBlocks), ParamIDs::fpOn },
+          { "SATURATION", Icons::Type::drive, ParagonColours::chainColour (4, numBlocks), ParamIDs::driveOn },
+          { "EQ", Icons::Type::eq, ParagonColours::chainColour (5, numBlocks), ParamIDs::eqOn },
+          { "GLITCH", Icons::Type::glitch, ParagonColours::chainColour (6, numBlocks), ParamIDs::glitchOn },
+          { "DOUBLER", Icons::Type::doubler, ParagonColours::chainColour (7, numBlocks), ParamIDs::doublerOn },
+          { "MOD", Icons::Type::modulation, ParagonColours::chainColour (8, numBlocks), ParamIDs::modOn },   // MODULATION: short, to fit the strip
+          { "DELAY", Icons::Type::delay, ParagonColours::chainColour (9, numBlocks), ParamIDs::delayOn },
+          { "REVERB", Icons::Type::reverb, ParagonColours::chainColour (10, numBlocks), ParamIDs::reverbOn },
+          { "LO-FI", Icons::Type::loFi, ParagonColours::chainColour (11, numBlocks), ParamIDs::lofiOn } }),
       rigBrowser (processorToShow),
       settingsPage (processorToShow)
 {
@@ -361,14 +363,19 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                 on.add (juce::String (voice + 1));
         return on.isEmpty() ? juce::String ("No voices") : (on.size() == 1 ? "Voice " : "Voices ") + on.joinIntoString (", ");
     });
-    // HARMONY and the octaver; it brings back whichever were on, and the
-    // first time, HARMONY. FREEZE has its own switch in the panel (a press
-    // turning it on too would hold a note by surprise).
-    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn }, pitchBlock, [this]
+    // HARMONY, the octaver and TUNE VOICE (which works without HARMONY, so
+    // the stomp must switch it too, or the voice stays tuned, and 40 ms
+    // late, with the stomp's light out); it brings back whichever were on,
+    // TUNE VOICE in the mode it had, and the first time, HARMONY. FREEZE
+    // has its own switch in the panel (a press turning it on too would hold
+    // a note by surprise).
+    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn, ParamIDs::harmonyCorrect }, pitchBlock, [this]
     {
         juce::StringArray parts;
         if (rawValue (ParamIDs::harmonyOn) > 0.5f)
             parts.add ("Harmony " + valueText (ParamIDs::harmonyKey) + " " + valueText (ParamIDs::harmonyScale));
+        if (rawValue (ParamIDs::harmonyCorrect) > 0.5f)
+            parts.add ("Tune Voice " + valueText (ParamIDs::harmonyCorrect));
         if (rawValue (ParamIDs::octOn) > 0.5f)
             parts.add ("Octaver");
         return parts.joinIntoString ("  ");
@@ -511,23 +518,23 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     panels[loFiBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "LO-FI", { { ParamIDs::lofiOn, "ON" }, { ParamIDs::lofiType, "TYPE" }, { ParamIDs::lofiAmount, "AMOUNT" },
                      { ParamIDs::lofiNoise, "NOISE" }, { ParamIDs::lofiMix, "MIX" }, { ParamIDs::lofiLevel, "LEVEL" } } } });
-    const std::pair<Icons::Type, juce::Colour> headers[] = {
-        { Icons::Type::pitch, ParagonColours::pitch }, { Icons::Type::comp, ParagonColours::comp },
-        { Icons::Type::deEsser, ParagonColours::deEsser }, { Icons::Type::filterPitch, ParagonColours::filterPitch },
-        { Icons::Type::drive, ParagonColours::drive },
-        { Icons::Type::eq, ParagonColours::eq }, { Icons::Type::glitch, ParagonColours::glitch },
-        { Icons::Type::doubler, ParagonColours::doubler },
-        { Icons::Type::modulation, ParagonColours::modulation }, { Icons::Type::delay, ParagonColours::delay },
-        { Icons::Type::reverb, ParagonColours::reverb }, { Icons::Type::loFi, ParagonColours::loFi } };
+    // Each panel's header and accents in its block's colour in the chain.
+    const Icons::Type headers[] = { Icons::Type::pitch, Icons::Type::comp, Icons::Type::deEsser, Icons::Type::filterPitch,
+                                    Icons::Type::drive, Icons::Type::eq, Icons::Type::glitch, Icons::Type::doubler,
+                                    Icons::Type::modulation, Icons::Type::delay, Icons::Type::reverb, Icons::Type::loFi };
     const char* titles[] = { "PITCH", "DYNAMICS", "DE-ESSER", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
     static_assert (std::size (headers) == numBlocks && std::size (titles) == numBlocks);
     for (size_t i = 0; i < panels.size(); ++i)
     {
         if (panels[i] == nullptr)
             continue;
-        panels[i]->setHeader (headers[i].first, headers[i].second, titles[i]);
+        panels[i]->setHeader (headers[i], ParagonColours::chainColour ((int) i, numBlocks), titles[i]);
         addChildComponent (*panels[i]);
     }
+    eqPanel.setAccent (ParagonColours::chainColour (eqBlock, numBlocks));
+    harmonyPanel.setAccent (ParagonColours::chainColour (pitchBlock, numBlocks));
+    doublerPanel.setAccent (ParagonColours::chainColour (doublerBlock, numBlocks));
+    marsPanel.setAccent (ParagonColours::chainColour (driveBlock, numBlocks));
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
     harmonyPanel.setMidiKeys ([&processorToShow] (int key) { return processorToShow.isMidiKeyHeld (key); });

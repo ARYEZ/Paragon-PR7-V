@@ -11,6 +11,7 @@
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/TalkBox.h"
 #include "ui/EqPresets.h"
+#include "ui/NoteMapEditor.h"
 
 using Catch::Matchers::WithinAbs;
 
@@ -3965,4 +3966,181 @@ TEST_CASE ("HARMONY MIDI: TUNE VOICE's Notes follows the keyboard", "[effects][h
     const auto out = runWithMidi (rig, sungVowel (220.0, 1.0), { { 0.0, keyDown (60) } });
     CAPTURE (pitchOf (out));
     CHECK (std::abs (cents (pitchOf (out), 261.626)) < 5.0);
+}
+
+//==============================================================================
+// HARMONY stage 5: the Note Map Editor (CHORD Custom, SCALE Custom).
+namespace
+{
+    // GENERATE NOTES through CHORD Custom: only the note voices heard.
+    struct CustomMapRig : NotesRig
+    {
+        CustomMapRig() : NotesRig ("Custom") {}
+
+        // What `noteClass` plays, in semitones from the sung note (as the
+        // editor stores it: bit offset + 23, sixteen bits per parameter).
+        void map (int noteClass, std::initializer_list<int> offsets)
+        {
+            std::uint64_t bits = 0;
+            for (auto offset : offsets)
+                bits |= std::uint64_t { 1 } << (offset + effects::Harmony::mapSpan);
+            for (int part = 0; part < 3; ++part)
+                set (ParamIDs::harmonyMap (noteClass, part).toRawUTF8(), (float) ((bits >> (16 * part)) & 0xffffu));
+        }
+    };
+}
+
+TEST_CASE ("HARMONY Note Map: CHORD Custom plays the notes you map", "[effects][harmony][notemap]")
+{
+    const auto A2 = 110.0, A3 = 220.0, Bb3 = 233.082, B3 = 246.942, C3 = 130.813, C4 = 261.626, D4 = 293.665,
+               E4 = 329.628;
+    const auto sung = sungVowel (A3, 1.0);
+    const auto sungLevel = levelAt (sung, A3, 0.5);
+
+    SECTION ("A mapped to C and E above: exactly those notes")
+    {
+        CustomMapRig rig;
+        rig.map (9 /* A */, { 3, 7 });
+        const auto out = rig.runMono (sung);
+        CAPTURE (levelAt (out, C4, 0.5), levelAt (out, E4, 0.5), levelAt (out, D4, 0.5));
+        CHECK (levelAt (out, C4, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, E4, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, D4, 0.5) < 0.2f * sungLevel);
+    }
+
+    SECTION ("Only the sung note's own row counts: an empty A plays nothing")
+    {
+        CustomMapRig rig;
+        rig.map (0 /* C */, { 4, 7 });
+        CHECK (rms (rig.runMono (sung), 0.3) < 1.0e-4f);
+    }
+
+    SECTION ("SPREAD follows the octave sung; FOLD stays where it was set")
+    {
+        // A plays 9 below. SPREAD: from the A sung. FOLD: from A4 (the
+        // editor's octave), so C4 whether A3 or A2 is sung.
+        const auto heard = [] (double hz, bool fold)
+        {
+            CustomMapRig rig;
+            rig.map (9, { -9 });
+            rig.set (ParamIDs::harmonyMapFold, fold ? 1.0f : 0.0f);
+            return pitchOf (rig.runMono (sungVowel (hz, 1.0)));
+        };
+        const auto C2 = 65.406;
+        CHECK (std::abs (cents (heard (A3, false), C3)) < 20.0);
+        CHECK (std::abs (cents (heard (A2, false), C2)) < 20.0);
+        CHECK (std::abs (cents (heard (A3, true), C4)) < 20.0);
+        CHECK (std::abs (cents (heard (A2, true), C4)) < 20.0);
+    }
+
+    SECTION ("FOLD never asks a voice for more than two octaves: an octave nearer instead")
+    {
+        // A plays C above, set as C5 (A4 + 3); sung two octaves lower (A2)
+        // that's 27 semitones: it plays C4 instead (15).
+        CustomMapRig rig;
+        rig.map (9, { 3 });
+        rig.set (ParamIDs::harmonyMapFold, 1.0f);
+        const auto pitch = pitchOf (rig.runMono (sungVowel (A2, 1.0)));
+        CAPTURE (pitch);
+        CHECK (std::abs (cents (pitch, C4)) < 20.0);
+        std::array<int, effects::Harmony::mapBits> notes {};
+        effects::Harmony::NoteMap map {};
+        map[9] = (std::uint64_t { 1 } << (effects::Harmony::mapSpan + 23)) | (std::uint64_t { 1 } << (effects::Harmony::mapSpan - 23));
+        for (int sung = 24; sung < 96; ++sung)
+        {
+            const auto count = effects::Harmony::customNotes (map, true, sung - (sung % 12) + 9, notes);
+            for (int i = 0; i < count; ++i)
+                CHECK (std::abs (notes[(size_t) i] - (sung - (sung % 12) + 9)) <= effects::Harmony::maxShift);
+        }
+    }
+
+    SECTION ("SCALE Custom: a note set to Up or Down moves; In stays")
+    {
+        const auto playing = [&] (int box)
+        {
+            CustomMapRig rig;
+            rig.set (ParamIDs::harmonyScale, (float) Scales::Scale::custom);
+            rig.map (9, { 1 });   // A plays A#
+            rig.set (ParamIDs::harmonyScaleNote (10 /* A# above C */).toRawUTF8(), (float) box);
+            return rig.runMono (sung);
+        };
+        const auto in = playing (0), up = playing (1);
+        CAPTURE (levelAt (in, Bb3, 0.5), levelAt (in, B3, 0.5), levelAt (up, Bb3, 0.5), levelAt (up, B3, 0.5));
+        CHECK (levelAt (in, Bb3, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (in, B3, 0.5) < 0.2f * sungLevel);
+        CHECK (levelAt (up, B3, 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (up, Bb3, 0.5) < 0.2f * sungLevel);
+    }
+
+    SECTION ("An out-of-key sung note has its own row (G# in C major)")
+    {
+        const auto Gs3 = 207.652;
+        CustomMapRig rig;
+        rig.map (8 /* G# */, { 4 });     // G# plays C
+        rig.map (9 /* A */, { 7 });      // A plays E
+        const auto out = rig.runMono (sungVowel (Gs3, 1.0));
+        CAPTURE (levelAt (out, C4, 0.5), levelAt (out, E4, 0.5));
+        CHECK (levelAt (out, C4, 0.5) > 0.3f * levelAt (sungVowel (Gs3, 1.0), Gs3, 0.5));
+        CHECK (levelAt (out, E4, 0.5) < 0.1f * levelAt (sungVowel (Gs3, 1.0), Gs3, 0.5));
+    }
+
+    SECTION ("FROM CHORD copies a built-in map: it sounds the same")
+    {
+        NotesRig builtIn ("3rd + 5th Above");
+        CustomMapRig copied;
+        NoteMapEditor editor (copied.processor.getParameters(), {});
+        editor.fillFromChord (effects::Harmony::chordMapNames().indexOf ("3rd + 5th Above"));
+        for (auto hz : { A3, 196.0 /* G3 */, 174.614 /* F3 */ })
+        {
+            const auto voice = sungVowel (hz, 1.0);
+            const auto a = builtIn.runMono (voice), b = copied.runMono (voice);
+            CAPTURE (hz, pitchOf (a), pitchOf (b));
+            for (auto note : { C4, D4, E4, 349.228 /* F4 */, 391.995 /* G4 */, 440.0 /* A4 */ })
+            {
+                CAPTURE (note, levelAt (a, note, 0.5), levelAt (b, note, 0.5));
+                CHECK ((levelAt (a, note, 0.5) > 0.3f * sungLevel) == (levelAt (b, note, 0.5) > 0.3f * sungLevel));
+            }
+        }
+    }
+}
+
+TEST_CASE ("HARMONY Note Map: FROM CHORD matches every built-in map, note for note", "[effects][harmony][notemap]")
+{
+    // For every built-in map, key and scale, and every sung note: the copied
+    // Custom map, put into the scale, plays exactly the notes the built-in does.
+    ParagonX1AudioProcessor processor;
+    NoteMapEditor editor (processor.getParameters(), {});
+    auto& parameters = processor.getParameters();
+    const auto setPlain = [&parameters] (const char* id, float plain)
+    {
+        auto* parameter = parameters.getParameter (id);
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (plain));
+    };
+    for (auto scale : { Scales::Scale::major, Scales::Scale::chromatic, (Scales::Scale) 1 })
+        for (auto key : { 0, 7, 10 })
+        {
+            setPlain (ParamIDs::harmonyKey, (float) key);
+            setPlain (ParamIDs::harmonyScale, (float) scale);
+            for (int chord = 0; chord < effects::Harmony::customChord; ++chord)
+            {
+                editor.fillFromChord (chord);
+                effects::Harmony::NoteMap map {};
+                for (int noteClass = 0; noteClass < 12; ++noteClass)
+                    map[(size_t) noteClass] = editor.mapOf (noteClass);
+                const auto& builtIn = effects::Harmony::chordMaps[(size_t) chord];
+                for (int incoming = 48; incoming < 72; ++incoming)
+                {
+                    std::set<int> expected, got;
+                    const auto root = Scales::nearest (incoming, key, scale);
+                    for (int i = 0; i < builtIn.count; ++i)
+                        expected.insert (Scales::harmonyNote (root, builtIn.intervals[(size_t) i], key, scale));
+                    std::array<int, effects::Harmony::mapBits> notes {};
+                    const auto count = effects::Harmony::customNotes (map, false, incoming, notes);
+                    for (int i = 0; i < count; ++i)
+                        got.insert (Scales::nearest (notes[(size_t) i], key, scale));
+                    CAPTURE ((int) scale, key, builtIn.name, incoming);
+                    CHECK (got == expected);
+                }
+            }
+        }
 }

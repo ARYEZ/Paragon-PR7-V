@@ -185,6 +185,14 @@ namespace ParamIDs
     inline constexpr auto harmonyNoteAttack     = "harmonyNoteAttack";     // ms
     inline constexpr auto harmonyNoteRelease    = "harmonyNoteRelease";    // ms
     inline constexpr auto harmonyMidiMap        = "harmonyMidiMap";        // version 41: MIDI notes As Played / Through Chord
+    // Version 42: the Note Map Editor. CHORD Custom's map, a bit per note
+    // from 23 semitones below to 23 above, in three 16-bit parts per note
+    // ("harmonyMap1A" ... "harmonyMap12C", C to B); SPREAD/FOLD; and SCALE
+    // Custom's 12 boxes ("harmonyScaleNote1"..., above the key: In, Up, Down).
+    inline constexpr auto harmonyMapFold        = "harmonyMapFold";
+    inline juce::String harmonyMap (int note, int part) { return "harmonyMap" + juce::String (note + 1) + juce::String::charToString ((juce::juce_wchar) ('A' + part)); }
+    inline juce::String harmonyScaleNote (int note) { return "harmonyScaleNote" + juce::String (note + 1); }
+    inline const juce::StringArray scaleNoteChoices { "In", "Up", "Down" };
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
     inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
@@ -279,8 +287,15 @@ namespace ParamIDs
     // LIMITER goes with OUTPUT, for the same reason. HARMONY's KEY and SCALE
     // belong to the song, not the sound, so a rig change keeps them (as
     // Waves Harmony's lock does).
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
-                                               harmonyKey, harmonyScale };
+    // SCALE Custom's boxes go with the SCALE.
+    inline const juce::StringArray notInRigs = []
+    {
+        juce::StringArray ids { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
+                                harmonyKey, harmonyScale };
+        for (int note = 0; note < 12; ++note)
+            ids.add (harmonyScaleNote (note));
+        return ids;
+    }();
 }
 
 namespace ExpressionTargets

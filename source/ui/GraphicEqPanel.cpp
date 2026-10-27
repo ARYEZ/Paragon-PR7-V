@@ -21,6 +21,14 @@ namespace
     }
 }
 
+void GraphicEqPanel::setAccent (juce::Colour colour)
+{
+    accent = colour;
+    for (auto& fader : faders)
+        fader.setColour (juce::Slider::trackColourId, accent);
+    repaint();
+}
+
 GraphicEqPanel::GraphicEqPanel (juce::AudioProcessorValueTreeState& state)
     : parameters (state),
       onAttachment (state, ParamIDs::eqOn, onButton)
@@ -178,7 +186,7 @@ void GraphicEqPanel::paint (juce::Graphics& g)
 
     // Header: icon and name, as on the other blocks' panels.
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::eq, header.removeFromLeft (26.0f).withSizeKeepingCentre (20.0f, 20.0f), ParagonColours::eq, 1.6f, true);
+    Icons::draw (g, Icons::Type::eq, header.removeFromLeft (26.0f).withSizeKeepingCentre (20.0f, 20.0f), accent, 1.6f, true);
     header.removeFromLeft (8.0f);
     g.setColour (ParagonColours::text);
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
@@ -218,7 +226,7 @@ void GraphicEqPanel::paint (juce::Graphics& g)
     fill.lineTo (graph.getRight(), zeroY);
     fill.closeSubPath();
 
-    const auto colour = on ? ParagonColours::eq : ParagonColours::textDim;
+    const auto colour = on ? accent : ParagonColours::textDim;
     g.setGradientFill (juce::ColourGradient (colour.withAlpha (0.28f), 0.0f, yForDb (12.0f),
                                              colour.withAlpha (0.04f), 0.0f, zeroY, false));
     g.fillPath (fill);

@@ -153,6 +153,12 @@ void DoublerPanel::resized()
     modReset.setBounds (last.reduced (2, 1));
 }
 
+void DoublerPanel::setAccent (juce::Colour colour)
+{
+    accent = colour;
+    repaint();
+}
+
 void DoublerPanel::paint (juce::Graphics& g)
 {
     // The same dark panel and header as the other blocks' panels.
@@ -164,7 +170,7 @@ void DoublerPanel::paint (juce::Graphics& g)
     g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::doubler, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), ParagonColours::doubler, 1.6f, true);
+    Icons::draw (g, Icons::Type::doubler, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
     header.removeFromLeft (8.0f);
     g.setColour (ParagonColours::text);
     g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
@@ -176,7 +182,7 @@ void DoublerPanel::paint (juce::Graphics& g)
         const auto area = box->slider.getBounds().toFloat().reduced (0.5f);
         g.setColour (juce::Colour (0xff151217));
         g.fillRoundedRectangle (area, 4.0f);
-        g.setColour (box->slider.isMouseOverOrDragging() ? ParagonColours::doubler.withAlpha (0.6f) : ParagonColours::panelEdge);
+        g.setColour (box->slider.isMouseOverOrDragging() ? accent.withAlpha (0.6f) : ParagonColours::panelEdge);
         g.drawRoundedRectangle (area, 4.0f, 1.0f);
     }
 
@@ -184,7 +190,7 @@ void DoublerPanel::paint (juce::Graphics& g)
     for (const auto& [text, where] : labels)
     {
         const auto isVoiceNumber = text.length() == 1 && juce::CharacterFunctions::isDigit (text[0]);
-        g.setColour (isVoiceNumber ? ParagonColours::doubler : ParagonColours::textDim);
+        g.setColour (isVoiceNumber ? accent : ParagonColours::textDim);
         g.drawFittedText (text, where, isVoiceNumber ? juce::Justification::centredLeft : juce::Justification::centred, 1, 0.6f);
     }
 }

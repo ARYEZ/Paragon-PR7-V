@@ -40,6 +40,12 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
         for (int part = 0; part < ParamIDs::marsBandParts.size(); ++part)
             marsBandParameters[(size_t) band].parts[part] = parameters.getRawParameterValue (ParamIDs::marsBand (band, ParamIDs::marsBandParts[part]));
     marsModulationParameters.bind (parameters);
+    for (int note = 0; note < 12; ++note)
+    {
+        for (int part = 0; part < 3; ++part)
+            harmonyMapParameters[(size_t) note][(size_t) part] = parameters.getRawParameterValue (ParamIDs::harmonyMap (note, part));
+        harmonyScaleNoteParameters[(size_t) note] = parameters.getRawParameterValue (ParamIDs::harmonyScaleNote (note));
+    }
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
@@ -507,6 +513,17 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     notes.releaseMs = param (ParamIDs::harmonyNoteRelease);
     notes.midiMap = juce::roundToInt (param (ParamIDs::harmonyMidiMap));
     harmonySettings.midi = &harmonyMidi;
+    // The Note Map Editor's Custom map and scale.
+    for (int note = 0; note < 12; ++note)
+    {
+        std::uint64_t bits = 0;
+        for (int part = 0; part < 3; ++part)
+            bits |= (std::uint64_t) juce::jlimit (0, 65535, juce::roundToInt (harmonyMapParameters[(size_t) note][(size_t) part]->load())) << (16 * part);
+        notes.customMap[(size_t) note] = bits;
+        const auto box = juce::roundToInt (harmonyScaleNoteParameters[(size_t) note]->load());
+        harmonySettings.customScale[(size_t) note] = box == 1 ? 1 : box == 2 ? -1 : 0;
+    }
+    notes.fold = isOn (ParamIDs::harmonyMapFold);
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order

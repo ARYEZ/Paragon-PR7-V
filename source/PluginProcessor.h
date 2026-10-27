@@ -257,6 +257,9 @@ private:
         void bind (juce::AudioProcessorValueTreeState&);
         void read (Mod::Settings&) const noexcept;
     } marsModulationParameters;
+    // The Note Map Editor's parameters, found once (their IDs are built strings).
+    std::array<std::array<std::atomic<float>*, 3>, 12> harmonyMapParameters {};
+    std::array<std::atomic<float>*, 12> harmonyScaleNoteParameters {};
     effects::Harmony::MidiKeys harmonyMidi;        // the MIDI keys held, for HARMONY (audio thread only)
     std::array<std::atomic<float>, 128> shownMidiKeys {};   // the same, for the panel
     effects::MarsModulation::MidiState marsMidi;   // what MIDI has said, for MARS's MIDI sources (audio thread only)
