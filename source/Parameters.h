@@ -220,6 +220,28 @@ namespace ParamIDs
                                                        "Flatten", "Note", "Delay", "Sync", "Feedback", "Filter", "Cutoff" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
 
+    // Version 46: HARMONY's modulators (stage 9, effects::HarmonyModulation).
+    // M1-M4: "hm1Type", "hm2Rate"... and their sequencer steps "hm1Step1"...
+    // Saved by name: only add to the end.
+    inline const juce::StringArray harmonyModParts { "Type", "Shape", "Rate", "Sync", "Phase", "Warp", "Smooth", "Level",
+                                                     "Trigger", "Play", "Steps" };
+    inline juce::String harmonyMod (int mod, const juce::String& part) { return "hm" + juce::String (mod + 1) + part; }
+    inline juce::String harmonyModStep (int mod, int step) { return harmonyMod (mod, "Step" + juce::String (step + 1)); }
+    inline constexpr auto harmonyAmAttack  = "harmonyAmAttack";    // ms
+    inline constexpr auto harmonyAmRelease = "harmonyAmRelease";   // ms
+    inline constexpr auto harmonyAmLevel   = "harmonyAmLevel";     // 0 to 2
+    inline constexpr auto harmonyPtSmooth  = "harmonyPtSmooth";    // ms
+    inline constexpr auto harmonyPtOffset  = "harmonyPtOffset";    // -1 to 1
+    inline constexpr auto harmonyPtLevel   = "harmonyPtLevel";     // 0 to 2
+    // The HARMONY controls a modulator can move (the guide's "most
+    // controls"; FINE can't be, as in the guide), by parameter ID. Their
+    // modulation slots are saved by these IDs, not as parameters. The
+    // processor reads them in this order: only add to the end.
+    juce::StringArray harmonyModTargets();
+    // A pitch control (a voice's PITCH or NOTE, GLOBAL PITCH): moved in
+    // semitones, two octaves either way at 100%, rather than through its range.
+    bool isHarmonyPitchTarget (const juce::String& id);
+
     // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).
     inline constexpr auto doublerDirectOn   = "doublerDirectOn";
     inline constexpr auto doublerDirectGain = "doublerDirectGain";

@@ -1225,3 +1225,64 @@ TEST_CASE ("HARMONY's SNAPSHOTS page: pick to recall, STORE, COPY / PASTE, DELET
     panel.closeSnapshots();
     CHECK_FALSE (panel.isShowingSnapshots());
 }
+
+TEST_CASE ("HARMONY's modulators: a knob's menu puts one on it, the MODS page shows and edits them", "[ui][harmony][modulators]")
+{
+    using HarmonyMod = effects::HarmonyModulation;
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<HarmonyPanel*> panels;
+    findAll (*editor, panels);
+    REQUIRE (panels.size() == 1);
+    auto& panel = *panels[0];
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    chains[0]->onSelect (0);   // PITCH, on HARMONY
+    REQUIRE (panel.isVisible());
+
+    // The PITCH knob is voice 1's PITCH (the picked voice); voice 2 picked, it's voice 2's.
+    std::vector<MarsModUi::ModSlider*> knobs;
+    findAll (panel, knobs);
+    MarsModUi::ModSlider* pitchKnob = nullptr;
+    for (auto* knob : knobs)
+        if (knob->isVisible() && panel.targetOfKnobAt (knob->getBounds().getCentre()) == ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (0, "Pitch")))
+            pitchKnob = knob;
+    REQUIRE (pitchKnob != nullptr);
+    CHECK (pitchKnob->target > 0);   // answers a right-click
+    panel.selectVoice (1);
+    const auto voice2Pitch = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (1, "Pitch"));
+    CHECK (panel.targetOfKnobAt (pitchKnob->getBounds().getCentre()) == voice2Pitch);
+
+    // The menu: add M1 (a semitone either way, for a pitch), set its depth, add PT, remove M1.
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::m1);
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m1, 1.0f / 24.0f });
+    CHECK (panel.modulationMenu (voice2Pitch).getNumItems() > 2);   // the heading, "Add", M1's slot, MODS
+    panel.chooseFromModulationMenu (voice2Pitch, 100 + 1);          // slot 1: depth 100%
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0).depth == 1.0f);
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::pt);
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 1).source == HarmonyMod::pt);
+    panel.chooseFromModulationMenu (voice2Pitch, 100);              // slot 1: remove
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0).source == 0);
+    panel.addModulator (ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread), HarmonyMod::m3);
+    CHECK (processor.getHarmonyModSlot (ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread), 0).depth == 0.25f);   // a quarter of its range
+
+    // MODS: opens on the rack's wide screen, hiding the controls under it.
+    panel.openMods (2);   // M3
+    REQUIRE (panel.isShowingMods());
+    auto& page = panel.getMods();
+    CHECK (page.getTab() == 2);
+    CHECK (page.assignmentsText().contains ("SPREAD +25%"));
+    CHECK_FALSE (pitchKnob->isVisible());
+    page.showTab (0);
+    CHECK (page.assignmentsText().startsWith ("NOT ON ANYTHING"));
+    // SEQ: drag a step's bar.
+    set (processor, ParamIDs::harmonyMod (0, "Type").toRawUTF8(), 1.0f);
+    set (processor, ParamIDs::harmonyMod (0, "Steps").toRawUTF8(), 4.0f);
+    page.resized();
+    const auto area = page.stepArea();
+    page.setStepAt ({ area.getX() + area.getWidth() * 0.6f, area.getY() + area.getHeight() * 0.25f });   // step 3, half way up
+    CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyModStep (0, 2))->load() == 12.0f);
+    panel.closeMods();
+    CHECK_FALSE (panel.isShowingMods());
+    CHECK (pitchKnob->isVisible());
+}

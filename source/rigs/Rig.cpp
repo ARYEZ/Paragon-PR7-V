@@ -18,6 +18,7 @@ namespace
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
     const juce::Identifier snapshotTag { "HarmonySnapshot" };
+    const juce::Identifier modSlotTag { "HarmonyMod" };
 }
 
 void Rig::writeSnapshots (const HarmonySnapshots& snapshots, juce::XmlElement& parent)
@@ -55,6 +56,35 @@ Rig::HarmonySnapshots Rig::readSnapshots (const juce::XmlElement& parent)
     return snapshots;
 }
 
+void Rig::writeModSlots (const HarmonyModSlots& slots, juce::XmlElement& parent)
+{
+    for (const auto& [target, four] : slots)
+        for (size_t slot = 0; slot < four.size(); ++slot)
+            if (four[slot].source != 0)
+            {
+                auto* element = parent.createNewChildElement (modSlotTag);
+                element->setAttribute ("target", target);
+                element->setAttribute ("slot", (int) slot + 1);
+                element->setAttribute ("source", four[slot].source);
+                element->setAttribute ("depth", four[slot].depth);
+            }
+}
+
+Rig::HarmonyModSlots Rig::readModSlots (const juce::XmlElement& parent)
+{
+    HarmonyModSlots slots;
+    for (const auto* element : parent.getChildWithTagNameIterator (modSlotTag))
+    {
+        const auto target = element->getStringAttribute ("target");
+        const auto slot = element->getIntAttribute ("slot", 0) - 1;
+        const auto source = element->getIntAttribute ("source", 0);
+        if (target.isEmpty() || slot < 0 || slot >= 4 || source <= 0)
+            continue;
+        slots[target][(size_t) slot] = { source, juce::jlimit (-1.0f, 1.0f, (float) element->getDoubleAttribute ("depth")) };
+    }
+    return slots;
+}
+
 juce::String Rig::bankName (int bankIndex)
 {
     return juce::String::charToString ((juce::juce_wchar) ('A' + juce::jlimit (0, numBanks - 1, bankIndex)));
@@ -83,6 +113,7 @@ std::unique_ptr<juce::XmlElement> Rig::toXml() const
         parameter->setAttribute ("value", value);
     }
     writeSnapshots (harmonySnapshots, *xml);
+    writeModSlots (harmonyModSlots, *xml);
     return xml;
 }
 
@@ -110,6 +141,7 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
         if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
             rig.parameters[id] = (float) parameter->getDoubleAttribute ("value");
     rig.harmonySnapshots = readSnapshots (xml);
+    rig.harmonyModSlots = readModSlots (xml);
 
     // Saved before the drive had a MODEL: it was the original overdrive,
     // model 0. Without this it would load as the newer default.

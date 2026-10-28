@@ -5,7 +5,9 @@
 #include "ui/ParagonLookAndFeel.h"
 
 #include "dsp/effects/Harmony.h"
+#include "ui/HarmonyModsView.h"
 #include "ui/HarmonySnapshotsView.h"
+#include "ui/MarsModUi.h"
 #include "ui/NoteMapEditor.h"
 
 // HARMONY's knobs, shown when the PITCH block is picked: laid out after
@@ -74,6 +76,30 @@ public:
     void closeSnapshots();
     bool isShowingSnapshots() const noexcept { return snapshots.isVisible(); }
     HarmonySnapshotsView& getSnapshots() noexcept { return snapshots; }
+    // MODS (stage 9): the modulators' page, opened by MODS; and putting a
+    // modulator on a knob (right-click it). Needs the processor's slots and
+    // live values (set by MainView).
+    struct ModActions
+    {
+        std::function<Rig::HarmonyModSlot (int target, int slot)> get;
+        std::function<void (int target, int slot, Rig::HarmonyModSlot)> set;
+        std::function<float (int target)> offset;   // a control's movement now, a fraction of its range
+        std::function<float (int source)> value;
+        std::function<float (int mod)> position;
+    };
+    void setModActions (ModActions);
+    void openMods (int tab = -1);
+    void closeMods();
+    bool isShowingMods() const noexcept { return mods.isVisible(); }
+    HarmonyModsView& getMods() noexcept { return mods; }
+    // The modulation slots of the control a knob is showing now (a voice's
+    // knobs follow the picked voice), as the menu a right-click opens: what
+    // it shows, and what choosing an item does. Public for tests.
+    int targetOfKnobAt (juce::Point<int>) const;   // -1: no modulatable knob there
+    void addModulator (int target, int source);     // into the first free slot, at a starting depth
+    juce::PopupMenu modulationMenu (int target);
+    void chooseFromModulationMenu (int target, int item);
+
     // Re-reads the sung note, the voices and GLOBAL's state now (the timer
     // does it; screenshots call it directly).
     void updateReadings() { timerCallback(); }
@@ -93,7 +119,7 @@ private:
     struct Knob
     {
         juce::Label label;
-        juce::Slider slider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+        MarsModUi::ModSlider slider { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };   // right-click: modulate
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     };
     struct Switch
@@ -147,6 +173,14 @@ private:
     juce::TextButton editMap { "EDIT" };
     NoteMapEditor noteMap;
     juce::TextButton snapshotsButton { "SNAPSHOTS" };
+    juce::TextButton modsButton { "MODS" };
+    HarmonyModsView mods;
+    ModActions modActions;
+    std::vector<Knob*> allKnobs();
+    juce::String targetIdOf (const Knob&) const;   // the control a knob shows now
+    int targetOf (const Knob&) const;
+    void showModulationMenu (int target, juce::Component& knob);
+    bool anyModulated = false;
     HarmonySnapshotsView snapshots;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;

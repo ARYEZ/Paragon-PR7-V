@@ -2,6 +2,21 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.33.0
+
+- **HARMONY stage 9: MODULATORS** (the first of two stages), inspired by the Modulators chapter of the Waves Harmony guide you sent. Modulators move HARMONY's controls on their own: vibrato, a wobble, voices drifting across the stereo, harmonies that duck while you sing loudly, or follow how high you sing.
+  - **Six modulators,** on the new **MODS** page (the MODS key beside GLOBAL):
+    - **M1-M4:** each an **LFO** (a repeating shape: Sine, Triangle, Saw Up, Saw Down, Square, Pulse, Stairs, Random Steps, Smooth Random, Bump; our own shapes) or a **SEQ**uencer (2 to 16 steps of -24 to +24; drag the bars). RATE in Hz or SYNCed to the song (8 bars down to 1/64), PHASE, WARP, SMOOTH, LEVEL, TRIGGER (Free, Sync, Retrigger, Legato) and PLAY (Loop, One Shot, Seesaw, Hold), as in the guide.
+    - **AM:** how loud you sing (ATTACK, RELEASE, LEVEL).
+    - **PT:** the pitch you sing (SMOOTH, OFFSET, LEVEL).
+  - **Putting one on a control:** right-click any HARMONY knob that can be modulated. A voice's PITCH, NOTE, FORMANT, DELAY, FEEDBACK and CUTOFF, the note voices' sound, the mix and GLOBAL PITCH and FORMANT can be; FINE can't, as in the guide. "Add a modulator" puts it in one of the knob's four slots, and each slot sets its own depth or is removed. A pitch control starts at a semitone either way (a vibrato), anything else at a quarter of its range.
+  - **Depth, as in the guide:** at 100% a modulator at full swing moves a control through its whole range, and a pitch two octaves either way. So a SEQ step of +7 at 100% is exactly a fifth up.
+  - **You can see it move:** a modulated knob gets a ring in its modulator's colour (white for several) with a dot where it is now. On the graph, a dim ghost dot shows where a voice's modulated pan and level have it. The MODS page shows each shape with a dot riding it, and what each modulator is on.
+  - **Saved with your rig and project,** and putting on, changing or removing one can be undone. The modulators' own settings can be automated from BeatMaker.
+  - **Smooth, not stepped:** while anything is modulated, HARMONY updates every 32 samples (under a millisecond). With nothing modulated it runs exactly as before.
+- **Our design where the guide doesn't say:** the shapes, how AM reads loudness (-60 dB to full scale), PT's middle (middle C, two octaves either way), and the menu instead of the guide's drag-and-drop (your choice).
+- **Coming in stage 10:** A1 and A2 (envelopes on each note), the Spreader (a value per note, to spread the note voices), the MIDI sources (velocity, keyboard, pitch wheel, mod wheel, aftertouch), Poly trigger, drawing your own shapes, and modulator slots stored in SNAPSHOTS (the guide stores them; ours don't yet).
+
 ## 0.32.0
 
 - **HARMONY rebuilt for the rack, at full size** (the last of the four editors: now nothing on the rack is shrunk). In 0.28.0 it was scaled down into a screen in the rack.

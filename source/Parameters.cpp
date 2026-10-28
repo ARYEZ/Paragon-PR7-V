@@ -9,6 +9,7 @@
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
+#include "dsp/effects/HarmonyModulation.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/Mars.h"
 #include "dsp/effects/LowCut.h"
@@ -661,7 +662,61 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     for (int slot = 1; slot <= 32; ++slot)
         snapshotChoices.add (juce::String (slot));
     layout.add (makeChoice (ParamIDs::harmonySnapshot, "Harmony Snapshot", v45, snapshotChoices, 0));
+
+    // Added in plugin version 46: HARMONY's modulators (stage 9). They do
+    // nothing until one is put on a control (its slots aren't parameters).
+    constexpr int v46 = 46;
+    {
+        using Mod = effects::HarmonyModulation;
+        const ToText asDegrees = [] (float value, int) { return juce::String (juce::roundToInt (value * 360.0f)) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0")); };
+        const ToText asWarp = [] (float value, int) { return "x" + juce::String (value, value < 10.0f ? 2 : 1); };
+        const ToText asSteps = [] (float value, int) { return juce::String (juce::roundToInt (value)); };
+        const ToText asTwice = [] (float value, int) { return juce::String (juce::roundToInt (value * 100.0f)) + "%"; };
+        const ToText asPlusMinus = [] (float value, int) { return (value > 0.004f ? "+" : "") + juce::String (value, 2); };
+        for (int m = 0; m < Mod::numMods; ++m)
+        {
+            const auto id = [m] (const char* part) { return ParamIDs::harmonyMod (m, part); };
+            const auto name = "Harmony M" + juce::String (m + 1) + " ";
+            layout.add (makeChoice (id ("Type").toRawUTF8(), name + "Type", v46, Mod::typeNames, 0));
+            layout.add (makeChoice (id ("Shape").toRawUTF8(), name + "Shape", v46, Mod::shapeNames, 0));
+            layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Rate", skewed (Mod::minRateHz, Mod::maxRateHz, 2.0f, 0.01f), 1.0f, v46, asHz));
+            layout.add (makeChoice (id ("Sync").toRawUTF8(), name + "Sync", v46, Mod::syncNames, 0));
+            layout.add (makeFloat (id ("Phase").toRawUTF8(), name + "Phase", { 0.0f, 1.0f, 0.0f }, 0.0f, v46, asDegrees));
+            layout.add (makeFloat (id ("Warp").toRawUTF8(), name + "Warp", skewed (Mod::minWarp, Mod::maxWarp, 1.0f, 0.01f), 1.0f, v46, asWarp));
+            layout.add (makeFloat (id ("Smooth").toRawUTF8(), name + "Smooth", skewed (1.0f, 1000.0f, 50.0f, 1.0f), 1.0f, v46, asMs));
+            layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { 0.0f, 1.0f, 0.01f }, 1.0f, v46, asPercent));
+            layout.add (makeChoice (id ("Trigger").toRawUTF8(), name + "Trigger", v46, Mod::triggerNames, 0));
+            layout.add (makeChoice (id ("Play").toRawUTF8(), name + "Play", v46, Mod::playNames, 0));
+            layout.add (makeFloat (id ("Steps").toRawUTF8(), name + "Steps", { 2.0f, (float) Mod::maxSteps, 1.0f }, 8.0f, v46, asSteps));
+            for (int step = 0; step < Mod::maxSteps; ++step)
+                layout.add (makeFloat (ParamIDs::harmonyModStep (m, step).toRawUTF8(), name + "Step " + juce::String (step + 1),
+                                       { -Mod::pitchSpan, Mod::pitchSpan, 1.0f }, 0.0f, v46, asInterval));
+        }
+        layout.add (makeFloat (ParamIDs::harmonyAmAttack, "Harmony AM Attack", skewed (0.1f, 1000.0f, 30.0f, 0.1f), 10.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyAmRelease, "Harmony AM Release", skewed (0.1f, 1000.0f, 100.0f, 0.1f), 150.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyAmLevel, "Harmony AM Level", { 0.0f, 2.0f, 0.01f }, 1.0f, v46, asTwice));
+        layout.add (makeFloat (ParamIDs::harmonyPtSmooth, "Harmony PT Smooth", skewed (0.1f, 1000.0f, 50.0f, 0.1f), 50.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyPtOffset, "Harmony PT Offset", { -1.0f, 1.0f, 0.01f }, 0.0f, v46, asPlusMinus));
+        layout.add (makeFloat (ParamIDs::harmonyPtLevel, "Harmony PT Level", { 0.0f, 2.0f, 0.01f }, 1.0f, v46, asTwice));
+    }
     return layout;
+}
+
+juce::StringArray ParamIDs::harmonyModTargets()
+{
+    juce::StringArray ids;
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (auto* part : { "Pitch", "Note", "Formant", "Pan", "Level", "Delay", "Feedback", "Cutoff" })
+            ids.add (harmonyVoice (voice, part));
+    ids.addArray (juce::StringArray { harmonyNoteLevel, harmonyNoteWidth, harmonyNoteFormant, harmonyNoteDelay, harmonyNoteFeedback,
+                                      harmonyNoteCutoff, harmonySource, harmonyLevel, harmonySpread, harmonyCorrectFormant,
+                                      harmonyGlobalPitch, harmonyGlobalFormant });
+    return ids;
+}
+
+bool ParamIDs::isHarmonyPitchTarget (const juce::String& id)
+{
+    return id == harmonyGlobalPitch || (id.startsWith ("hv") && (id.endsWith ("Pitch") || id.endsWith ("Note")));
 }
 
 juce::StringArray ParamIDs::harmonySnapshotIds()

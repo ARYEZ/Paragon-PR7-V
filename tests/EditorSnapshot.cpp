@@ -119,6 +119,20 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         if (auto* p = processor.getParameters().getParameter (setting.upToFirstOccurrenceOf ("=", false, false)))
             p->setValueNotifyingHost (p->convertTo0to1 (setting.fromFirstOccurrenceOf ("=", false, false).getFloatValue()));
 
+    // PARAGON_SNAPSHOT_MODULATE=hv1Pitch:1:0.04,hv1Pan:7:-0.5 puts HARMONY
+    // modulators on controls (ID, source number, depth), each in its next slot.
+    for (const auto& item : juce::StringArray::fromTokens (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MODULATE", {}), ",", {}))
+    {
+        const auto parts = juce::StringArray::fromTokens (item, ":", {});
+        const auto target = ParagonX1AudioProcessor::harmonyModTarget (parts[0]);
+        for (int slot = 0; slot < 4 && target >= 0; ++slot)
+            if (processor.getHarmonyModSlot (target, slot).source == 0)
+            {
+                processor.setHarmonyModSlot (target, slot, { parts[1].getIntValue(), parts[2].getFloatValue() });
+                break;
+            }
+    }
+
     // PARAGON_SNAPSHOT_PLAY=seconds sings a note (220 Hz, -12 dB) through
     // the plugin for that long first, so live displays (MARS's modulation) show it.
     if (const auto play = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PLAY", {}).getDoubleValue(); play > 0.0)
@@ -232,6 +246,13 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_SNAPSHOTS", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
             harmonyPanel->openSnapshots();
+    // PARAGON_SNAPSHOT_MODS=n: HARMONY's MODS page on tab n (0-3 M1-M4, 4 AM, 5 PT).
+    if (const auto modsTab = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MODS", {}); modsTab.isNotEmpty())
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+        {
+            harmonyPanel->openMods (modsTab.getIntValue());
+            harmonyPanel->getMods().resized();
+        }
     // PARAGON_SNAPSHOT_HARMONYGLOBAL=1: its GLOBAL view.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYGLOBAL", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))

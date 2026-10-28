@@ -4441,3 +4441,304 @@ TEST_CASE ("HARMONY SNAPSHOTS: store, recall (from the panel or the SNAPSHOT par
         CHECK_FALSE (rig.processor.getHarmonySnapshot (0).has_value());
     }
 }
+
+//==============================================================================
+// HARMONY stage 9: the modulators (M1-M4, AM, PT) and their slots.
+namespace
+{
+    using HarmonyMod = effects::HarmonyModulation;
+
+    // Runs a modulator engine for `seconds` in 32-sample steps, as the
+    // processor does; returns M1's (or `source`'s) value at each step.
+    std::vector<float> runModulator (HarmonyMod& engine, const HarmonyMod::Settings& settings, double seconds,
+                                     int source = HarmonyMod::m1, HarmonyMod::Context context = {}, const float* voice = nullptr)
+    {
+        std::vector<float> values;
+        const auto steps = (int) (seconds * sampleRate / 32.0);
+        for (int i = 0; i < steps; ++i)
+        {
+            engine.advance (settings, context, voice != nullptr ? voice + i * 32 : nullptr, 32);
+            context.newNote = false;
+            if (context.songBeats >= 0.0)
+                context.songBeats += 32.0 / sampleRate * context.bpm / 60.0;
+            values.push_back (engine.getValue (source));
+        }
+        return values;
+    }
+
+    // A voice's shift from the singer right now, in semitones.
+    double voiceShift (HarmonyRig& rig, int voice = 0) { return 12.0 * std::log2 ((double) rig.processor.getHarmony().getRatio (voice)); }
+
+    // Puts a modulator on a control, in its first slot.
+    void modulate (HarmonyRig& rig, const juce::String& targetId, int source, float depth, int slot = 0)
+    {
+        const auto target = ParagonX1AudioProcessor::harmonyModTarget (targetId);
+        REQUIRE (target >= 0);
+        rig.processor.setHarmonyModSlot (target, slot, { source, depth });
+    }
+}
+
+TEST_CASE ("HARMONY modulators: LFO shapes, the sequencer, PLAY and TRIGGER do what they say", "[effects][harmony][modulators]")
+{
+    HarmonyMod engine;
+    engine.prepare (sampleRate);
+    HarmonyMod::Settings settings;
+    auto& m1 = settings.mods[0];
+
+    SECTION ("A sine at 2 Hz swings fully both ways, twice a second")
+    {
+        m1.rateHz = 2.0f;
+        const auto values = runModulator (engine, settings, 1.2);   // it starts at 0 going up, so crosses up at 0.5 s and 1 s
+        auto rising = 0;
+        for (size_t i = 1; i < values.size(); ++i)
+            rising += values[i - 1] < 0.0f && values[i] >= 0.0f ? 1 : 0;
+        CHECK (*std::max_element (values.begin(), values.end()) > 0.99f);
+        CHECK (*std::min_element (values.begin(), values.end()) < -0.99f);
+        CHECK (rising == 2);
+    }
+
+    SECTION ("LEVEL scales it; WARP keeps the cycle's length but moves its middle")
+    {
+        m1.rateHz = 1.0f;
+        m1.level = 0.5f;
+        const auto half = runModulator (engine, settings, 1.0);
+        CHECK_THAT (*std::max_element (half.begin(), half.end()), WithinAbs (0.5, 0.01));
+        // Saw up, warped above 1: fast at the start, so a quarter through it's well past a quarter of the way.
+        CHECK_THAT (HarmonyMod::modValue (HarmonyMod::Mod { 0, 2 }, 0.25f, 0, 1), WithinAbs (-0.5, 0.001));
+        HarmonyMod::Mod warped { 0, 2 };
+        warped.warp = 4.0f;
+        CHECK (HarmonyMod::modValue (warped, 0.25f, 0, 1) > 0.3f);
+        CHECK_THAT (HarmonyMod::modValue (warped, 0.999f, 0, 1), WithinAbs (1.0, 0.01));   // still ends where it ends
+    }
+
+    SECTION ("SEQ: each step's value (in semitones out of 24), at RATE steps a second")
+    {
+        m1.type = 1;
+        m1.steps = 2;
+        m1.stepValues[0] = 12.0f;
+        m1.stepValues[1] = -6.0f;
+        m1.rateHz = 4.0f;   // a step every 0.25 s
+        const auto values = runModulator (engine, settings, 1.0);
+        const auto at = [&values] (double seconds) { return values[(size_t) (seconds * sampleRate / 32.0)]; };
+        CHECK_THAT (at (0.1), WithinAbs (0.5, 0.01));
+        CHECK_THAT (at (0.35), WithinAbs (-0.25, 0.01));
+        CHECK_THAT (at (0.6), WithinAbs (0.5, 0.01));
+        CHECK_THAT (at (0.85), WithinAbs (-0.25, 0.01));
+    }
+
+    SECTION ("PLAY: One Shot stops at the end; Hold stays at PHASE; Seesaw comes back")
+    {
+        m1.shape = 2;   // Saw Up
+        m1.rateHz = 2.0f;
+        m1.play = HarmonyMod::oneShot;
+        const auto once = runModulator (engine, settings, 1.5);
+        CHECK (once.back() > 0.99f);   // stopped at the top
+
+        HarmonyMod held;
+        held.prepare (sampleRate);
+        m1.play = HarmonyMod::hold;
+        m1.phase = 0.75f;
+        const auto still = runModulator (held, settings, 1.0);
+        CHECK_THAT (still.front(), WithinAbs (0.5, 0.01));
+        CHECK_THAT (still.back(), WithinAbs (0.5, 0.01));
+
+        HarmonyMod seesaw;
+        seesaw.prepare (sampleRate);
+        m1.play = HarmonyMod::seesaw;
+        m1.phase = 0.0f;
+        const auto backAndForth = runModulator (seesaw, settings, 1.0);   // up for 0.5 s, then back down
+        CHECK (backAndForth[(size_t) (0.45 * sampleRate / 32.0)] > 0.7f);
+        CHECK (backAndForth[(size_t) (0.95 * sampleRate / 32.0)] < -0.7f);
+    }
+
+    SECTION ("TRIGGER Sync locks it to the song; Retrigger restarts it on a new note")
+    {
+        m1.shape = 2;   // Saw Up
+        m1.sync = HarmonyMod::syncNames.indexOf ("1 Bar");
+        m1.trigger = HarmonyMod::sync;
+        HarmonyMod::Context context;
+        context.bpm = 120.0;
+        context.songBeats = 2.0;   // half way through a bar
+        engine.advance (settings, context, nullptr, 32);
+        CHECK_THAT (engine.getValue (HarmonyMod::m1), WithinAbs (0.0, 0.01));
+
+        HarmonyMod again;
+        again.prepare (sampleRate);
+        m1.sync = 0;
+        m1.rateHz = 1.0f;
+        m1.trigger = HarmonyMod::retrigger;
+        runModulator (again, settings, 0.6);   // well up the ramp
+        CHECK (again.getValue (HarmonyMod::m1) > 0.1f);
+        HarmonyMod::Context note;
+        note.newNote = true;
+        again.advance (settings, note, nullptr, 32);
+        runModulator (again, settings, 0.004);   // SMOOTH (1 ms) settles
+        CHECK_THAT (again.getValue (HarmonyMod::m1), WithinAbs (-1.0, 0.03));   // back to the start of the ramp
+    }
+
+    SECTION ("SMOOTH rounds off a square's jumps")
+    {
+        m1.shape = 4;   // Square
+        m1.rateHz = 1.0f;
+        m1.smoothMs = 100.0f;
+        const auto values = runModulator (engine, settings, 1.0);
+        // Just after the drop at 0.5 s it's still on its way down.
+        CHECK (values[(size_t) (0.52 * sampleRate / 32.0)] > -0.5f);
+        CHECK (values[(size_t) (0.95 * sampleRate / 32.0)] < -0.95f);
+    }
+
+    SECTION ("AM follows how loud the voice is; PT the note sung")
+    {
+        // 0 at -60 dB to 1 at full scale: a voice 20 dB quieter reads a third lower.
+        const auto loud = sungVowel (220.0, 0.5);
+        auto quiet = loud;
+        for (auto& sample : quiet)
+            sample *= 0.1f;
+        const auto loudValue = runModulator (engine, settings, 0.45, HarmonyMod::am, {}, loud.data()).back();
+        HarmonyMod other;
+        other.prepare (sampleRate);
+        const auto quietValue = runModulator (other, settings, 0.45, HarmonyMod::am, {}, quiet.data()).back();
+        CHECK_THAT (loudValue - quietValue, WithinAbs (1.0 / 3.0, 0.03));
+        const std::vector<float> silence ((size_t) sampleRate, 0.0f);
+        const auto after = runModulator (engine, settings, 1.0, HarmonyMod::am, {}, silence.data());
+        CHECK (after.back() < 0.05f);
+
+        HarmonyMod::Context sung;
+        sung.sungNote = 72.0f;   // C5, an octave above middle C
+        const auto pitch = runModulator (engine, settings, 0.5, HarmonyMod::pt, sung);
+        CHECK_THAT (pitch.back(), WithinAbs (0.5, 0.01));
+    }
+}
+
+TEST_CASE ("HARMONY modulators move the voices: vibrato, a sequenced line, AM and PT", "[effects][harmony][modulators]")
+{
+    const auto sung = sungVowel (220.0, 2.0);   // A3
+    // The voice's shift over the second half (once the note is read), at each block.
+    const auto shifts = [&sung] (HarmonyRig& rig)
+    {
+        std::vector<double> found;
+        const auto half = sung.size() / 2;
+        rig.runMono (std::vector<float> (sung.begin(), sung.begin() + (long) half));
+        for (size_t start = half; start + blockSize <= sung.size(); start += blockSize)
+        {
+            rig.runMono (std::vector<float> (sung.begin() + (long) start, sung.begin() + (long) (start + blockSize)));
+            found.push_back (voiceShift (rig));
+        }
+        return found;
+    };
+
+    SECTION ("An LFO on PITCH at 1/24 depth: a vibrato a semitone either way of the fifth")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Correct", 0.0f);   // exactly where the modulation puts it
+        rig.set (ParamIDs::harmonyMod (0, "Rate").toRawUTF8(), 3.0f);
+        modulate (rig, ParamIDs::harmonyVoice (0, "Pitch"), HarmonyMod::m1, 1.0f / 24.0f);
+        const auto found = shifts (rig);
+        CAPTURE (*std::min_element (found.begin(), found.end()), *std::max_element (found.begin(), found.end()));
+        CHECK_THAT (*std::max_element (found.begin(), found.end()), WithinAbs (8.0, 0.2));
+        CHECK_THAT (*std::min_element (found.begin(), found.end()), WithinAbs (6.0, 0.2));
+
+        HarmonyRig plain (7.0f);
+        plain.setVoice ("Correct", 0.0f);
+        const auto still = shifts (plain);
+        CHECK (*std::max_element (still.begin(), still.end()) - *std::min_element (still.begin(), still.end()) < 0.05);
+    }
+
+    SECTION ("A two-step SEQ at 100%: the voice alternates between the fifth and the octave")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Correct", 0.0f);
+        rig.set (ParamIDs::harmonyMod (0, "Type").toRawUTF8(), 1.0f);
+        rig.set (ParamIDs::harmonyMod (0, "Steps").toRawUTF8(), 2.0f);
+        rig.set (ParamIDs::harmonyModStep (0, 1).toRawUTF8(), 5.0f);   // step 2: +5, a fourth more
+        rig.set (ParamIDs::harmonyMod (0, "Rate").toRawUTF8(), 4.0f);
+        modulate (rig, ParamIDs::harmonyVoice (0, "Pitch"), HarmonyMod::m1, 1.0f);
+        const auto found = shifts (rig);
+        const auto near = [&found] (double semitones)
+        {
+            return std::count_if (found.begin(), found.end(), [semitones] (double s) { return std::abs (s - semitones) < 0.15; });
+        };
+        CAPTURE (near (7.0), near (12.0), found.size());
+        CHECK (near (7.0) > (long) found.size() / 4);
+        CHECK (near (12.0) > (long) found.size() / 4);
+    }
+
+    SECTION ("PT on PITCH: an A3 (3 semitones under middle C) at 100% takes the voice 3 lower")
+    {
+        HarmonyRig rig (7.0f);
+        rig.setVoice ("Correct", 0.0f);
+        modulate (rig, ParamIDs::harmonyVoice (0, "Pitch"), HarmonyMod::pt, 1.0f);
+        const auto found = shifts (rig);
+        CHECK_THAT (found.back(), WithinAbs (4.0, 0.2));
+    }
+
+    SECTION ("AM on HARMONY's level, turned all the way down: singing loudly ducks the harmony")
+    {
+        const auto level = [&sung] (bool ducked)
+        {
+            HarmonyRig rig (7.0f);
+            if (ducked)
+                modulate (rig, ParamIDs::harmonyLevel, HarmonyMod::am, -1.0f);
+            return rms (rig.runMono (sung), 1.0, 2.0);
+        };
+        const auto plain = level (false), ducked = level (true);
+        CAPTURE (plain, ducked);
+        CHECK (ducked < plain * 0.3f);
+    }
+
+    SECTION ("Nothing assigned: the voice is exactly as before, whatever the modulators do")
+    {
+        HarmonyRig plain (7.0f), busy (7.0f);
+        busy.set (ParamIDs::harmonyMod (0, "Rate").toRawUTF8(), 10.0f);
+        busy.set (ParamIDs::harmonyMod (1, "Type").toRawUTF8(), 1.0f);
+        modulate (busy, ParamIDs::harmonyVoice (0, "Pitch"), HarmonyMod::m1, 0.0f);   // a slot at no depth
+        CHECK (maxAbsDifference (plain.runMono (sung), busy.runMono (sung), 0) < 1.0e-6f);
+    }
+}
+
+TEST_CASE ("HARMONY modulation slots are saved with the project and the rig, and undone", "[effects][harmony][modulators]")
+{
+    HarmonyRig rig (7.0f);
+    const auto pitch = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (0, "Pitch"));
+    const auto spread = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread);
+    REQUIRE ((pitch >= 0 && spread >= 0));
+    CHECK (ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (0, "Fine")) < 0);   // FINE can't be, as in the guide
+    rig.processor.setHarmonyModSlot (pitch, 0, { HarmonyMod::m2, 0.25f });
+    rig.processor.setHarmonyModSlot (pitch, 3, { HarmonyMod::pt, -0.5f });
+    rig.processor.setHarmonyModSlot (spread, 1, { HarmonyMod::am, 1.0f });
+
+    SECTION ("The project")
+    {
+        juce::MemoryBlock state;
+        rig.processor.getStateInformation (state);
+        HarmonyRig other (0.0f);
+        other.processor.setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (other.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m2, 0.25f });
+        CHECK (other.processor.getHarmonyModSlot (pitch, 3) == Rig::HarmonyModSlot { HarmonyMod::pt, -0.5f });
+        CHECK (other.processor.getHarmonyModSlot (spread, 1) == Rig::HarmonyModSlot { HarmonyMod::am, 1.0f });
+        CHECK (other.processor.getHarmonyModSlot (pitch, 1).source == 0);
+    }
+
+    SECTION ("A rig file, and loading a rig without any takes them off")
+    {
+        const auto xml = rig.processor.captureRig().toXml();
+        const auto loaded = Rig::fromXml (*xml);
+        REQUIRE (loaded.has_value());
+        CHECK (loaded->harmonyModSlots == rig.processor.captureRig().harmonyModSlots);
+        HarmonyRig other (0.0f);
+        other.processor.loadRig ({ *loaded, {}, false });
+        CHECK (other.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m2, 0.25f });
+        Rig empty;
+        other.processor.loadRig ({ empty, {}, false });
+        CHECK (other.processor.getHarmonyModSlot (pitch, 0).source == 0);
+    }
+
+    SECTION ("Undo takes a change back")
+    {
+        rig.processor.flushUndoStep();   // the edits so far, as one step
+        rig.processor.setHarmonyModSlot (pitch, 0, { HarmonyMod::m4, 1.0f });
+        rig.processor.flushUndoStep();
+        rig.processor.undo();
+        CHECK (rig.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m2, 0.25f });
+    }
+}

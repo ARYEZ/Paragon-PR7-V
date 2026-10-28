@@ -11,6 +11,7 @@
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
 #include "dsp/effects/FilterPitch.h"
+#include "dsp/effects/HarmonyModulation.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/LoFi.h"
@@ -98,6 +99,17 @@ public:
     void setHarmonySnapshot (int slot, std::optional<Rig::HarmonySnapshot>); // paste one, or empty the slot
     void recallHarmonySnapshot (int slot);
     void followSnapshotParameter();   // the timer: recall if SNAPSHOT was moved (by the DAW or MIDI); public for tests
+
+    // HARMONY's modulation slots (stage 9): `target` is a control's place in
+    // ParamIDs::harmonyModTargets() (-1: not one), `slot` 0-3. Saved with
+    // the rig and the project, part of undo. Message thread.
+    static int harmonyModTarget (const juce::String& parameterId);
+    Rig::HarmonyModSlot getHarmonyModSlot (int target, int slot) const;
+    void setHarmonyModSlot (int target, int slot, Rig::HarmonyModSlot);
+    // How far the modulation has a control moved right now, as a fraction of
+    // its range (for its knob's ring; any thread).
+    float getHarmonyModOffset (int target) const noexcept;
+    const effects::HarmonyModulation& getHarmonyModulation() const noexcept { return harmonyModulation; }
 
     void loadRig (const RigLibrary::Entry& entry);
 
@@ -219,6 +231,7 @@ private:
         bool operator== (const Snapshot& other) const
         {
             return rig.parameters == other.rig.parameters && rig.harmonySnapshots == other.rig.harmonySnapshots
+                   && rig.harmonyModSlots == other.rig.harmonyModSlots
                    && current == other.current;
         }
     };
@@ -288,6 +301,33 @@ private:
     // synced DELAY turned into ms at the tempo now.
     effects::Harmony::Fx harmonyFx (float delayMs, int sync, float feedback, int filter, float cutoffHz) const noexcept;
     std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
+    // Stage 9: the modulators, their parameters (found once) and the slots.
+    effects::HarmonyModulation harmonyModulation;
+    struct HarmonyModParameters
+    {
+        struct Mod { std::atomic<float>* parts[11] {}; std::array<std::atomic<float>*, effects::HarmonyModulation::maxSteps> steps {}; };   // harmonyModParts
+        std::array<Mod, effects::HarmonyModulation::numMods> mods {};
+        std::atomic<float> *amAttack = nullptr, *amRelease = nullptr, *amLevel = nullptr, *ptSmooth = nullptr, *ptOffset = nullptr, *ptLevel = nullptr;
+        void bind (juce::AudioProcessorValueTreeState&);
+        void read (effects::HarmonyModulation::Settings&) const noexcept;
+    } harmonyModParameters;
+    struct HarmonyModSlotState { std::atomic<int> source { 0 }; std::atomic<float> depth { 0.0f }; };
+    struct HarmonyModTarget
+    {
+        std::atomic<float>* value = nullptr;
+        juce::NormalisableRange<float> range;
+        bool pitch = false;
+    };
+    std::vector<HarmonyModTarget> harmonyModTargets;                        // ParamIDs::harmonyModTargets(), found once
+    std::unique_ptr<std::array<HarmonyModSlotState, 4>[]> harmonyModSlots;  // by target
+    std::unique_ptr<std::atomic<float>[]> harmonyModShown;                  // each target's offset now, for the panel
+    bool harmonyModInUse() const noexcept;
+    void applyHarmonyModulation (effects::Harmony::Settings&) noexcept;
+    void processHarmony (juce::dsp::AudioBlock<float>, const float* cleanVoice, const effects::Harmony::Settings&, double songBeats);
+    Rig::HarmonyModSlots captureHarmonyModSlots() const;
+    void restoreHarmonyModSlots (const Rig::HarmonyModSlots&);
+    bool harmonyMidiNoteStarted = false, harmonyMidiHeldBefore = false;   // audio thread: a MIDI note began this block
+    int lastGeneratedNote = -1;
     effects::Doubler doubler;
     struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };
     std::array<DoublerVoiceParameters, effects::Doubler::numVoices> doublerVoiceParameters {};
