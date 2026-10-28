@@ -91,6 +91,16 @@ public:
     static constexpr int width = 1600;
     static constexpr int height = 900;
 
+    // HIDE RACK takes the rack's strip out (264 mockup pixels, from the
+    // rack's top to the SIGNAL CHAIN's) and the chain moves up under the
+    // floor unit, so the canvas, and the window, get shorter.
+    static constexpr int rackHeight = 253;
+    static constexpr int heightFor (bool rackShown) { return rackShown ? height : height - rackHeight; }
+
+    // Told after the rack is shown or hidden and the view has its new
+    // height, so the editor can resize the window to match.
+    std::function<void()> onHeightChanged;
+
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
@@ -104,6 +114,7 @@ private:
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void applyFinish();   // colours the printed labels and redraws the unit in the current finish
+    void applyRackView(); // shows or hides the rack and sets the view's height to match
     void timerCallback() override;
 
     void selectBlock (int block);
@@ -173,6 +184,7 @@ private:
     juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE / FORMANT" };
     bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default
+    juce::TextButton rackButton;                     // HIDE RACK / SHOW RACK, on the SIGNAL CHAIN strip
     SignalChain signalChain;
     int selectedBlock = eqBlock;
 
