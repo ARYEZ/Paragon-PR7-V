@@ -1344,6 +1344,8 @@ TEST_CASE ("The VOCODER's band display: on the rack's display, drawn with the mo
     CHECK (view.getBounds() == rack.getDisplayArea() + rack.getPosition());
 
     // VOL: drawing low across the left half turns those bands down; RESET brings them back.
+    // (0 dB reads back a few millionths of a dB off on macOS, through the
+    // parameter's 0-1 position: compared within a ten-thousandth.)
     const auto plot = view.getPlotArea();
     const auto at = [&plot] (float place, float height) { return juce::Point<float> (plot.getX() + plot.getWidth() * place, plot.getBottom() - plot.getHeight() * height); };
     view.drawAt (at (0.0f, 0.0f));
@@ -1351,15 +1353,15 @@ TEST_CASE ("The VOCODER's band display: on the rack's display, drawn with the mo
     const auto vol = [&processor] (int point) { return processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandVol (point))->load(); };
     for (int point = 0; point <= 15; ++point)
         CHECK (vol (point) <= effects::Vocoder::minBandDb + 0.5f);
-    CHECK (vol (20) == 0.0f);
+    CHECK_THAT (vol (20), Catch::Matchers::WithinAbs (0.0, 1.0e-4));
     view.resetCurve();
-    CHECK (vol (3) == 0.0f);
+    CHECK_THAT (vol (3), Catch::Matchers::WithinAbs (0.0, 1.0e-4));
 
     // PAN: drawing at the top sends a band right.
     view.showPan (true);
     view.drawAt (at (1.0f, 1.0f));
     CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandPan (31))->load(), Catch::Matchers::WithinAbs (1.0, 0.02));
-    CHECK (vol (31) == 0.0f);   // VOL untouched
+    CHECK_THAT (vol (31), Catch::Matchers::WithinAbs (0.0, 1.0e-4));   // VOL untouched
 
     chains[0]->onSelect (5);
     CHECK_FALSE (view.isVisible());
