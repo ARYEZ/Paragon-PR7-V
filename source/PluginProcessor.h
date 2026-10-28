@@ -15,6 +15,7 @@
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/Vocoder.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Mars.h"
@@ -201,6 +202,7 @@ public:
     float getMarsBandDrive (int band) const noexcept { return mars.getBandDrive (band); }
     // MARS itself, for its panel to show the modulation (its getters are safe from the message thread).
     const effects::Mars& getMars() const noexcept { return mars; }
+    const effects::Vocoder& getVocoder() const noexcept { return vocoder; }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -335,6 +337,16 @@ private:
     effects::HarmonyModulation::Midi harmonyModMidi;                       // audio thread: what MIDI has said, for the MIDI sources
     std::array<std::array<std::atomic<float>, 32>, effects::HarmonyModulation::numMods> harmonyModShapes {};
     int lastGeneratedNote = -1;
+    // The VOCODER: after HARMONY, the voice (as it leaves the mono part) doing the talking.
+    effects::Vocoder vocoder;
+    juce::AudioBuffer<float> vocoderVoice;
+    struct VocoderParameters
+    {
+        std::array<std::array<std::atomic<float>*, 8>, 2> osc {};   // vocoderOscParts
+        std::array<std::atomic<float>*, effects::Vocoder::curvePoints> bandVol {}, bandPan {};
+        std::array<std::atomic<float>*, effects::Vocoder::numIntervals> intervals {};
+    } vocoderParameters;
+    void readVocoder (effects::Vocoder::Settings&, const Scales::Custom&) const noexcept;
     effects::Doubler doubler;
     struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };
     std::array<DoublerVoiceParameters, effects::Doubler::numVoices> doublerVoiceParameters {};

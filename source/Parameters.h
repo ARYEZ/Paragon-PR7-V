@@ -240,6 +240,35 @@ namespace ParamIDs
     inline constexpr auto harmonySpTrigger = "harmonySpTrigger";   // spreadTriggerNames
     inline constexpr auto harmonySpSpread  = "harmonySpSpread";    // 0 to 1
     inline constexpr auto harmonySpLevel   = "harmonySpLevel";     // 0 to 1
+
+    // Version 48: the VOCODER (effects::Vocoder, inspired by VocalSynth 2's).
+    inline constexpr auto vocoderOn            = "vocOn";
+    inline constexpr auto vocoderMode          = "vocMode";           // Vocoder::modeNames
+    inline constexpr auto vocoderShift         = "vocShift";          // semitones
+    inline constexpr auto vocoderScale         = "vocScale";          // 0 to 1
+    inline constexpr auto vocoderLevel         = "vocLevel";          // dB
+    inline constexpr auto vocoderDry           = "vocDry";            // dB
+    inline constexpr auto vocoderCarrier       = "vocCarrier";        // Vocoder::carrierNames
+    inline constexpr auto vocoderVoicing       = "vocVoicing";        // Vocoder::voicingNames
+    inline constexpr auto vocoderGlide         = "vocGlide";          // ms
+    inline constexpr auto vocoderIntervalLevel = "vocIntervalLevel";  // dB
+    inline constexpr auto vocoderNoiseOn       = "vocNoiseOn";
+    inline constexpr auto vocoderNoiseGain     = "vocNoiseGain";      // dB
+    inline constexpr auto vocoderNoiseCrush    = "vocNoiseCrush";     // 0 to 1
+    inline constexpr auto vocoderNoiseCrushMod = "vocNoiseCrushMod";  // -1 to 1
+    inline constexpr auto vocoderNoiseModSource = "vocNoiseModSource"; // Vocoder::noiseModNames
+    inline constexpr auto vocoderLfoShape      = "vocLfoShape";       // Vocoder::lfoShapeNames
+    inline constexpr auto vocoderLfoRate       = "vocLfoRate";        // Hz
+    inline constexpr auto vocoderPan           = "vocPan";            // -1 to 1
+    inline constexpr auto vocoderLowCut        = "vocLowCut";         // Hz (20: off)
+    inline constexpr auto vocoderHighCut       = "vocHighCut";        // Hz (20000: off)
+    inline juce::String vocoderInterval (int i) { return "vocInterval" + juce::String (i + 1); }   // Vocoder::intervalNames
+    // Each oscillator's parts, in this order: "vocOsc1On", "vocOsc1Wave"...
+    inline const juce::StringArray vocoderOscParts { "On", "Wave", "Gain", "Coarse", "Fine", "PitchMod", "Shape", "ShapeMod" };
+    inline juce::String vocoderOsc (int osc, const juce::String& part) { return "vocOsc" + juce::String (osc + 1) + part; }
+    // The bands' VOL (dB) and PAN curves: 32 points each across the range.
+    inline juce::String vocoderBandVol (int point) { return "vocBandVol" + juce::String (point + 1); }
+    inline juce::String vocoderBandPan (int point) { return "vocBandPan" + juce::String (point + 1); }
     // The HARMONY controls a modulator can move (the guide's "most
     // controls"; FINE can't be, as in the guide), by parameter ID. Their
     // modulation slots are saved by these IDs, not as parameters. The

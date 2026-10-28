@@ -1,3 +1,4 @@
+#include "ui/VocoderBandsView.h"
 #include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -150,12 +151,12 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: nine EffectPanels, with
+    // The knob panels in signal-chain order: ten EffectPanels, with
     // SATURATION's own (MARS) as block 4, the graphic EQ's as 5 and
-    // DOUBLER's as 7.
+    // DOUBLER's as 8 (after the VOCODER, 7).
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 9);
+    REQUIRE (effectPanels.size() == 10);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
@@ -169,7 +170,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     std::vector<DoublerPanel*> doublerPanels;
     findAll (*editor, doublerPanels);
     REQUIRE (doublerPanels.size() == 1);
-    panels.insert (panels.begin() + 7, doublerPanels[0]);
+    panels.insert (panels.begin() + 8, doublerPanels[0]);
     // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE view is
     // the first EffectPanel, checked below.
     std::vector<HarmonyPanel*> harmonyPanels;
@@ -213,7 +214,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     {
         return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX());   // reading order
     });
-    const int expectedBlocks[] = { 1, 4, 7, 0, 8, 9, 10 };
+    const int expectedBlocks[] = { 1, 4, 8, 0, 9, 10, 11 };
     for (size_t i = 0; i < footswitches.size(); ++i)
     {
         INFO ("stomp " << i + 1);
@@ -890,7 +891,7 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
     CHECK (expression[0]->getBounds() == rack.getSideArea() + rack.getPosition());
     CHECK (expression[0]->getRight() > rack.getControlArea().getRight() + rack.getX());
 
-    for (int block = 0; block < 12; ++block)
+    for (int block = 0; block < 13; ++block)
     {
         CAPTURE (block);
         chains[0]->onSelect (block);
@@ -931,7 +932,7 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
     }
 
     // The DOUBLER on the rack: its number boxes set their voices' settings.
-    chains[0]->onSelect (7);
+    chains[0]->onSelect (8);   // DOUBLER
     auto* doublerPanel = dynamic_cast<DoublerPanel*> (editors[2]);
     REQUIRE (doublerPanel != nullptr);
     CHECK (doublerPanel->isRack());
@@ -1021,7 +1022,7 @@ TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN
 
     // On the rack the controls are the real ones: DELAY's FEEDBACK knob
     // (one of the unit's big knobs) sets the delay's feedback.
-    chains[0]->onSelect (9);
+    chains[0]->onSelect (10);   // DELAY
     EffectPanel* delay = nullptr;
     for (auto* panel : effectPanels)
         if (panel->isVisible())
@@ -1085,7 +1086,7 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
     REQUIRE (chains.size() == 1);
     const Faceplate::Look expected[] = { Faceplate::Look::harmony, Faceplate::Look::revival /* TYPE set above */, Faceplate::Look::deEsser,
                                          Faceplate::Look::filterPitch, Faceplate::Look::mars, Faceplate::Look::eq,
-                                         Faceplate::Look::glitch, Faceplate::Look::doubler, Faceplate::Look::modulation,
+                                         Faceplate::Look::glitch, Faceplate::Look::vocoder, Faceplate::Look::doubler, Faceplate::Look::modulation,
                                          Faceplate::Look::delay, Faceplate::Look::reverb, Faceplate::Look::loFi };
     for (int block = 0; block < (int) std::size (expected); ++block)
     {
@@ -1320,4 +1321,46 @@ TEST_CASE ("HARMONY's modulators: a knob's menu puts one on it, the MODS page sh
     panel.closeMods();
     CHECK_FALSE (panel.isShowingMods());
     CHECK (pitchKnob->isVisible());
+}
+
+TEST_CASE ("The VOCODER's band display: on the rack's display, drawn with the mouse", "[ui][vocoder]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    std::vector<VocoderBandsView*> views;
+    findAll (*editor, views);
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE ((chains.size() == 1 && views.size() == 1 && faceplates.size() == 1));
+    auto& view = *views[0];
+    auto& rack = *faceplates[0];
+
+    CHECK_FALSE (view.isVisible());
+    chains[0]->onSelect (7);   // VOCODER
+    REQUIRE (view.isVisible());
+    CHECK (rack.getLook() == Faceplate::Look::vocoder);
+    CHECK (view.getBounds() == rack.getDisplayArea() + rack.getPosition());
+
+    // VOL: drawing low across the left half turns those bands down; RESET brings them back.
+    const auto plot = view.getPlotArea();
+    const auto at = [&plot] (float place, float height) { return juce::Point<float> (plot.getX() + plot.getWidth() * place, plot.getBottom() - plot.getHeight() * height); };
+    view.drawAt (at (0.0f, 0.0f));
+    view.drawAt (at (0.5f, 0.0f), at (0.0f, 0.0f));
+    const auto vol = [&processor] (int point) { return processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandVol (point))->load(); };
+    for (int point = 0; point <= 15; ++point)
+        CHECK (vol (point) <= effects::Vocoder::minBandDb + 0.5f);
+    CHECK (vol (20) == 0.0f);
+    view.resetCurve();
+    CHECK (vol (3) == 0.0f);
+
+    // PAN: drawing at the top sends a band right.
+    view.showPan (true);
+    view.drawAt (at (1.0f, 1.0f));
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandPan (31))->load(), Catch::Matchers::WithinAbs (1.0, 0.02));
+    CHECK (vol (31) == 0.0f);   // VOL untouched
+
+    chains[0]->onSelect (5);
+    CHECK_FALSE (view.isVisible());
 }

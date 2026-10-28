@@ -2,6 +2,29 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.35.0
+
+- **New block: VOCODER**, inspired by the Vocoder in iZotope VocalSynth 2 (the manual you sent). It's in the signal chain between GLITCH and DOUBLER. A vocoder splits your voice into frequency bands, measures how loud you are in each, and uses that to shape a synth: the robot voice. Your words and vowels, the synth's sound and pitch.
+  - **What the synth plays (PLAYS page):**
+    - **Auto:** the pitch you sing, exactly. Add up to three **INTERVAL** voices (a 2nd to an octave, up or down), kept in HARMONY's KEY and SCALE, for an instant vocoder choir. No keyboard needed.
+    - **MIDI:** your keyboard. **Mono** (one note, with GLIDE between notes) or **Poly** (up to 8 notes, for chords).
+  - **MAIN:**
+    - **MODE:** Smooth, Vintage or Hard (12, 20 or 32 bands, from soft and smooth to crisp and articulate).
+    - **SHIFT:** brighter or darker.
+    - **SCALE:** how fast it follows you, from soft pad to sharp consonants.
+    - **LEVEL**, and **DRY** (your voice underneath; off to start).
+  - **The synth:** two oscillators (Saw, Square, Sync Saw, Triangle, Saws: seven detuned saws), each with GAIN, COARSE, FINE, SHAPE and LFO amounts on pitch and shape. A NOISE with CRUSH (from a buzz at the note's pitch to white hiss), and an LFO.
+  - **MIX:** PAN, LOW CUT and HIGH CUT on what comes out.
+  - **The bands on the rack's display:** live LED bars show how loud your voice is in each band. Draw over them to set each band's **VOL** or **PAN** (spread the high bands right and the low ones left, or cut a range). RESET or a double-click flattens it.
+  - **Four new rigs in bank E:** **E23 Robot Voice**, **E24 Vocoder Choir** (your note plus a third, a fifth and an octave below), **E25 Deep Robot**, and **E26 Keys Vocoder** for a MIDI keyboard (your voice stays faintly underneath, so it's never silent without keys).
+- **Our design where the manual doesn't say:**
+  - the band counts;
+  - how each band's synth is levelled before your voice shapes it (this keeps the words clear whatever wave you pick);
+  - the oscillator shapes, the noise's CRUSH and the envelope speeds;
+  - Auto keeps your own note exactly (not snapped to the key) while the INTERVAL voices are in the key.
+- **Not in this release:** the manual's **Sidechain** mode (another track as the synth). It needs the plugin to take a second audio input, which changes how BeatMaker routes it, so it's a stage of its own. Also not here: synth presets, and the manual's round "anemone" display.
+- **Can't be checked here by ear:** the tests check the sound (the synth's harmonics follow your voice's shape, the pitch is the key's or your own, SHIFT, the bands' VOL and PAN, no sound without a voice, the level matches your voice), but how it sounds singing into it is yours to judge.
+
 ## 0.34.0
 
 - **HARMONY stage 10: the rest of the MODULATORS**, inspired by the Waves Harmony guide's Modulators chapter. Stage 9 made the harmony move on its own; stage 10 makes **each note move on its own**, so a chord from GENERATE or your MIDI keyboard can swell, spread and bend note by note.

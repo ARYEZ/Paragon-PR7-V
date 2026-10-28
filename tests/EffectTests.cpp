@@ -5024,3 +5024,294 @@ TEST_CASE ("HARMONY snapshots keep the modulators on their controls; drawn shape
         CHECK_THAT (voiceShift (rig), WithinAbs (9.0, 0.2));
     }
 }
+
+//==============================================================================
+// The VOCODER (inspired by iZotope VocalSynth 2's).
+namespace
+{
+    using Voc = effects::Vocoder;
+
+    struct VocoderRun
+    {
+        std::vector<float> left, right;
+    };
+
+    // Runs a vocoder over `voice` (the modulator, and the clean voice for
+    // Auto), with `keys` (MIDI notes, velocity 1) held from the start.
+    VocoderRun runVocoder (const Voc::Settings& settings, const std::vector<float>& voice, std::initializer_list<int> keys = {},
+                           const std::vector<float>* input = nullptr)
+    {
+        Voc vocoder;
+        vocoder.prepare (sampleRate, blockSize);
+        juce::MidiBuffer midi;
+        for (const auto key : keys)
+            midi.addEvent (juce::MidiMessage::noteOn (1, key, 1.0f), 0);
+        vocoder.handleMidi (midi);
+        VocoderRun out;
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        for (size_t start = 0; start + blockSize <= voice.size(); start += blockSize)
+        {
+            buffer.clear();
+            if (input != nullptr)
+                for (int ch = 0; ch < 2; ++ch)
+                    buffer.copyFrom (ch, 0, input->data() + start, blockSize);
+            juce::dsp::AudioBlock<float> block (buffer);
+            vocoder.process (block, voice.data() + start, voice.data() + start, settings);
+            out.left.insert (out.left.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + blockSize);
+            out.right.insert (out.right.end(), buffer.getReadPointer (1), buffer.getReadPointer (1) + blockSize);
+        }
+        return out;
+    }
+
+    std::vector<float> sine (double hz, double seconds, float amplitude = 0.1f)
+    {
+        std::vector<float> samples ((size_t) (seconds * sampleRate));
+        for (size_t i = 0; i < samples.size(); ++i)
+            samples[i] = amplitude * (float) std::sin (juce::MathConstants<double>::twoPi * hz * (double) i / sampleRate);
+        return samples;
+    }
+
+    Voc::Settings vocoderOn (Voc::Carrier carrier = Voc::Carrier::midi)
+    {
+        Voc::Settings settings;
+        settings.on = true;
+        settings.carrier = carrier;
+        return settings;
+    }
+}
+
+TEST_CASE ("VOCODER: the synth takes the voice's shape", "[effects][vocoder]")
+{
+    const auto settings = vocoderOn();
+
+    SECTION ("A voice low in pitch brings out the synth's low harmonics; a high one, its high ones")
+    {
+        // The synth: a saw on A2 (110 Hz). Its 4th harmonic is 440 Hz, its 23rd 2530 Hz.
+        const auto low = runVocoder (settings, sine (440.0, 1.0), { 45 }).left;
+        const auto high = runVocoder (settings, sine (2530.0, 1.0), { 45 }).left;
+        CAPTURE (levelAt (low, 440.0, 0.5), levelAt (low, 2530.0, 0.5), levelAt (high, 440.0, 0.5), levelAt (high, 2530.0, 0.5));
+        CHECK (levelAt (low, 440.0, 0.5) > 8.0f * levelAt (low, 2530.0, 0.5));
+        CHECK (levelAt (high, 2530.0, 0.5) > 8.0f * levelAt (high, 440.0, 0.5));
+    }
+
+    SECTION ("MIDI: the synth's pitch is the key's, not the voice's")
+    {
+        const auto out = runVocoder (settings, sungVowel (220.0, 1.0), { 45 }).left;   // sing A3, play A2
+        CHECK (std::abs (cents (pitchOf (out), 110.0)) < 10.0);
+    }
+
+    SECTION ("POLY: two keys, both notes")
+    {
+        auto poly = settings;
+        poly.voicing = Voc::Voicing::poly;
+        const auto out = runVocoder (poly, sungVowel (220.0, 1.0, 600.0), { 48, 55 }).left;   // C3 and G3
+        const auto c3 = 130.81, g3 = 196.0;
+        CAPTURE (levelAt (out, c3 * 4, 0.5), levelAt (out, g3 * 3, 0.5), levelAt (out, 150.0, 0.5));
+        CHECK (levelAt (out, c3 * 4, 0.5) > 4.0f * levelAt (out, 450.0, 0.5));   // a harmonic of each, against a frequency in neither
+        CHECK (levelAt (out, g3 * 3, 0.5) > 4.0f * levelAt (out, 450.0, 0.5));
+    }
+
+    SECTION ("No voice, no sound (the synth never leaks), even with a key held; no key, no sound")
+    {
+        CHECK (rms (runVocoder (settings, std::vector<float> ((size_t) sampleRate, 0.0f), { 45 }).left) < 1.0e-5f);
+        CHECK (rms (runVocoder (settings, sungVowel (220.0, 1.0), {}).left, 0.3) < 1.0e-4f);
+    }
+
+    SECTION ("About as loud as the voice, in every MODE")
+    {
+        const auto voice = sungVowel (220.0, 1.0);
+        for (int mode = 0; mode < 3; ++mode)
+        {
+            auto withMode = settings;
+            withMode.mode = (Voc::Mode) mode;
+            const auto out = runVocoder (withMode, voice, { 45 });
+            const auto difference = dB (rms (out.left, 0.4) / rms (voice, 0.4));
+            CAPTURE (mode, difference);
+            CHECK (std::abs (difference) < 1.5f);
+        }
+    }
+
+    SECTION ("Off: what comes in goes out untouched")
+    {
+        Voc::Settings off;
+        const auto voice = sungVowel (220.0, 0.5);
+        const auto out = runVocoder (off, voice, { 45 }, &voice);
+        CHECK (maxAbsDifference (out.left, voice) < 1.0e-6f);
+    }
+
+    SECTION ("DRY: what came in, under the vocoder")
+    {
+        auto withDry = settings;
+        withDry.dryDb = 0.0f;
+        withDry.levelDb = Voc::offDb;
+        const auto voice = sungVowel (220.0, 0.5);
+        const auto out = runVocoder (withDry, voice, { 45 }, &voice);
+        CHECK (maxAbsDifference (out.left, voice, (size_t) (0.1 * sampleRate)) < 1.0e-4f);
+    }
+}
+
+TEST_CASE ("VOCODER: Auto plays what you sing, and the INTERVAL voices", "[effects][vocoder]")
+{
+    auto settings = vocoderOn (Voc::Carrier::autoPitch);
+    const auto A3 = 220.0, E4 = 329.63;
+    const auto sung = sungVowel (A3, 1.2, 700.0);
+
+    SECTION ("The synth follows the sung pitch")
+    {
+        CHECK (std::abs (cents (pitchOf (runVocoder (settings, sung).left), A3)) < 10.0);
+        CHECK (std::abs (cents (pitchOf (runVocoder (settings, sungVowel (174.61, 1.2)).left), 174.61)) < 10.0);   // F3
+    }
+
+    SECTION ("5th Up in C major on an A: the E above, a diatonic fifth")
+    {
+        settings.intervals[0] = Voc::intervalNames.indexOf ("5th Up");
+        settings.intervalDb = 0.0f;
+        const auto out = runVocoder (settings, sung).left;
+        const auto plain = runVocoder (vocoderOn (Voc::Carrier::autoPitch), sung).left;
+        CAPTURE (levelAt (out, E4, 0.6), levelAt (plain, E4, 0.6));
+        CHECK (levelAt (out, E4, 0.6) > 3.0f * levelAt (plain, E4, 0.6));   // the E itself: none of A's harmonics is near it
+    }
+
+    SECTION ("3rd Up keeps to the key: in A minor, C's third up is E, not E flat")
+    {
+        settings.key = 9;   // A
+        settings.scaleType = Scales::Scale::naturalMinor;
+        settings.intervals[0] = Voc::intervalNames.indexOf ("3rd Up");
+        settings.intervalDb = 0.0f;
+        const auto out = runVocoder (settings, sungVowel (261.63, 1.2, 700.0)).left;   // C4
+        const auto plain = runVocoder (vocoderOn (Voc::Carrier::autoPitch), sungVowel (261.63, 1.2, 700.0)).left;
+        CHECK (levelAt (out, E4, 0.6) > 3.0f * levelAt (plain, E4, 0.6));
+        CHECK (levelAt (out, 311.13, 0.6) < 0.1f * levelAt (out, E4, 0.6));   // not E flat
+    }
+}
+
+TEST_CASE ("VOCODER: SHIFT, the bands' VOL and PAN, PAN, the cuts", "[effects][vocoder]")
+{
+    const auto settings = vocoderOn();
+
+    SECTION ("SHIFT +12: the voice's 440 Hz comes out an octave higher, at 880 Hz")
+    {
+        auto shifted = settings;
+        shifted.shift = 12.0f;
+        const auto out = runVocoder (shifted, sine (440.0, 1.0), { 45 }).left;
+        CAPTURE (levelAt (out, 880.0, 0.5), levelAt (out, 440.0, 0.5));
+        CHECK (levelAt (out, 880.0, 0.5) > 3.0f * levelAt (out, 440.0, 0.5));
+    }
+
+    SECTION ("Band VOL: the lower half off takes the low voice away, not the high one")
+    {
+        auto cut = settings;
+        for (int p = 0; p < Voc::curvePoints / 2; ++p)
+            cut.bandDb[(size_t) p] = Voc::minBandDb;
+        const auto lowPlain = rms (runVocoder (settings, sine (300.0, 1.0), { 45 }).left, 0.5);
+        const auto lowCut = rms (runVocoder (cut, sine (300.0, 1.0), { 45 }).left, 0.5);
+        const auto highPlain = rms (runVocoder (settings, sine (4000.0, 1.0), { 45 }).left, 0.5);
+        const auto highCut = rms (runVocoder (cut, sine (4000.0, 1.0), { 45 }).left, 0.5);
+        CAPTURE (lowPlain, lowCut, highPlain, highCut);
+        CHECK (lowCut < 0.1f * lowPlain);
+        CHECK (std::abs (dB (highCut / highPlain)) < 1.0f);
+    }
+
+    SECTION ("Band PAN all left: nothing on the right; the module's PAN right: nothing on the left")
+    {
+        auto left = settings;
+        left.bandPan.fill (-1.0f);
+        const auto out = runVocoder (left, sungVowel (220.0, 1.0), { 45 });
+        CHECK (rms (out.right, 0.3) < 1.0e-5f);
+        CHECK (rms (out.left, 0.3) > 1.0e-3f);
+        auto right = settings;
+        right.pan = 1.0f;
+        const auto panned = runVocoder (right, sungVowel (220.0, 1.0), { 45 });
+        CHECK (rms (panned.left, 0.3) < 1.0e-5f);
+    }
+
+    SECTION ("HIGH CUT at 1 kHz takes the top off")
+    {
+        auto cut = settings;
+        cut.highCutHz = 1000.0f;
+        const auto plain = runVocoder (settings, sine (4000.0, 1.0), { 45 }).left;
+        const auto dull = runVocoder (cut, sine (4000.0, 1.0), { 45 }).left;
+        CHECK (rms (dull, 0.5) < 0.1f * rms (plain, 0.5));
+    }
+}
+
+TEST_CASE ("VOCODER: the synth's oscillators and noise", "[effects][vocoder]")
+{
+    SECTION ("A square has no even harmonics; a saw has them")
+    {
+        std::vector<float> square, saw;
+        auto phase = 0.0f;
+        const auto increment = (float) (110.0 / sampleRate);
+        for (int i = 0; i < (int) sampleRate; ++i)
+        {
+            square.push_back (Voc::waveSample (Voc::square, phase, increment, 0.0f));
+            saw.push_back (Voc::waveSample (Voc::saw, phase, increment, 0.0f));
+            phase += increment;
+            phase -= std::floor (phase);
+        }
+        CHECK (levelAt (square, 220.0, 0.0) < 0.02f * levelAt (square, 110.0, 0.0));
+        CHECK (levelAt (saw, 220.0, 0.0) > 0.4f * levelAt (saw, 110.0, 0.0));
+    }
+
+    SECTION ("COARSE -12 on the only oscillator: the synth an octave down")
+    {
+        auto settings = vocoderOn();
+        settings.osc[0].coarse = -12.0f;
+        const auto out = runVocoder (settings, sungVowel (220.0, 1.0), { 57 }).left;   // A3 key, an octave down: A2
+        CHECK (std::abs (cents (pitchOf (out), 110.0)) < 10.0);
+    }
+
+    SECTION ("NOISE alone (oscillator off) still speaks: the consonant-like hiss shaped by the voice")
+    {
+        auto settings = vocoderOn();
+        settings.osc[0].on = false;
+        settings.noise.on = true;
+        settings.noise.gainDb = 0.0f;
+        settings.noise.crush = 1.0f;
+        const auto out = runVocoder (settings, sine (3000.0, 1.0), { 45 }).left;
+        CHECK (levelAt (out, 3000.0, 0.5) > 0.0f);
+        CHECK (rms (out, 0.5) > 0.01f);
+    }
+}
+
+TEST_CASE ("VOCODER in the plugin: on by its switch, Auto or MIDI", "[effects][vocoder]")
+{
+    const auto sung = sungVowel (220.0, 1.2, 700.0);
+
+    SECTION ("Auto: the robot voice sings your note; off: your voice untouched")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::vocoderOn, 1.0f);
+        const auto out = rig.runMono (sung);
+        CHECK (std::abs (cents (pitchOf (out), 220.0)) < 10.0);
+        EffectRig plain;
+        EffectRig off;
+        off.set (ParamIDs::vocoderMode, 2.0f);   // anything but on
+        CHECK (maxAbsDifference (plain.runMono (sung), off.runMono (sung)) < 1.0e-6f);
+    }
+
+    SECTION ("MIDI: the key you play")
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::vocoderOn, 1.0f);
+        rig.set (ParamIDs::vocoderCarrier, 1.0f);
+        const auto out = runWithMidi (rig, sung, { { 0.0, keyDown (45) } });
+        CHECK (std::abs (cents (pitchOf (out), 110.0)) < 10.0);
+    }
+}
+
+TEST_CASE ("VOCODER: the heaviest setting runs well within real time", "[effects][vocoder][.cpu]")
+{
+    auto settings = vocoderOn();
+    settings.mode = Voc::Mode::hard;
+    settings.voicing = Voc::Voicing::poly;
+    settings.osc[0].wave = settings.osc[1].wave = Voc::saws;
+    settings.osc[1].on = true;
+    settings.noise.on = true;
+    const auto voice = sungVowel (220.0, 5.0);
+    const auto started = juce::Time::getMillisecondCounterHiRes();
+    runVocoder (settings, voice, { 48, 52, 55, 59, 62, 65, 69, 72 });
+    const auto seconds = (juce::Time::getMillisecondCounterHiRes() - started) / 1000.0;
+    WARN ("5 s of audio in " << seconds << " s: " << seconds / 5.0 * 100.0 << "% of a core");
+    CHECK (seconds < 5.0);
+}

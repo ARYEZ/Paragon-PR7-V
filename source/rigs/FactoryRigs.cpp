@@ -539,6 +539,53 @@ std::vector<Rig> makeFactoryRigs()
             { harmonyNoteAttack, 120 }, { harmonyNoteRelease, 400 },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.3f }, { reverbPreDelay, 40 } }),
 
+        // The VOCODER (0.35.0): the synth shaped by your voice. Auto plays
+        // what you sing, so these work without a keyboard.
+
+        // The classic robot: crisp (HARD, high SCALE), a saw on your own
+        // note, a little crushed noise so the consonants still cut.
+        make ("Robot Voice", E, 23, "Vocoder,Robot,Electronic,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { vocoderOn, 1 }, { vocoderMode, 2 }, { vocoderScale, 0.75f },
+            { vocoderNoiseOn, 1 }, { vocoderNoiseGain, -20 }, { vocoderNoiseCrush, 0.9f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // A choir of synths: seven detuned saws on your note, a third and a
+        // fifth above and an octave below, in the key (INTERVAL voices).
+        make ("Vocoder Choir", E, 24, "Vocoder,Choir,Electronic,Ambient", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderScale, 0.45f },
+            { "vocOsc1Wave", 4 }, { "vocOsc1Shape", 0.4f },
+            { "vocInterval1", 3 }, { "vocInterval2", 5 }, { "vocInterval3", 15 }, { vocoderIntervalLevel, -5 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.28f }, { reverbPreDelay, 30 } }),
+
+        // A low, dark machine: the synth an octave under you, its bands
+        // shifted down, soft square waves, the top rolled off.
+        make ("Deep Robot", E, 25, "Vocoder,Robot,Dark,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderShift, -4 }, { vocoderScale, 0.5f },
+            { "vocOsc1Wave", 1 }, { "vocOsc1Shape", 0.3f }, { "vocOsc1Coarse", -12 },
+            { "vocOsc2On", 1 }, { "vocOsc2Wave", 0 }, { "vocOsc2Coarse", -24 }, { "vocOsc2Gain", -8 },
+            { vocoderHighCut, 7000 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
+
+        // For a MIDI keyboard: play chords, sing the words (POLY). Your own
+        // voice stays faintly underneath, so it's never silent without keys.
+        make ("Keys Vocoder", E, 26, "Vocoder,MIDI,Electronic,Choir", {
+            { rigLevel, 3 },   // without keys only the faint dry voice plays
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderScale, 0.55f }, { vocoderDry, -8 },
+            { vocoderCarrier, 1 }, { vocoderVoicing, 1 },
+            { "vocOsc1Wave", 4 }, { "vocOsc1Shape", 0.3f }, { "vocOsc2On", 1 }, { "vocOsc2Wave", 1 },
+            { "vocOsc2Shape", 0.5f }, { "vocOsc2ShapeMod", 0.4f }, { vocoderLfoRate, 0.4f },
+            { vocoderNoiseOn, 1 }, { vocoderNoiseGain, -22 }, { vocoderNoiseCrush, 0.9f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
+
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records
         // are commonly made: doubling, compression, delays, saturation), not

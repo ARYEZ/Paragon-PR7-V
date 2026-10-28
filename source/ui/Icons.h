@@ -24,7 +24,9 @@ namespace Icons
                       // PR7-V 0.3.0
                       doubler, microphone,
                       // PR7-V 0.5.0
-                      deEsser };
+                      deEsser,
+                      // PR7-V 0.35.0
+                      vocoder };
 
     juce::Path get (Type type);
 

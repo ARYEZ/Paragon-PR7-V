@@ -51,6 +51,16 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
     // HARMONY's modulators and the controls they can move.
     harmonyModParameters.bind (parameters);
+    for (int o = 0; o < 2; ++o)
+        for (int part = 0; part < ParamIDs::vocoderOscParts.size(); ++part)
+            vocoderParameters.osc[(size_t) o][(size_t) part] = parameters.getRawParameterValue (ParamIDs::vocoderOsc (o, ParamIDs::vocoderOscParts[part]));
+    for (int point = 0; point < effects::Vocoder::curvePoints; ++point)
+    {
+        vocoderParameters.bandVol[(size_t) point] = parameters.getRawParameterValue (ParamIDs::vocoderBandVol (point));
+        vocoderParameters.bandPan[(size_t) point] = parameters.getRawParameterValue (ParamIDs::vocoderBandPan (point));
+    }
+    for (int i = 0; i < effects::Vocoder::numIntervals; ++i)
+        vocoderParameters.intervals[(size_t) i] = parameters.getRawParameterValue (ParamIDs::vocoderInterval (i));
     {
         const auto ids = ParamIDs::harmonyModTargets();
         for (const auto& id : ids)
@@ -127,6 +137,8 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     delay.prepare (sampleRate, preparedBlockSize);
     reverb.prepare (sampleRate, preparedBlockSize);
     loFi.prepare (sampleRate, preparedBlockSize);
+    vocoder.prepare (sampleRate, preparedBlockSize);
+    vocoderVoice.setSize (1, preparedBlockSize);
     glitch.prepare (sampleRate, preparedBlockSize);
     pitchBlock.prepare (sampleRate, preparedBlockSize);
     talkBox.prepare (sampleRate, preparedBlockSize);
@@ -380,6 +392,7 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             harmonyModMidi.aftertouch = (float) message.getAfterTouchValue() / 127.0f;
     }
     harmonyMidi.read (midi);
+    vocoder.handleMidi (midi);
     for (size_t key = 0; key < shownMidiKeys.size(); ++key)
         shownMidiKeys[key].store (harmonyMidi.velocity[key]);
 
@@ -520,6 +533,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (! glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
+    // The voice as it leaves the mono part: what talks through the VOCODER.
+    vocoderVoice.copyFrom (0, 0, buffer, 0, start, numSamples);
+
     // From here on, stereo: the doubler, modulation, delay and reverb spread
     // the sound across both speakers.
     for (int channel = 1; channel < numOutputChannels; ++channel)
@@ -601,6 +617,13 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
                               juce::roundToInt (parts[13]->load()), parts[14]->load());
     }
     processHarmony (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings, songBeats);
+
+    // VOCODER: the synth shaped by the voice, over what came in (DRY).
+    effects::Vocoder::Settings vocoderSettings;
+    readVocoder (vocoderSettings, harmonySettings.customScale);
+    vocoderSettings.key = harmonySettings.key;
+    vocoderSettings.scaleType = harmonySettings.scale;
+    vocoder.process (stereoBlock, vocoderVoice.getReadPointer (0), cleanVoice.getReadPointer (0), vocoderSettings);
 
     // DOUBLER: MORPH fades its voices in from the heel.
     effects::Doubler::Settings doublerSettings;
@@ -1010,6 +1033,51 @@ void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings
     if (fxMoved.back())
         settings.notes.fx = harmonyFx (fx.back()[0], juce::roundToInt (param (ParamIDs::harmonyNoteSync)), fx.back()[1],
                                        juce::roundToInt (param (ParamIDs::harmonyNoteFilter)), fx.back()[2]);
+}
+
+void ParagonX1AudioProcessor::readVocoder (effects::Vocoder::Settings& settings, const Scales::Custom& custom) const noexcept
+{
+    settings.on = isOn (ParamIDs::vocoderOn);
+    settings.mode = (effects::Vocoder::Mode) juce::roundToInt (param (ParamIDs::vocoderMode));
+    settings.shift = param (ParamIDs::vocoderShift);
+    settings.scale = param (ParamIDs::vocoderScale);
+    settings.levelDb = param (ParamIDs::vocoderLevel);
+    settings.dryDb = param (ParamIDs::vocoderDry);
+    settings.carrier = (effects::Vocoder::Carrier) juce::roundToInt (param (ParamIDs::vocoderCarrier));
+    settings.voicing = (effects::Vocoder::Voicing) juce::roundToInt (param (ParamIDs::vocoderVoicing));
+    settings.glideMs = param (ParamIDs::vocoderGlide);
+    for (size_t i = 0; i < settings.intervals.size(); ++i)
+        settings.intervals[i] = juce::roundToInt (vocoderParameters.intervals[i]->load());
+    settings.intervalDb = param (ParamIDs::vocoderIntervalLevel);
+    settings.custom = &custom;
+    for (size_t o = 0; o < 2; ++o)
+    {
+        const auto& parts = vocoderParameters.osc[o];   // in vocoderOscParts' order
+        auto& osc = settings.osc[o];
+        osc.on = parts[0]->load() > 0.5f;
+        osc.wave = juce::roundToInt (parts[1]->load());
+        osc.gainDb = parts[2]->load();
+        osc.coarse = parts[3]->load();
+        osc.fineCents = parts[4]->load();
+        osc.pitchMod = parts[5]->load();
+        osc.shape = parts[6]->load();
+        osc.shapeMod = parts[7]->load();
+    }
+    settings.noise.on = isOn (ParamIDs::vocoderNoiseOn);
+    settings.noise.gainDb = param (ParamIDs::vocoderNoiseGain);
+    settings.noise.crush = param (ParamIDs::vocoderNoiseCrush);
+    settings.noise.crushMod = param (ParamIDs::vocoderNoiseCrushMod);
+    settings.noise.modSource = juce::roundToInt (param (ParamIDs::vocoderNoiseModSource));
+    settings.lfoShape = juce::roundToInt (param (ParamIDs::vocoderLfoShape));
+    settings.lfoRateHz = param (ParamIDs::vocoderLfoRate);
+    settings.pan = param (ParamIDs::vocoderPan);
+    settings.lowCutHz = param (ParamIDs::vocoderLowCut);
+    settings.highCutHz = param (ParamIDs::vocoderHighCut);
+    for (size_t p = 0; p < settings.bandDb.size(); ++p)
+    {
+        settings.bandDb[p] = vocoderParameters.bandVol[p]->load();
+        settings.bandPan[p] = vocoderParameters.bandPan[p]->load();
+    }
 }
 
 void ParagonX1AudioProcessor::processHarmony (juce::dsp::AudioBlock<float> block, const float* clean, const effects::Harmony::Settings& base,

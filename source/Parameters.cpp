@@ -6,6 +6,7 @@
 #include "dsp/effects/Doubler.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/Vocoder.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
@@ -719,6 +720,71 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeChoice (ParamIDs::harmonySpTrigger, "Harmony SP Trigger", v47, Mod::spreadTriggerNames, 0));
         layout.add (makeFloat (ParamIDs::harmonySpSpread, "Harmony SP Spread", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
         layout.add (makeFloat (ParamIDs::harmonySpLevel, "Harmony SP Level", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
+    }
+
+    // Added in plugin version 48: the VOCODER, inspired by iZotope
+    // VocalSynth 2's Vocoder (the owner's manual). Off to start; when on,
+    // the robot voice alone (DRY off), a saw playing what you sing.
+    {
+        constexpr int v48 = 48;
+        using Voc = effects::Vocoder;
+        const ToText asVocLevel = [] (float db, int) { return db <= Voc::offDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+        const ToText asBand = [] (float db, int) { return db <= Voc::minBandDb ? juce::String ("Off") : (db > 0.0f ? "+" : "") + juce::String (db, 1) + " dB"; };
+        const ToText asShift = [] (float st, int) { return (st > 0.0f ? "+" : "") + juce::String (st, 1) + " st"; };
+        const ToText asCoarse = [] (float st, int) { return (st > 0.0f ? "+" : "") + juce::String (juce::roundToInt (st)) + " st"; };
+        const ToText asFine = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)) + " ct"; };
+        const ToText asSignedPercent = [] (float value, int) { return (value > 0.004f ? "+" : "") + juce::String (juce::roundToInt (value * 100.0f)) + "%"; };
+        const ToText asVocPan = [] (float pan, int)
+        {
+            const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+            return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+        };
+        const ToText asCutHz = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz"; };
+        const ToText asLowCutOff = [asCutHz] (float hz, int) { return hz <= 21.0f ? juce::String ("Off") : asCutHz (hz, 0); };
+        const ToText asHighCutOff = [asCutHz] (float hz, int) { return hz >= 19900.0f ? juce::String ("Off") : asCutHz (hz, 0); };
+        const Voc::Settings defaults;
+        layout.add (makeSwitch (ParamIDs::vocoderOn, "Vocoder On", v48, false));
+        layout.add (makeChoice (ParamIDs::vocoderMode, "Vocoder Mode", v48, Voc::modeNames, (int) defaults.mode));
+        layout.add (makeFloat (ParamIDs::vocoderShift, "Vocoder Shift", { -12.0f, 12.0f, 0.1f }, 0.0f, v48, asShift));
+        layout.add (makeFloat (ParamIDs::vocoderScale, "Vocoder Scale", { 0.0f, 1.0f, 0.01f }, defaults.scale, v48, asPercent));
+        layout.add (makeFloat (ParamIDs::vocoderLevel, "Vocoder Level", { Voc::offDb, 6.0f, 0.1f }, defaults.levelDb, v48, asVocLevel));
+        layout.add (makeFloat (ParamIDs::vocoderDry, "Vocoder Dry", { Voc::offDb, 6.0f, 0.1f }, defaults.dryDb, v48, asVocLevel));
+        layout.add (makeChoice (ParamIDs::vocoderCarrier, "Vocoder Carrier", v48, Voc::carrierNames, 0));
+        layout.add (makeChoice (ParamIDs::vocoderVoicing, "Vocoder Voicing", v48, Voc::voicingNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderGlide, "Vocoder Glide", skewed (0.0f, 2000.0f, 200.0f, 1.0f), 0.0f, v48, asTime));
+        for (int i = 0; i < Voc::numIntervals; ++i)
+            layout.add (makeChoice (ParamIDs::vocoderInterval (i).toRawUTF8(), "Vocoder Interval " + juce::String (i + 1), v48, Voc::intervalNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderIntervalLevel, "Vocoder Interval Level", { Voc::offDb, 6.0f, 0.1f }, defaults.intervalDb, v48, asVocLevel));
+        for (int o = 0; o < 2; ++o)
+        {
+            const auto id = [o] (const char* part) { return ParamIDs::vocoderOsc (o, part); };
+            const auto name = "Vocoder Osc " + juce::String (o + 1) + " ";
+            layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v48, o == 0));
+            layout.add (makeChoice (id ("Wave").toRawUTF8(), name + "Wave", v48, Voc::waveNames, o == 0 ? Voc::saw : Voc::square));
+            layout.add (makeFloat (id ("Gain").toRawUTF8(), name + "Gain", { Voc::offDb, 6.0f, 0.1f }, o == 0 ? 0.0f : -6.0f, v48, asVocLevel));
+            layout.add (makeFloat (id ("Coarse").toRawUTF8(), name + "Coarse", { -24.0f, 24.0f, 1.0f }, o == 0 ? 0.0f : -12.0f, v48, asCoarse));
+            layout.add (makeFloat (id ("Fine").toRawUTF8(), name + "Fine", { -100.0f, 100.0f, 1.0f }, 0.0f, v48, asFine));
+            layout.add (makeFloat (id ("PitchMod").toRawUTF8(), name + "Pitch Mod", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+            layout.add (makeFloat (id ("Shape").toRawUTF8(), name + "Shape", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+            layout.add (makeFloat (id ("ShapeMod").toRawUTF8(), name + "Shape Mod", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+        }
+        layout.add (makeSwitch (ParamIDs::vocoderNoiseOn, "Vocoder Noise On", v48, defaults.noise.on));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseGain, "Vocoder Noise Gain", { Voc::offDb, 6.0f, 0.1f }, defaults.noise.gainDb, v48, asVocLevel));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseCrush, "Vocoder Noise Crush", { 0.0f, 1.0f, 0.01f }, defaults.noise.crush, v48, asPercent));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseCrushMod, "Vocoder Noise Crush Mod", { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asSignedPercent));
+        layout.add (makeChoice (ParamIDs::vocoderNoiseModSource, "Vocoder Noise Mod Source", v48, Voc::noiseModNames, 0));
+        layout.add (makeChoice (ParamIDs::vocoderLfoShape, "Vocoder LFO Shape", v48, Voc::lfoShapeNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderLfoRate, "Vocoder LFO Rate", skewed (0.05f, 20.0f, 3.0f, 0.01f), defaults.lfoRateHz, v48, asHz));
+        layout.add (makeFloat (ParamIDs::vocoderPan, "Vocoder Pan", { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asVocPan));
+        layout.add (makeFloat (ParamIDs::vocoderLowCut, "Vocoder Low Cut", skewed (20.0f, 2000.0f, 200.0f, 1.0f), 20.0f, v48, asLowCutOff));
+        layout.add (makeFloat (ParamIDs::vocoderHighCut, "Vocoder High Cut", skewed (1000.0f, 20000.0f, 6000.0f, 1.0f), 20000.0f, v48, asHighCutOff));
+        for (int p = 0; p < Voc::curvePoints; ++p)
+        {
+            layout.add (makeFloat (ParamIDs::vocoderBandVol (p).toRawUTF8(), "Vocoder Band Vol " + juce::String (p + 1),
+                                   { Voc::minBandDb, 6.0f, 0.1f }, 0.0f, v48, asBand));
+            layout.add (makeFloat (ParamIDs::vocoderBandPan (p).toRawUTF8(), "Vocoder Band Pan " + juce::String (p + 1),
+                                   { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asVocPan));
+        }
     }
     return layout;
 }

@@ -18,6 +18,7 @@
 #include "ui/PedalBody.h"
 #include "ui/PerformanceControls.h"
 #include "ui/RigBrowser.h"
+#include "ui/VocoderBandsView.h"
 #include "ui/SignalChain.h"
 
 // A side strip from the mockup: a title, a gain knob with its value
@@ -97,7 +98,7 @@ public:
 private:
     // The blocks in signal-chain order; footswitches, the chain strip and
     // the summary cards select these to show their knobs.
-    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
+    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, vocoderBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
 
     enum class Page { processor, presets, settings };
 
@@ -166,6 +167,7 @@ private:
     // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE (the
     // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
     HarmonyPanel harmonyPanel;
+    VocoderBandsView vocoderBands;   // the VOCODER's band display on the rack's display
     DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
     MarsPanel marsPanel;         // SATURATION's own panel (panels[driveBlock] is empty)
     juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };

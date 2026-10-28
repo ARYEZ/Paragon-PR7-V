@@ -39,6 +39,8 @@ descriptions below still talk about guitar.
 | V11 | Harmony stage 8: SNAPSHOTS (32 slots, SNAPSHOT parameter) | ✅ Done (0.27.0) |
 | V12 | Harmony stage 9: MODULATORS (M1-M4 LFO/SEQ, AM, PT; right-click a knob) | ✅ Done (0.33.0) |
 | V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, Poly, drawn shapes | ✅ Done (0.34.0) |
+| V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
+| V15 | Vocoder SIDECHAIN carrier; better telephone / radio / megaphone voices | Next |
 
 ## Using it
 
