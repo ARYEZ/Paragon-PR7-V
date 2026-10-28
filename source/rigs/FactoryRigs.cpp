@@ -613,6 +613,22 @@ std::vector<Rig> makeFactoryRigs()
             { lofiOn, 1 }, { lofiType, gramophone }, { lofiAmount, 5 }, { lofiNoise, 5 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
 
+        // FORMANT (0.37.0): the voice's size, the pitch kept.
+
+        // A cartoon-small voice: the resonances an octave up, a bright plate.
+        make ("Chipmunk", E, 30, "Formant,Character,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { formantOn, 1 }, { formantShift, 9 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.14f } }),
+
+        // A giant: the resonances down most of an octave, darker, a big room.
+        make ("Giant", E, 31, "Formant,Character,Dark,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 3 },
+            { formantOn, 1 }, { formantShift, -8 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.22f } }),
+
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records
         // are commonly made: doubling, compression, delays, saturation), not

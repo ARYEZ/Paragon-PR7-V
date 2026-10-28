@@ -5424,3 +5424,79 @@ TEST_CASE ("LO-FI 0.36.0: Cell Phone, Walkie-Talkie, Gramophone", "[effects][lof
         CHECK (levelAt (output, 1000.0, 0.3) < 0.8f * rms (output, 0.3) * std::sqrt (2.0f));   // the tone smeared off its one frequency
     }
 }
+
+//==============================================================================
+// FORMANT (0.37.0): the singer's own voice, chipmunk to giant, the pitch kept.
+TEST_CASE ("FORMANT moves the voice's resonances, not its pitch", "[effects][harmony][formant]")
+{
+    const auto A3 = 220.0;
+    const auto sung = sungVowel (A3, 1.2, 700.0);   // its resonance (formant) at 700 Hz
+    const auto withFormant = [&sung] (float semitones)
+    {
+        EffectRig rig;
+        rig.set (ParamIDs::formantOn, 1.0f);
+        rig.set (ParamIDs::formantShift, semitones);
+        rig.processor.updateLatency();   // the timer's job in a DAW
+        return rig.runMono (sung);
+    };
+    // How much louder the harmonics around `high` are than those around `low` (dB).
+    const auto tilt = [] (const std::vector<float>& out, std::initializer_list<double> low, std::initializer_list<double> high)
+    {
+        auto lowLevel = 0.0f, highLevel = 0.0f;
+        for (const auto hz : low)
+            lowLevel += levelAt (out, hz, 0.5);
+        for (const auto hz : high)
+            highLevel += levelAt (out, hz, 0.5);
+        return dB (highLevel / lowLevel);
+    };
+
+    SECTION ("+12 (chipmunk): the resonance an octave up, at 1.4 kHz; the note still an A")
+    {
+        const auto plain = withFormant (0.0f), up = withFormant (12.0f);
+        const auto before = tilt (plain, { 660.0, 880.0 }, { 1320.0, 1540.0 });
+        const auto after = tilt (up, { 660.0, 880.0 }, { 1320.0, 1540.0 });
+        CAPTURE (before, after, pitchOf (up));
+        CHECK (after > before + 12.0f);
+        CHECK (std::abs (cents (pitchOf (up), A3)) < 5.0);
+        CHECK_THAT (dB (rms (up, 0.5) / rms (sung, 0.5)), WithinAbs (0.0, 4.0));
+    }
+
+    SECTION ("-12 (giant): the resonance an octave down, at 350 Hz; the note still an A")
+    {
+        const auto plain = withFormant (0.0f), down = withFormant (-12.0f);
+        const auto before = tilt (plain, { 660.0, 880.0 }, { 220.0, 440.0 });
+        const auto after = tilt (down, { 660.0, 880.0 }, { 220.0, 440.0 });
+        CAPTURE (before, after, pitchOf (down));
+        CHECK (after > before + 10.0f);
+        CHECK (std::abs (cents (pitchOf (down), A3)) < 5.0);
+    }
+
+    SECTION ("On: 40 ms late, said to the DAW (TUNE VOICE's delay, shared); off: no delay, untouched")
+    {
+        EffectRig on;
+        on.set (ParamIDs::formantOn, 1.0f);
+        on.processor.updateLatency();
+        CHECK (on.processor.getLatencySamples() == juce::roundToInt (0.04 * sampleRate));
+        on.set (ParamIDs::harmonyCorrect, 1.0f);   // TUNE VOICE as well: still the one delay
+        on.processor.updateLatency();
+        CHECK (on.processor.getLatencySamples() == juce::roundToInt (0.04 * sampleRate));
+
+        EffectRig plain, off;
+        off.set (ParamIDs::formantShift, 7.0f);   // a SHIFT set, but FORMANT off
+        off.processor.updateLatency();
+        CHECK (off.processor.getLatencySamples() == 0);
+        CHECK (maxAbsDifference (plain.runMono (sung), off.runMono (sung)) < 1.0e-6f);
+    }
+}
+
+TEST_CASE ("HARMONY: a voice's FORMANT an octave up keeps the voice on its note (not an octave up)", "[effects][harmony][formant]")
+{
+    // Before 0.37.0 a slice read at exactly double speed held the same wave
+    // twice over, and the voice came out an octave high.
+    HarmonyRig rig (7.0f);   // a fifth up: E4 on a sung A3
+    rig.set (ParamIDs::harmonySource, effects::Harmony::silentDb);
+    rig.setVoice ("Formant", 12.0f);
+    const auto out = rig.runMono (sungVowel (220.0, 1.2, 700.0));
+    CAPTURE (pitchOf (out));
+    CHECK (std::abs (cents (pitchOf (out), 329.628)) < 10.0);
+}

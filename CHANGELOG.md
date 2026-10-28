@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.37.0
+
+- **FORMANT: chipmunk to giant, without changing your pitch.** It's in the PITCH block's second view (the OCTAVE / FREEZE key), after FREEZE: **ON** and **SHIFT**, from -12 (bigger, darker: a giant) to +12 (smaller, brighter: a chipmunk). Your note stays exactly where you sing it; only the size of the voice changes. It works with HARMONY off, and together with TUNE VOICE.
+  - **How:** the same vocal "slices" TUNE VOICE uses. Each slice is read a little faster (smaller) or slower (bigger) and laid down at your own pitch.
+  - **The trade-off:** like TUNE VOICE, it needs your voice a moment ahead, so while FORMANT is on the plugin runs **40 ms late** and tells BeatMaker, which lines it back up on playback. TUNE VOICE and FORMANT share that one delay, so having both on still costs 40 ms. With FORMANT off there's no delay at all.
+  - The **PITCH stomp** switches it too, and its light shows when it's on.
+  - **Two new rigs in bank E:** **E30 Chipmunk** and **E31 Giant**.
+- **Fixed: a HARMONY voice's FORMANT raised a full octave made the voice jump an octave too.** At exactly double speed every slice held the same wave twice over. Each slice now always covers two of your vocal pulses, getting shorter as it's read faster, so the voice stays on its note. Nothing changes with a FORMANT at 0.
+- **Can't be checked here by ear:** the tests check the sound (your voice's resonance moves an octave while the note stays an A to within 5 cents, the level stays within 4 dB, the 40 ms delay is reported, and off leaves your voice untouched), but how it sounds on your voice is yours to judge. The most extreme settings on very low notes will sound the most processed.
+
 ## 0.36.0
 
 - **Three new LO-FI types: voices through a device.** Telephone, AM Radio and Megaphone stay exactly as they were, so your saved rigs keep their sound. These are added after them, each our own design (not modelled on a particular product):

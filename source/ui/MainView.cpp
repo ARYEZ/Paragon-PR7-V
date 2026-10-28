@@ -197,7 +197,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       // its place in the chain: red first, orange last.
       signalChain (processorToShow.getParameters(), {
           { "PITCH", Icons::Type::pitch, ParagonColours::chainColour (pitchBlock, numBlocks),
-            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect },
+            juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect + "," + ParamIDs::formantOn },
           { "DYNAMICS", Icons::Type::comp, ParagonColours::chainColour (compBlock, numBlocks), ParamIDs::compOn },
           { "DE-ESS", Icons::Type::deEsser, ParagonColours::chainColour (deEssBlock, numBlocks), ParamIDs::deessOn },
           { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::chainColour (filterPitchBlock, numBlocks), ParamIDs::fpOn },
@@ -371,7 +371,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // TUNE VOICE in the mode it had, and the first time, HARMONY. FREEZE
     // has its own switch in the panel (a press turning it on too would hold
     // a note by surprise).
-    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn, ParamIDs::harmonyCorrect }, pitchBlock, [this]
+    addStomp (4, "PITCH", { ParamIDs::harmonyOn, ParamIDs::octOn, ParamIDs::harmonyCorrect, ParamIDs::formantOn }, pitchBlock, [this]
     {
         juce::StringArray parts;
         if (rawValue (ParamIDs::harmonyOn) > 0.5f)
@@ -380,6 +380,8 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
             parts.add ("Tune Voice " + valueText (ParamIDs::harmonyCorrect));
         if (rawValue (ParamIDs::octOn) > 0.5f)
             parts.add ("Octaver");
+        if (rawValue (ParamIDs::formantOn) > 0.5f)
+            parts.add ("Formant " + valueText (ParamIDs::formantShift));
         return parts.joinIntoString ("  ");
     }, { ParamIDs::harmonyOn });
     addStomp (5, "MODULATION", { ParamIDs::modOn }, modBlock, [this]
@@ -423,7 +425,9 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
         { "OCTAVER", { { ParamIDs::octOn, "ON" }, { ParamIDs::octSubTwo, "2 DOWN" }, { ParamIDs::octSubOne, "1 DOWN" },
                        { ParamIDs::octDry, "DRY" }, { ParamIDs::octUp, "1 UP" } } },
         { "FREEZE", { { ParamIDs::freezeOn, "FREEZE" }, { ParamIDs::freezeLevel, "LEVEL" }, { ParamIDs::freezeAttack, "ATTACK" },
-                      { ParamIDs::freezeRelease, "RELEASE" } } } });
+                      { ParamIDs::freezeRelease, "RELEASE" } } },
+        // FORMANT: chipmunk to giant, the pitch kept (on: 40 ms late, as TUNE VOICE).
+        { "FORMANT", { { ParamIDs::formantOn, "ON" }, { ParamIDs::formantShift, "SHIFT" } } } });
     const auto compIs = [this] (effects::CompGate::Type type)
     {
         return [this, type] { return juce::roundToInt (rawValue (ParamIDs::compType)) == (int) type; };
@@ -670,7 +674,7 @@ void MainView::selectBlock (int block)
     // SATURATION so far; a rack unit with its name and TYPE for the rest).
     struct About { const char* title; Icons::Type icon; juce::String onIds; const char* typeId; };
     const About about[] = {
-        { "PITCH", Icons::Type::pitch, juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect, "" },
+        { "PITCH", Icons::Type::pitch, juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect + "," + ParamIDs::formantOn, "" },
         { "DYNAMICS", Icons::Type::comp, ParamIDs::compOn, ParamIDs::compType },
         { "DE-ESSER", Icons::Type::deEsser, ParamIDs::deessOn, "" },
         { "FILTER / PITCH", Icons::Type::filterPitch, ParamIDs::fpOn, ParamIDs::fpType },

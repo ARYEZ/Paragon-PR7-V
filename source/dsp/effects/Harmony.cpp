@@ -463,7 +463,10 @@ namespace effects
         const auto speed = settings.correct == Correct::natural ? naturalSeconds : hardSeconds;
         correctSemitones += (1.0 - std::exp (-(double) hop / (speed * sampleRate))) * (wanted - correctSemitones);
         corrected.ratio = (float) std::pow (2.0, correctSemitones / 12.0);
-        corrected.formantRatio = 1.0f;   // the voice's own resonances stay put
+        // The voice's own resonances stay put, unless FORMANT moves them:
+        // each slice read faster (up: smaller, a chipmunk) or slower (down:
+        // bigger, a giant), laid down at the pitch it's sung (or tuned) at.
+        corrected.formantRatio = juce::jlimit (0.5f, 2.0f, std::pow (2.0f, juce::jlimit (-12.0f, 12.0f, settings.voiceFormant) / 12.0f));
         correction = (float) correctSemitones;
         correctNote = (float) correctTarget;
 
@@ -525,10 +528,11 @@ namespace effects
 
     double Harmony::sliceDelay (const VoiceState& voice, int fixedDelay) const noexcept
     {
-        // What a slice needs (two pulses, more when FORMANT reads faster),
-        // or the plugin's fixed delay while CORRECT is on, whichever is longer.
+        // What a slice needs (two pulses; longer when FORMANT reads slower, as
+        // the slice is), or the plugin's fixed delay while CORRECT is on,
+        // whichever is longer.
         const auto half = juce::jmax (8.0, period);
-        const auto needed = half * (1.0 + juce::jmax (1.0, (double) voice.formantRatio)) + 4.0;
+        const auto needed = 2.0 * half * juce::jmax (1.0, 1.0 / (double) voice.formantRatio) + 4.0;
         return juce::jmax (needed, (double) fixedDelay);
     }
 
@@ -536,16 +540,16 @@ namespace effects
     {
         // Lay down every slice whose source audio has arrived, then take this sample.
         const auto half = juce::jmax (8.0, period);
-        const auto read = (double) state.formantRatio;
         const auto delay = sliceDelay (state, fixedDelay);
+        const auto reach = sliceReach (state, delay);   // half a slice, as laid down
         if (! state.running)
         {
             state.running = true;
             state.nextSlice = (double) now;
         }
-        if (state.nextSlice < (double) now + half)
-            state.nextSlice = (double) now + delay - half * read;   // fell behind (just started)
-        while (state.nextSlice <= (double) now + delay - half * read)
+        if (state.nextSlice < (double) now + reach)
+            state.nextSlice = (double) now + delay - reach;   // fell behind (just started)
+        while (state.nextSlice <= (double) now + delay - reach)
         {
             addSlice (state, state.nextSlice, delay);
             state.nextSlice += half / (double) state.ratio;
@@ -580,22 +584,36 @@ namespace effects
         }
     }
 
+    double Harmony::sliceReach (const VoiceState& voice, double delay) const noexcept
+    {
+        // Half a slice as it's laid down: a pulse, read at FORMANT's speed
+        // (shorter read faster, longer slower), kept within what the delay allows.
+        const auto half = juce::jmax (8.0, period);
+        return juce::jlimit (4.0, juce::jmax (4.0, (delay - 4.0) * 0.5), half / (double) voice.formantRatio);
+    }
+
     void Harmony::addSlice (VoiceState& voice, double centre, double delay) noexcept
     {
         // One slice: two pulses of the voice, faded in and out (a Hann
         // window), centred on the analysis mark nearest where it's going.
+        // FORMANT reads it faster or slower, so it's laid down shorter or
+        // longer: always two of the source's pulses. (Reading more pulses
+        // into the same length instead would, at exactly double speed, hold
+        // the same wave twice over in every slice: the note an octave up.)
         const auto half = juce::jmax (8, juce::roundToInt (period));
-        const auto read = (double) voice.formantRatio;
-        const auto from = nearestMark (centre - delay, (double) now - half * read);
+        const auto reach = juce::jmax (4, juce::roundToInt (sliceReach (voice, delay)));
+        const auto step = (double) half / (double) reach;   // source samples a laid-down sample
+        const auto from = nearestMark (centre - delay, (double) now - half);
 
-        // Slices overlap more the higher the pitch, which would make the
-        // voice louder: scale them so the overlaps add up to the original level.
-        const auto gain = juce::jmin (2.0f, 1.0f / voice.ratio);
+        // Slices overlap more the higher the pitch (and the longer they are),
+        // which would make the voice louder: scale them so the overlaps add
+        // up to the original level.
+        const auto gain = (float) ((double) half / (double) reach) * juce::jmin (2.0f, 1.0f / voice.ratio);
         const auto at = (juce::int64) std::llround (centre);
-        for (int u = -half; u <= half; ++u)
+        for (int u = -reach; u <= reach; ++u)
         {
-            const auto fade = 0.5f + 0.5f * std::cos (juce::MathConstants<float>::pi * (float) u / (float) half);
-            voice.output[(size_t) ((at + u) & mask)] += gain * fade * readInput (from + u * read);
+            const auto fade = 0.5f + 0.5f * std::cos (juce::MathConstants<float>::pi * (float) u / (float) reach);
+            voice.output[(size_t) ((at + u) & mask)] += gain * fade * readInput (from + u * step);
         }
     }
 

@@ -241,6 +241,11 @@ namespace ParamIDs
     inline constexpr auto harmonySpSpread  = "harmonySpSpread";    // 0 to 1
     inline constexpr auto harmonySpLevel   = "harmonySpLevel";     // 0 to 1
 
+    // Version 49: FORMANT on the singer's own voice (PITCH's second view):
+    // chipmunk to giant without moving the pitch (HARMONY's slices, as TUNE VOICE).
+    inline constexpr auto formantOn    = "formantOn";
+    inline constexpr auto formantShift = "formantShift";   // semitones, -12 to +12
+
     // Version 48: the VOCODER (effects::Vocoder, inspired by VocalSynth 2's).
     inline constexpr auto vocoderOn            = "vocOn";
     inline constexpr auto vocoderMode          = "vocMode";           // Vocoder::modeNames
