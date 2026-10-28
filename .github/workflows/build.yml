@@ -64,7 +64,20 @@ jobs:
           PLUGIN="build/ParagonX1_artefacts/Release/VST3/Paragon PR7-V.vst3"
           RUN="${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --validate"
           if [ "$RUNNER_OS" = "Linux" ]; then
-            xvfb-run -a $RUN "$PLUGIN"
+            # pluginval itself sometimes crashes (exit 139) while unloading on
+            # Linux, after every check has passed and it has printed SUCCESS
+            # (its own host run loop, not the plugin). Only then run it once
+            # more; a failed check, or a crash before SUCCESS, still fails.
+            set +e
+            xvfb-run -a $RUN "$PLUGIN" 2>&1 | tee pluginval.log
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -eq 139 ] && grep -qx "SUCCESS" pluginval.log; then
+              echo "::warning::pluginval crashed while exiting after SUCCESS; running it once more"
+              xvfb-run -a $RUN "$PLUGIN"
+            elif [ "$status" -ne 0 ]; then
+              exit "$status"
+            fi
           else
             $RUN "$PLUGIN"
           fi
