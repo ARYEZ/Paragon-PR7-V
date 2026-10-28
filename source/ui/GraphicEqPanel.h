@@ -36,6 +36,7 @@ private:
     float xForFrequency (float frequency) const;
     float yForDb (float db) const;
     void flatten();
+    void lightFaders();   // the caps' lights follow ON
     void applyPreset (int index);
     void showMatchingPreset();   // names the preset the faders are set to, if any
 

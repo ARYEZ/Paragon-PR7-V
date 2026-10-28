@@ -2,6 +2,13 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.39.0
+
+- **GRAPHIC EQ: the fader lights now light up like the PR7's other keys.** While the EQ is on, the light on each fader's cap (all nine bands and LEVEL) is the same bright neon bar as the lit ON key, with its white-hot core and glow. Before, it was a thin pink line that looked the same whether the EQ was on or off.
+  - While the EQ is off they show the dim red of an unlit key, so the faders also tell you at a glance whether the EQ is working.
+  - They follow ON however it changes: a click, the stomp, a rig or the DAW's automation.
+  - In every finish (Pearl White, White + Neon, Pearl Black) the caps stay black, so the dim light stays visible on them too.
+
 ## 0.38.0
 
 - **HIDE RACK** (as on PR7-G and PR7-B): a button at the top right of the SIGNAL CHAIN strip hides the rack when you're not editing an effect, for a smaller, cleaner window.

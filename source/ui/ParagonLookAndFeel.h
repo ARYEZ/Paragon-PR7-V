@@ -83,6 +83,10 @@ public:
     // Set this on a vertical slider to draw it as a graphic-EQ fader: a thin
     // groove lit from its centre (0 dB) to the cap, and a small black cap.
     static constexpr const char* eqFaderProperty = "eqFader";
+    // Set this (true or false) on an EQ fader to draw its cap's light as one
+    // of the unit's key stripes: the neon bar lit while the EQ is on, dim
+    // while it's off, like the PR7's other keys.
+    static constexpr const char* eqFaderLitProperty = "eqFaderLit";
     static constexpr int eqFaderThumbRadius = 7;
 
     // Every font in the plugin is Inter, built in: semibold for bold text,
@@ -122,9 +126,12 @@ public:
     static void drawPedalKnob (juce::Graphics&, juce::Rectangle<float> bounds, float angle);
     // A graphic-EQ fader: the groove from `top` to `bottom` at `centreX`,
     // lit in `colour` from `litFrom` to the cap at `capY`, and the cap (a
-    // small piano-black key). `width` limits the cap.
+    // small piano-black key). `width` limits the cap. With `capLight` 0 or 1
+    // the cap's light is a key stripe, unlit or lit; with -1 it's a thin line
+    // in `colour`.
     static void drawFader (juce::Graphics&, float centreX, float top, float bottom, float litFrom, float capY,
-                           float width, juce::Colour colour, bool pressed = false, bool highlighted = false);
+                           float width, juce::Colour colour, bool pressed = false, bool highlighted = false,
+                           int capLight = -1);
 
     // The mockup's piano-black keys (footswitches, slot blocks, small
     // buttons): a glossy black top set in chamfered edges, the top bevel

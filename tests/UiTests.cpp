@@ -588,6 +588,41 @@ TEST_CASE ("The dock's expression screen scrolls with the buttons beside it", "[
     CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::expressionTarget)->load()) == ExpressionTargets::off);
 }
 
+TEST_CASE ("The GRAPHIC EQ's fader lights are lit like the unit's keys while the EQ is on", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<GraphicEqPanel*> eqPanels;
+    findAll (*editor, eqPanels);
+    REQUIRE (eqPanels.size() == 1);
+    std::vector<juce::Slider*> faders;
+    findAll (*eqPanels[0], faders);
+    faders.erase (std::remove_if (faders.begin(), faders.end(),
+                                  [] (auto* s) { return ! (bool) s->getProperties()[ParagonLookAndFeel::eqFaderProperty]; }),
+                  faders.end());
+    REQUIRE (faders.size() == 10);   // nine bands and LEVEL
+
+    const auto litCount = [&]
+    {
+        int lit = 0;
+        for (auto* fader : faders)
+        {
+            REQUIRE (fader->getProperties().contains (ParagonLookAndFeel::eqFaderLitProperty));
+            lit += (bool) fader->getProperties()[ParagonLookAndFeel::eqFaderLitProperty] ? 1 : 0;
+        }
+        return lit;
+    };
+
+    // Switched from the parameter (the DAW, a rig), not only by a click.
+    set (processor, ParamIDs::eqOn, 0.0f);
+    CHECK (litCount() == 0);
+    set (processor, ParamIDs::eqOn, 1.0f);
+    CHECK (litCount() == 10);
+    set (processor, ParamIDs::eqOn, 0.0f);
+    CHECK (litCount() == 0);
+
+}
+
 TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; moving a fader lets go of the name", "[ui]")
 {
     ParagonX1AudioProcessor processor;
