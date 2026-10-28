@@ -23,6 +23,19 @@ namespace
     }
 }
 
+void GraphicEqPanel::lightFaders()
+{
+    const auto on = onButton.getToggleState();
+    const auto light = [on] (juce::Slider& fader)
+    {
+        fader.getProperties().set (ParagonLookAndFeel::eqFaderLitProperty, on);
+        fader.repaint();
+    };
+    for (auto& fader : faders)
+        light (fader);
+    light (level);
+}
+
 void GraphicEqPanel::setAccent (juce::Colour colour)
 {
     accent = colour;
@@ -54,7 +67,9 @@ GraphicEqPanel::GraphicEqPanel (juce::AudioProcessorValueTreeState& state)
 
     onButton.setColour (juce::ToggleButton::textColourId, ParagonColours::text);
     onButton.setTooltip ("Switch the EQ on or off");
-    onButton.onStateChange = [this] { repaint(); };
+    // Each fader's cap lights up like the unit's other keys while the EQ is on.
+    onButton.onStateChange = [this] { lightFaders(); repaint(); };
+    lightFaders();
     addAndMakeVisible (onButton);
 
     // Grouped: the vocal curves, then PR7-G's instrument ones (headings

@@ -149,15 +149,16 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     expressionVolume.setCurrentAndTargetValue (1.0f);
     tunerOpen.reset (sampleRate, gainRampSeconds);
     tunerOpen.setCurrentAndTargetValue (isOn (ParamIDs::tunerOn) && isOn (ParamIDs::tunerMute) ? 0.0f : 1.0f);
-    // Nothing in the chain looks ahead, except HARMONY's CORRECT while it's on.
+    // Nothing in the chain looks ahead, except HARMONY's CORRECT and FORMANT while they're on.
     correctLatency = wantedLatency();
     setLatencySamples (correctLatency.load());
 }
 
 int ParagonX1AudioProcessor::wantedLatency() const noexcept
 {
+    // TUNE VOICE and FORMANT both need the voice's slices ahead of time: one shared delay.
     const auto correcting = juce::roundToInt (param (ParamIDs::harmonyCorrect)) != (int) effects::Harmony::Correct::off;
-    return correcting ? juce::roundToInt (effects::Harmony::correctLatencySeconds * getSampleRate()) : 0;
+    return correcting || isOn (ParamIDs::formantOn) ? juce::roundToInt (effects::Harmony::correctLatencySeconds * getSampleRate()) : 0;
 }
 
 void ParagonX1AudioProcessor::updateLatency()
@@ -561,6 +562,7 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     harmonySettings.correctFormant = param (ParamIDs::harmonyCorrectFormant);
     harmonySettings.spread = param (ParamIDs::harmonySpread);
     harmonySettings.correct = (effects::Harmony::Correct) juce::roundToInt (param (ParamIDs::harmonyCorrect));
+    harmonySettings.voiceFormant = isOn (ParamIDs::formantOn) ? param (ParamIDs::formantShift) : 0.0f;
     harmonySettings.latency = correctLatency.load();
     auto& notes = harmonySettings.notes;
     notes.generate = isOn (ParamIDs::harmonyGenerate);

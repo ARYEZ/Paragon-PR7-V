@@ -2,6 +2,36 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.39.0
+
+- **GRAPHIC EQ: the fader lights now light up like the PR7's other keys.** While the EQ is on, the light on each fader's cap (all nine bands and LEVEL) is the same bright neon bar as the lit ON key, with its white-hot core and glow. Before, it was a thin pink line that looked the same whether the EQ was on or off.
+  - While the EQ is off they show the dim red of an unlit key, so the faders also tell you at a glance whether the EQ is working.
+  - They follow ON however it changes: a click, the stomp, a rig or the DAW's automation.
+  - In every finish (Pearl White, White + Neon, Pearl Black) the caps stay black, so the dim light stays visible on them too.
+
+## 0.38.0
+
+- **HIDE RACK** (as on PR7-G and PR7-B): a button at the top right of the SIGNAL CHAIN strip hides the rack when you're not editing an effect, for a smaller, cleaner window.
+  - The SIGNAL CHAIN moves up under the floor unit and the window gets shorter by the rack's height. It keeps its width, so the floor unit stays the same size.
+  - **SHOW RACK** (the same button) brings it back, and so does clicking a block in the SIGNAL CHAIN, which opens the rack on that block. Footswitches don't open it.
+  - It's remembered on this computer, like the finish: every PR7-V you open afterwards starts with the rack shown or hidden, the way you left it.
+  - **Sized for the screen:** the DAW keeps the window's top left corner where it is, so the window grows downwards when the rack opens. If the full-width window wouldn't fit below where it is, it's made narrower, just enough to fit. Hiding the rack again goes back to your width. (It includes the fix from PR7-G 0.53.1, where Cubase made the window too big.)
+  - The PRESETS and SETTINGS pages fit the shorter window too.
+
+## 0.37.1
+
+- **The PITCH block's second view key is now "OCTAVE / FREEZE / FORMANT"** (it was "OCTAVE / FREEZE"), so FORMANT is easy to find. The key is a little wider to fit; nothing else moved.
+
+## 0.37.0
+
+- **FORMANT: chipmunk to giant, without changing your pitch.** It's in the PITCH block's second view (the OCTAVE / FREEZE / FORMANT key since 0.37.1), after FREEZE: **ON** and **SHIFT**, from -12 (bigger, darker: a giant) to +12 (smaller, brighter: a chipmunk). Your note stays exactly where you sing it; only the size of the voice changes. It works with HARMONY off, and together with TUNE VOICE.
+  - **How:** the same vocal "slices" TUNE VOICE uses. Each slice is read a little faster (smaller) or slower (bigger) and laid down at your own pitch.
+  - **The trade-off:** like TUNE VOICE, it needs your voice a moment ahead, so while FORMANT is on the plugin runs **40 ms late** and tells BeatMaker, which lines it back up on playback. TUNE VOICE and FORMANT share that one delay, so having both on still costs 40 ms. With FORMANT off there's no delay at all.
+  - The **PITCH stomp** switches it too, and its light shows when it's on.
+  - **Two new rigs in bank E:** **E30 Chipmunk** and **E31 Giant**.
+- **Fixed: a HARMONY voice's FORMANT raised a full octave made the voice jump an octave too.** At exactly double speed every slice held the same wave twice over. Each slice now always covers two of your vocal pulses, getting shorter as it's read faster, so the voice stays on its note. Nothing changes with a FORMANT at 0.
+- **Can't be checked here by ear:** the tests check the sound (your voice's resonance moves an octave while the note stays an A to within 5 cents, the level stays within 4 dB, the 40 ms delay is reported, and off leaves your voice untouched), but how it sounds on your voice is yours to judge. The most extreme settings on very low notes will sound the most processed.
+
 ## 0.36.0
 
 - **Three new LO-FI types: voices through a device.** Telephone, AM Radio and Megaphone stay exactly as they were, so your saved rigs keep their sound. These are added after them, each our own design (not modelled on a particular product):

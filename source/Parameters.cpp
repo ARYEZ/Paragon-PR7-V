@@ -786,6 +786,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                                    { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asVocPan));
         }
     }
+
+    // Added in plugin version 49: FORMANT on the singer's own voice. Off to
+    // start (on, the plugin runs TUNE VOICE's 40 ms late, reported to the DAW).
+    constexpr int v49 = 49;
+    layout.add (makeSwitch (ParamIDs::formantOn, "Formant On", v49, false));
+    layout.add (makeFloat (ParamIDs::formantShift, "Formant Shift", { -12.0f, 12.0f, 0.1f }, 0.0f, v49,
+                           [] (float st, int) { return (st > 0.04f ? "+" : "") + juce::String (st, 1) + " st"; }));
     return layout;
 }
 

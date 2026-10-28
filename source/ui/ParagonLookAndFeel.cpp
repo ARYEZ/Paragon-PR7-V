@@ -454,7 +454,7 @@ void ParagonLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
 }
 
 void ParagonLookAndFeel::drawFader (juce::Graphics& g, float centreX, float top, float bottom, float litFrom, float capY,
-                                    float width, juce::Colour colour, bool pressed, bool highlighted)
+                                    float width, juce::Colour colour, bool pressed, bool highlighted, int capLight)
 {
     // Groove, then the lit part (from 0 dB on the EQ) to the cap.
     const auto middle = (top + bottom) * 0.5f;
@@ -471,6 +471,14 @@ void ParagonLookAndFeel::drawFader (juce::Graphics& g, float centreX, float top,
     // The cap: a small piano-black key with a lit line across it.
     const auto cap = juce::Rectangle<float> (juce::jmin (26.0f, width - 4.0f), 14.0f).withCentre ({ centreX, capY });
     drawPianoKey (g, cap, 3.0f, 2.0f, pressed, highlighted);
+    if (capLight >= 0)
+    {
+        // The unit's key stripe, as bright as its lit keys. Unlit, it stays a
+        // dim red in every finish: the cap is black even on the neon units,
+        // where a key's unlit stripe is a dark slot.
+        drawNeonBar (g, cap.withSizeKeepingCentre (cap.getWidth() * 0.6f, 4.0f).translated (0.0f, pressed ? 0.5f : -0.5f), capLight > 0);
+        return;
+    }
     g.setColour (colour);
     g.fillRect (cap.reduced (5.0f, 0.0f).withSizeKeepingCentre (cap.getWidth() - 10.0f, 1.6f).translated (0.0f, -0.5f));
 }
@@ -483,7 +491,8 @@ void ParagonLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
     {
         const auto top = (float) y, bottom = (float) (y + height);   // already inset by the thumb radius
         drawFader (g, (float) x + (float) width * 0.5f, top, bottom, (top + bottom) * 0.5f, sliderPos, (float) width,
-                   slider.findColour (juce::Slider::trackColourId), slider.isMouseButtonDown(), slider.isMouseOver());
+                   slider.findColour (juce::Slider::trackColourId), slider.isMouseButtonDown(), slider.isMouseOver(),
+                   slider.getProperties().contains (eqFaderLitProperty) ? ((bool) slider.getProperties()[eqFaderLitProperty] ? 1 : 0) : -1);
         return;
     }
 

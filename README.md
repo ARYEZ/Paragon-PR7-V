@@ -41,7 +41,8 @@ descriptions below still talk about guitar.
 | V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, Poly, drawn shapes | ✅ Done (0.34.0) |
 | V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
 | V15 | LO-FI voices: Cell Phone, Walkie-Talkie, Gramophone | ✅ Done (0.36.0) |
-| V16 | Vocoder SIDECHAIN carrier | Next |
+| V16 | FORMANT: chipmunk to giant, the pitch kept | ✅ Done (0.37.0) |
+| V17 | Vocoder SIDECHAIN carrier | Next |
 
 ## Using it
 

@@ -8,6 +8,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "ui/Finish.h"
+#include "ui/RackView.h"
 
 namespace
 {
@@ -164,6 +165,9 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         }
     }
 
+    // PARAGON_SNAPSHOT_RACK=hidden: the rack hidden (HIDE RACK), the window shorter.
+    RackView::setShown (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_RACK", {}) != "hidden", false);
+
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
     if (loud)
         for (int i = 0; i < 3; ++i)   // let the light's and meters' timers read it
@@ -187,7 +191,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_BLOCK", {}); block.isNotEmpty())
         if (auto* chain = findType<SignalChain> (*editor))
             chain->onSelect (block.getIntValue());
-    // PARAGON_SNAPSHOT_PITCHVIEW=octave shows PITCH's OCTAVE / FREEZE view rather than HARMONY.
+    // PARAGON_SNAPSHOT_PITCHVIEW=octave shows PITCH's OCTAVE / FREEZE / FORMANT view rather than HARMONY.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PITCHVIEW", {}) == "octave")
     {
         std::vector<juce::TextButton*> buttons;
@@ -202,7 +206,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         };
         collect (*editor);
         for (auto* button : buttons)
-            if (button->getButtonText() == "OCTAVE / FREEZE")
+            if (button->getButtonText() == "OCTAVE / FREEZE / FORMANT")
                 button->onClick();
     }
     // PARAGON_SNAPSHOT_MIDI=60,64,67: hold these MIDI keys (and play a block so HARMONY hears them).
@@ -300,7 +304,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         turn (*editor);
     }
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
-        editor->setSize (width, width * 9 / 16);
+        editor->setSize (width, width * editor->getHeight() / editor->getWidth());
     editor->resized();
     // HARMONY's readings (the sung note, GLOBAL*) as its timer would show them.
     if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))

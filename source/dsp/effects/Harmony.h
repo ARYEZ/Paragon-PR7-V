@@ -224,6 +224,7 @@ namespace effects
             float sourceDb = 0.0f;              // the singer's own voice
             float harmonyDb = 0.0f;             // all the harmony voices
             float correctFormant = 1.0f;        // 1: formants stay put; 0: they move with the pitch (chipmunk)
+            float voiceFormant = 0.0f;          // FORMANT (PITCH's second view): the singer's own voice's, semitones (needs `latency`)
             float spread = 1.0f;                // 1: pans as set; 0: everything in the middle
             std::array<Voice, numVoices> voices;
             Notes notes;
@@ -299,6 +300,7 @@ namespace effects
         void resetVoices() noexcept;
         void addSlice (VoiceState& voice, double centre, double delay) noexcept;
         double sliceDelay (const VoiceState& voice, int fixedDelay) const noexcept;
+        double sliceReach (const VoiceState& voice, double delay) const noexcept;
         float nextFrom (VoiceState& voice, int fixedDelay) noexcept;   // lays down slices, returns this sample
         double nearestMark (double target, double latest) const noexcept;
         float readInput (double position) const noexcept;
