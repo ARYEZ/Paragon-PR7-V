@@ -2,6 +2,22 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.36.0
+
+- **Three new LO-FI types: voices through a device.** Telephone, AM Radio and Megaphone stay exactly as they were, so your saved rigs keep their sound. These are added after them, each our own design (not modelled on a particular product):
+  - **Cell Phone:** a digital call.
+    - The phone band (300 Hz to 3.4 kHz) through a phone codec's grainy, companded steps.
+    - **AMOUNT** takes the codec from a decent call (8 kHz, 8 bits) to a poor one (4 kHz, 4 bits).
+    - **NOISE** is a bad signal: whole moments of the call drop out (up to one in six at 10).
+  - **Walkie-Talkie:** a handheld radio. Narrow, driven hard and squashed, with **static under your voice while you talk** and **the squelch's "kssh" when you stop**, as the receiver closes. It waits 150 ms before closing, so gaps between words don't set it off. NOISE sets the static and how loud the squelch is.
+  - **Gramophone:** an old 78 record. A horn's two resonances, a slow warble (more with AMOUNT), and the record's **crackle and hiss** (NOISE).
+  - All three are mono, like the real things, and come out about as loud as they went in.
+- **Three new rigs in bank E:**
+  - **E27 Phone Call:** a call on a bad line.
+  - **E28 Radio Check:** a walkie-talkie, squelch and all.
+  - **E29 Old 78:** an old record in a little room.
+- **Can't be checked here by ear:** the tests check the sound (each type keeps the voice band and drops the lows and highs, the codec gets grittier with AMOUNT, NOISE drops moments of a call, the squelch bursts after the voice and stays silent when nothing's said, the record crackles in silence), but whether they sound right on your voice is yours to judge.
+
 ## 0.35.0
 
 - **New block: VOCODER**, inspired by the Vocoder in iZotope VocalSynth 2 (the manual you sent). It's in the signal chain between GLITCH and DOUBLER. A vocoder splits your voice into frequency bands, measures how loud you are in each, and uses that to shape a synth: the robot voice. Your words and vowels, the synth's sound and pitch.

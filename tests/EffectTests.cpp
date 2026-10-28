@@ -5315,3 +5315,112 @@ TEST_CASE ("VOCODER: the heaviest setting runs well within real time", "[effects
     WARN ("5 s of audio in " << seconds << " s: " << seconds / 5.0 * 100.0 << "% of a core");
     CHECK (seconds < 5.0);
 }
+
+TEST_CASE ("LO-FI 0.36.0: Cell Phone, Walkie-Talkie, Gramophone", "[effects][lofi]")
+{
+    using LoFiType = effects::LoFi::Type;
+    const auto makeRig = [] (LoFiType type, float amount = 5.0f, float noise = 0.0f)
+    {
+        auto rig = std::make_unique<EffectRig>();
+        rig->set (ParamIDs::lofiOn, 1.0f);
+        rig->set (ParamIDs::lofiType, (float) type);
+        rig->set (ParamIDs::lofiAmount, amount);
+        rig->set (ParamIDs::lofiNoise, noise);
+        return rig;
+    };
+    const auto voiceBand = [&makeRig] (LoFiType type)
+    {
+        const auto gainAt = [type, &makeRig] (double hz)
+        {
+            auto rig = makeRig (type);
+            const auto input = ::sine (hz, 0.05f, 0.5);
+            return dB (rms (rig->runMono (input), 0.2) / rms (input, 0.2));
+        };
+        return std::array<float, 3> { gainAt (100.0), gainAt (1000.0), gainAt (8000.0) };
+    };
+
+    SECTION ("All three: the voice band through, the lows and highs gone, in mono")
+    {
+        for (const auto type : { LoFiType::cellPhone, LoFiType::walkieTalkie, LoFiType::gramophone })
+        {
+            INFO (effects::LoFi::typeNames[(int) type]);
+            const auto [low, mid, high] = voiceBand (type);
+            CAPTURE (low, mid, high);
+            CHECK (mid - low > 20.0f);
+            CHECK (mid - high > 20.0f);
+            CHECK_THAT (mid, WithinAbs (0.0, 8.0));
+            auto rig = makeRig (type);
+            rig->set (ParamIDs::modOn, 1.0f);   // chorus first: stereo in
+            const auto output = rig->run (::sine (800.0, 0.3f, 0.6));
+            REQUIRE (allFinite (output[0]));
+            CHECK (maxAbsDifference (output[0], output[1], (size_t) (0.1 * sampleRate)) < 1.0e-6f);
+        }
+    }
+
+    SECTION ("Cell Phone: the codec's steps get coarser with AMOUNT (more grit on a pure tone)")
+    {
+        const auto grit = [&] (float amount)
+        {
+            auto rig = makeRig (LoFiType::cellPhone, amount);
+            const auto output = rig->runMono (::sine (700.0, 0.3f, 0.6));
+            const auto all = rms (output, 0.2), tone = levelAt (output, 700.0, 0.2) / std::sqrt (2.0f);
+            return dB (std::sqrt (std::max (1.0e-12f, all * all - tone * tone)) / tone);   // everything but the tone
+        };
+        CAPTURE (grit (0.0f), grit (10.0f));
+        CHECK (grit (10.0f) > grit (0.0f) + 6.0f);
+    }
+
+    SECTION ("Cell Phone: NOISE drops whole moments of a steady tone; without it, none")
+    {
+        const auto drops = [&] (float noise)
+        {
+            auto rig = makeRig (LoFiType::cellPhone, 5.0f, noise);
+            const auto output = rig->runMono (::sine (700.0, 0.3f, 3.0));
+            const auto frame = (size_t) (0.01 * sampleRate);   // half a lost moment: one of these falls wholly inside each
+            auto count = 0;
+            for (size_t start = (size_t) (0.2 * sampleRate); start + frame <= output.size(); start += frame)
+            {
+                const std::vector<float> part (output.begin() + (long) start, output.begin() + (long) (start + frame));
+                count += rms (part) < 0.01f ? 1 : 0;
+            }
+            return count;
+        };
+        CHECK (drops (0.0f) == 0);
+        CHECK (drops (10.0f) > 5);
+    }
+
+    SECTION ("Walkie-Talkie: the squelch's burst of hiss when the voice stops, and silence when nothing's said")
+    {
+        auto rig = makeRig (LoFiType::walkieTalkie, 5.0f, 5.0f);
+        auto input = ::sine (700.0, 0.3f, 0.5);
+        input.resize ((size_t) (1.3 * sampleRate), 0.0f);
+        const auto output = rig->runMono (input);
+        const auto between = [&output] (double from, double to)
+        {
+            return rms (std::vector<float> (output.begin() + (long) (from * sampleRate), output.begin() + (long) (to * sampleRate)));
+        };
+        // The voice stops at 0.5 s; after its 150 ms hang-on the squelch
+        // closes with its burst (140 ms), then quiet.
+        auto loudest = 0.0f;
+        for (auto at = 0.55; at < 1.0; at += 0.02)
+            loudest = std::max (loudest, between (at, at + 0.02));
+        CAPTURE (loudest, between (1.1, 1.3));
+        CHECK (loudest > 0.01f);
+        CHECK (between (1.1, 1.3) < 1.0e-4f);
+        auto quiet = makeRig (LoFiType::walkieTalkie, 5.0f, 5.0f);
+        CHECK (rms (quiet->runMono (silence (0.5))) < 1.0e-5f);   // never talked: no static, no burst
+    }
+
+    SECTION ("Gramophone: NOISE crackles even in silence; it warbles a steady tone")
+    {
+        auto crackle = makeRig (LoFiType::gramophone, 5.0f, 8.0f);
+        const auto clicks = crackle->runMono (silence (1.0));
+        const auto peak = *std::max_element (clicks.begin(), clicks.end(), [] (float a, float b) { return std::abs (a) < std::abs (b); });
+        CHECK (std::abs (peak) > 0.02f);
+        auto clean = makeRig (LoFiType::gramophone, 5.0f, 0.0f);
+        CHECK (rms (clean->runMono (silence (0.5))) < 1.0e-5f);
+        auto worn = makeRig (LoFiType::gramophone, 10.0f, 0.0f);
+        const auto output = worn->runMono (::sine (1000.0, 0.3f, 2.0));
+        CHECK (levelAt (output, 1000.0, 0.3) < 0.8f * rms (output, 0.3) * std::sqrt (2.0f));   // the tone smeared off its one frequency
+    }
+}

@@ -40,7 +40,8 @@ descriptions below still talk about guitar.
 | V12 | Harmony stage 9: MODULATORS (M1-M4 LFO/SEQ, AM, PT; right-click a knob) | ✅ Done (0.33.0) |
 | V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, Poly, drawn shapes | ✅ Done (0.34.0) |
 | V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
-| V15 | Vocoder SIDECHAIN carrier; better telephone / radio / megaphone voices | Next |
+| V15 | LO-FI voices: Cell Phone, Walkie-Talkie, Gramophone | ✅ Done (0.36.0) |
+| V16 | Vocoder SIDECHAIN carrier | Next |
 
 ## Using it
 
@@ -142,7 +143,7 @@ descriptions below still talk about guitar.
   - **Glitch:** granular glitch effects in five MODEs: **Pitch Delay**, **Sequence** (tempo-locked stutters),
     **Interfere**, **Texturizer** and **Killswitch**. LENGTH (in note values with SYNC), DENSITY, PITCH, CHAOS and MIX.
     POSITION puts it after the EQ (POST, the default) or before the saturation (PRE).
-  - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss) or bitcrusher, for
+  - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss), bitcrusher, cell phone (a codec and dropouts), walkie-talkie (static and the squelch) or gramophone (horn, warble, crackle), for
     intros and breakdowns. AMOUNT, NOISE, MIX and LEVEL.
 - **OUTPUT** is the overall volume. **LIMITER** under it is the master limiter, last in the chain: nothing leaves the
   plugin above its ceiling (-1 dB to start; -12 to 0 dB; all the way up is OFF), so a loud note can't clip in your DAW.

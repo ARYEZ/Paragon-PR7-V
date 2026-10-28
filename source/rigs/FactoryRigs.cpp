@@ -61,7 +61,8 @@ namespace
     constexpr float warm = 1, roundAnalog = 2, hiss = 3, grit = 4;                           // DELAY's ANALOG
     constexpr float room = 1, hall = 2, cathedral = 3, plate = 4, spring = 5, digital = 6,
                     reverse = 7, chamber = 8;                                            // REVERB's TYPE
-    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
+    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4,
+                    cellPhone = 5, walkieTalkie = 6, gramophone = 7;                       // LO-FI's TYPE
     constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
     // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
     constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, brokenTubeStyle = 3, warmTapeStyle = 5,
@@ -585,6 +586,32 @@ std::vector<Rig> makeFactoryRigs()
             { "vocOsc2Shape", 0.5f }, { "vocOsc2ShapeMod", 0.4f }, { vocoderLfoRate, 0.4f },
             { vocoderNoiseOn, 1 }, { vocoderNoiseGain, -22 }, { vocoderNoiseCrush, 0.9f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
+
+        // LO-FI's voices through a device (0.36.0).
+
+        // A call on a bad line: the phone's codec, a few lost moments, a
+        // short room around it (the other end).
+        make ("Phone Call", E, 27, "Lo-Fi,Phone,Intro,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, cellPhone }, { lofiAmount, 4 }, { lofiNoise, 3 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.1f } }),
+
+        // Over the radio: narrow, squashed, static while you talk and the
+        // squelch's hiss when you stop.
+        make ("Radio Check", E, 28, "Lo-Fi,Radio,Intro,Experimental", {
+            { rigLevel, 7 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, walkieTalkie }, { lofiAmount, 6 }, { lofiNoise, 4 } }),
+
+        // An old 78: the horn, the warble, the crackle, in a little room.
+        make ("Old 78", E, 29, "Lo-Fi,Vintage,Intro,Jazz", {
+            { rigLevel, 4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, gramophone }, { lofiAmount, 5 }, { lofiNoise, 5 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
 
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records
