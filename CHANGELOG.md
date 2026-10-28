@@ -13,6 +13,17 @@ Each version's notes appear on its GitHub Release page.
   - **Per note, where it matters:** a note-by-note source (A1, A2, SP, Velocity, Keyboard, a Poly M) moves each note voice separately on NOTES LEVEL, WIDTH and FORMANT and on GLOBAL PITCH and FORMANT. On other controls it uses the newest note. With no notes coming in (no GENERATE, no MIDI), A1, A2 and SP stay at 0, as in the guide.
   - **SNAPSHOTS now store the modulators** on the controls a snapshot keeps (a voice's PITCH, PAN...), as the guide's do. Snapshots stored with 0.33.0 or earlier leave your modulators alone when recalled.
   - **The MODS page** has tabs M1-M4, A1, A2, AM, PT, SP and MIDI: the envelope drawn with each note's level beside it, the Spreader's notes as dots, and MIDI's five as bars.
+- **New factory bank G, "Moving harmonies"** (9 rigs), one modulator idea each. Right-click a HARMONY knob or open MODS to see how each is built:
+  - **G01 Living Choir:** a five-voice choir where every voice has its own slow vibrato (Poly), so they never wobble together.
+  - **G02 Swell Stack:** each new harmony note swells in behind you (A1).
+  - **G03 Spread Gospel:** a wide gospel chord the Spreader opens out, low notes a touch flat and darker, high ones a touch sharp and brighter.
+  - **G04 Circling Thirds:** a third and a fifth that slowly circle you in the stereo, in opposite directions.
+  - **G05 Arp Harmony:** a harmony stepping octave, fifth, octave, tenth in eighth notes with the song (SEQ).
+  - **G06 Breathing Harmony:** push and the harmonies step back, sing softly and they come forward (AM).
+  - **G07 Gated Choir:** a rhythmic gate drawn into M1, locked to the bar.
+  - **G08 Rising Harmony:** the higher you sing, the bigger the harmony (PT).
+  - **G09 Keyboard Choir:** for a MIDI keyboard. Play the chord and sing the words: how hard you play sets each note's level, the mod wheel widens the chord, the pitch wheel bends it two semitones.
+  - All but G09 work from your voice alone. A test checks that each rig's modulators really change its sound, and that every rig sits within 6 dB of the others.
 - **Fixed:** a pitch depth showed as "+1.9992 st" in the knob menu and on the MODS page. Whole semitones now show as "+2 st".
 - **Our design where the guide doesn't say:** how the curves bend, an envelope that follows the notes as a whole for controls that aren't per note, how Random picks, and the Keyboard's range (two octaves either side of middle C).
 - **Can't be checked here by ear:** the tests check the sound itself (each note's pitch, level and pan, the envelopes' shape), but how it feels to play is yours to judge.

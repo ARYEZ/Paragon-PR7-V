@@ -153,7 +153,7 @@ descriptions below still talk about guitar.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-F), tags and favourites rigs. The factory rigs are for the voice, in six banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop).
+  (banks A-G), tags and favourites rigs. The factory rigs are for the voice, in seven banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop), **G** moving harmonies (HARMONY's modulators at work: a living choir, swells, a spread gospel chord, circling thirds, an arpeggiated harmony, harmonies that breathe with you, a gated choir, a harmony that rises with your pitch, a keyboard choir for MIDI).
   INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
