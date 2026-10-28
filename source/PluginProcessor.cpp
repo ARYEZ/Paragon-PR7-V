@@ -524,6 +524,16 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         harmonySettings.customScale[(size_t) note] = box == 1 ? 1 : box == 2 ? -1 : 0;
     }
     notes.fold = isOn (ParamIDs::harmonyMapFold);
+    // GLOBAL: GLIDE (a synced one as ms at the tempo now), PITCH and FORMANT.
+    {
+        const auto sync = juce::roundToInt (param (ParamIDs::harmonyGlideSync));
+        const auto syncs = (int) std::size (effects::Delay::syncBeats);
+        harmonySettings.glideMs = sync > 0 && sync < syncs
+                                      ? (float) (effects::Delay::syncBeats[sync] * 60000.0 / juce::jmax (20.0, getTempoBpm()))
+                                      : param (ParamIDs::harmonyGlide);
+        harmonySettings.pitch = param (ParamIDs::harmonyGlobalPitch);
+        harmonySettings.formant = param (ParamIDs::harmonyGlobalFormant);
+    }
     notes.fx = harmonyFx (param (ParamIDs::harmonyNoteDelay), juce::roundToInt (param (ParamIDs::harmonyNoteSync)),
                           param (ParamIDs::harmonyNoteFeedback), juce::roundToInt (param (ParamIDs::harmonyNoteFilter)),
                           param (ParamIDs::harmonyNoteCutoff));
@@ -697,8 +707,94 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
 void ParagonX1AudioProcessor::timerCallback()
 {
     syncMidiExpressionToParameter();
+    followSnapshotParameter();
     recordCheckpointIfReady();
     updateLatency();
+}
+
+//==============================================================================
+std::optional<Rig::HarmonySnapshot> ParagonX1AudioProcessor::getHarmonySnapshot (int slot) const
+{
+    const std::scoped_lock lock (harmonySnapshotsLock);
+    return slot >= 0 && slot < Rig::numHarmonySnapshots ? harmonySnapshots[(size_t) slot] : std::nullopt;
+}
+
+void ParagonX1AudioProcessor::setHarmonySnapshot (int slot, std::optional<Rig::HarmonySnapshot> snapshot)
+{
+    if (slot < 0 || slot >= Rig::numHarmonySnapshots)
+        return;
+    {
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots[(size_t) slot] = std::move (snapshot);
+    }
+    rigModified = true;
+    requestCheckpoint();
+}
+
+void ParagonX1AudioProcessor::storeHarmonySnapshot (int slot)
+{
+    Rig::HarmonySnapshot snapshot;
+    for (const auto& id : ParamIDs::harmonySnapshotIds())
+        if (auto* parameter = parameters.getParameter (id))
+            snapshot[id] = parameter->convertFrom0to1 (parameter->getValue());
+    setHarmonySnapshot (slot, std::move (snapshot));
+    // The one just stored is the one in use (without recalling it).
+    appliedSnapshot = slot + 1;
+    if (auto* selector = parameters.getParameter (ParamIDs::harmonySnapshot))
+    {
+        selector->beginChangeGesture();
+        selector->setValueNotifyingHost (selector->convertTo0to1 ((float) appliedSnapshot));
+        selector->endChangeGesture();
+    }
+}
+
+void ParagonX1AudioProcessor::applyHarmonySnapshot (const Rig::HarmonySnapshot& snapshot)
+{
+    // Every stored setting (one the snapshot doesn't have, from an older
+    // version, goes back to its default), as one edit.
+    for (const auto& id : ParamIDs::harmonySnapshotIds())
+    {
+        auto* parameter = parameters.getParameter (id);
+        if (parameter == nullptr)
+            continue;
+        const auto found = snapshot.find (id);
+        const auto normalised = found != snapshot.end()
+                                    ? parameter->convertTo0to1 (parameter->getNormalisableRange().snapToLegalValue (found->second))
+                                    : parameter->getDefaultValue();
+        if (juce::approximatelyEqual (normalised, parameter->getValue()))
+            continue;
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (normalised);
+        parameter->endChangeGesture();
+    }
+}
+
+void ParagonX1AudioProcessor::recallHarmonySnapshot (int slot)
+{
+    const auto snapshot = getHarmonySnapshot (slot);
+    if (! snapshot.has_value())
+        return;
+    applyHarmonySnapshot (*snapshot);
+    appliedSnapshot = slot + 1;
+    if (auto* selector = parameters.getParameter (ParamIDs::harmonySnapshot))
+    {
+        selector->beginChangeGesture();
+        selector->setValueNotifyingHost (selector->convertTo0to1 ((float) appliedSnapshot));
+        selector->endChangeGesture();
+    }
+}
+
+void ParagonX1AudioProcessor::followSnapshotParameter()
+{
+    // SNAPSHOT moved by the DAW (automation) or a MIDI controller: bring
+    // that snapshot back (an empty slot does nothing).
+    const auto wanted = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());
+    if (wanted == appliedSnapshot)
+        return;
+    appliedSnapshot = wanted;
+    if (wanted > 0)
+        if (const auto snapshot = getHarmonySnapshot (wanted - 1))
+            applyHarmonySnapshot (*snapshot);
 }
 
 //==============================================================================
@@ -809,6 +905,8 @@ Rig ParagonX1AudioProcessor::captureRig() const
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
             if (! ParamIDs::notInRigs.contains (ranged->paramID))
                 rig.parameters[ranged->paramID] = ranged->convertFrom0to1 (ranged->getValue());
+    const std::scoped_lock lock (harmonySnapshotsLock);
+    rig.harmonySnapshots = harmonySnapshots;
     return rig;
 }
 
@@ -829,6 +927,12 @@ void ParagonX1AudioProcessor::applyRig (const Rig& rig)
                                   : ranged->getDefaultValue();
         ranged->setValueNotifyingHost (normalised);
     }
+
+    {
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots = rig.harmonySnapshots;
+    }
+    appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 
     applyingRig = false;
     rigModified = false;
@@ -972,6 +1076,14 @@ void ParagonX1AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty (expressionCcKey, expressionCc.load(), nullptr);
     state.setProperty (tunerReferenceKey, tunerReferenceHz.load(), nullptr);
 
+    {
+        // HARMONY's snapshots, beside the parameters.
+        juce::XmlElement snapshots ("HarmonySnapshots");
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        Rig::writeSnapshots (harmonySnapshots, snapshots);
+        state.appendChild (juce::ValueTree::fromXml (snapshots), nullptr);
+    }
+
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -983,6 +1095,19 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
         return;
 
     auto state = juce::ValueTree::fromXml (*xml);
+    // HARMONY's snapshots (none in a project saved before they existed).
+    {
+        auto saved = state.getChildWithName ("HarmonySnapshots");
+        Rig::HarmonySnapshots loaded;
+        if (saved.isValid())
+        {
+            if (auto snapshotsXml = saved.createXml())
+                loaded = Rig::readSnapshots (*snapshotsXml);
+            state.removeChild (saved, nullptr);
+        }
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots = loaded;
+    }
 
     // Parameters whose default changed: a project saved before they existed
     // gets the setting it had then, so it sounds the same.
@@ -1028,6 +1153,7 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     if (savedWith < 36)
         convertOldDrive (get, set);
     parameters.replaceState (state);
+    appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 
     // Restoring the project changed parameters, which marked the rig as
     // modified; put back what was saved instead.

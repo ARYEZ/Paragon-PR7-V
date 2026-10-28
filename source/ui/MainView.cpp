@@ -538,6 +538,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     addChildComponent (eqPanel);
     addChildComponent (harmonyPanel);
     harmonyPanel.setMidiKeys ([&processorToShow] (int key) { return processorToShow.isMidiKeyHeld (key); });
+    harmonyPanel.setSnapshotActions ({ [&processorToShow] (int slot) { return processorToShow.getHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot) { processorToShow.storeHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot) { processorToShow.recallHarmonySnapshot (slot); },
+                                       [&processorToShow] (int slot, std::optional<Rig::HarmonySnapshot> snapshot) { processorToShow.setHarmonySnapshot (slot, std::move (snapshot)); },
+                                       [&processorToShow] { return juce::roundToInt (processorToShow.getParameters().getRawParameterValue (ParamIDs::harmonySnapshot)->load()); } });
     addChildComponent (doublerPanel);
     addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })
@@ -664,6 +669,59 @@ void MainView::selectBlock (int block)
         footswitches[i]->setSelected (footswitchBlocks[i] == block || (footswitchBlocks[i] == compBlock && block == deEssBlock));
 
     signalChain.setSelected (block);
+    layoutDock();
+}
+
+void MainView::layoutDock()
+{
+    // The rack: one wide unit across the dock, the "brain" to go with the
+    // floorboard. The selected block's display on the left (the faceplate),
+    // its real controls in the middle, EXPRESSION ASSIGN at the right end.
+    faceplate.setBounds (mock (12, 568, 1662, 822));
+    faceplate.setRackDisplayWidth (mockF (0, 0, 380, 0).getWidth(), mockF (0, 0, 270, 0).getWidth());
+    expressionPanel.setRack (true);
+    expressionPanel.setBounds (faceplate.getSideArea() + faceplate.getPosition());
+    expressionPanel.toFront (false);
+
+    // The controls, on the face at full size. The GRAPHIC EQ and the DOUBLER
+    // have their own rack layouts; HARMONY and MARS cover the rack's display
+    // too, as their graph and band display are the display.
+    const auto controls = faceplate.getControlArea() + faceplate.getPosition();
+    const auto display = faceplate.getDisplayArea() + faceplate.getPosition();
+    for (auto& panel : panels)
+        if (panel != nullptr)
+        {
+            panel->setRack (true);
+            panel->setBounds (controls);
+        }
+    eqPanel.setRack (true);
+    eqPanel.setBounds (controls);
+    doublerPanel.setRack (true);
+    doublerPanel.setBounds (controls);
+    for (auto* editor : { static_cast<juce::Component*> (&marsPanel), static_cast<juce::Component*> (&harmonyPanel) })
+        editor->setBounds (controls.getUnion (display));
+    marsPanel.setRack (true, display - marsPanel.getPosition());
+    harmonyPanel.setRack (true, display - harmonyPanel.getPosition());
+    faceplate.setDisplayCovered (marsPanel.isVisible() || harmonyPanel.isVisible());
+
+    for (auto& panel : panels)
+        if (panel != nullptr && panel->isVisible())
+            panel->toFront (false);
+    for (auto* panel : std::initializer_list<juce::Component*> { &eqPanel, &doublerPanel, &marsPanel, &harmonyPanel })
+        if (panel->isVisible())
+            panel->toFront (false);
+
+    // The unit's keys over the controls' top row: GRAPHIC EQ (back to the
+    // default block) at the right, PITCH's HARMONY / OCTAVE views at the left.
+    closePanel.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
+    for (auto* view : { &harmonyView, &octaveView })
+        view->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
+    closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
+    harmonyView.setBounds (controls.getX(), controls.getY(), 92, 24);
+    octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 132, 24);
+    for (auto* button : std::initializer_list<juce::Component*> { &closePanel, &harmonyView, &octaveView })
+        if (button->isVisible())
+            button->toFront (false);
 }
 
 void MainView::showPage (Page newPage)
@@ -803,6 +861,7 @@ void MainView::applyFinish()
     holdLabel.setColour (juce::Label::textColourId, Finish::printedRed());
     pedal.refinish();
     expressionPedal.refinish();
+    expressionPanel.refinish();
     repaint();
 }
 
@@ -942,23 +1001,9 @@ void MainView::resized()
     expressionPedal.setBounds (mock (1342, 46, 1553, 562));
 
     // Dock
-    // The FACEPLATE where the RIG BROWSER and SELECTED RIG panels were: both
-    // only repeated the PRESETS page and the unit's own display and SAVE buttons.
-    faceplate.setBounds (mock (12, 568, 652, 822));
-    const auto summaryArea = mock (662, 568, 1334, 822);
-    for (auto& panel : panels)
-        if (panel != nullptr)
-            panel->setBounds (summaryArea);
-    eqPanel.setBounds (summaryArea);
-    harmonyPanel.setBounds (summaryArea);
-    doublerPanel.setBounds (summaryArea);
-    marsPanel.setBounds (summaryArea);
-    // PITCH's view tabs sit in its header, after the icon and name.
-    harmonyView.setBounds (summaryArea.getX() + 112, summaryArea.getY() + 10, 84, 24);
-    octaveView.setBounds (harmonyView.getRight() + 4, summaryArea.getY() + 10, 128, 24);
-    closePanel.setBounds (summaryArea.withSizeKeepingCentre (0, 0).withX (summaryArea.getRight() - 130).withY (summaryArea.getY() + 10)
-                              .withSize (118, 24));
-    expressionPanel.setBounds (mock (1344, 568, 1662, 822));
+    // The rack, where the RIG BROWSER, SELECTED RIG, the edit panel and
+    // EXPRESSION ASSIGN were (see layoutDock).
+    layoutDock();
 
     signalChain.setBounds (mock (12, 832, 1662, 930));
 

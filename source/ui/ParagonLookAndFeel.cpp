@@ -25,8 +25,16 @@ ParagonLookAndFeel::ParagonLookAndFeel()
     setColour (juce::TooltipWindow::outlineColourId, ParagonColours::panelEdge);
 }
 
-void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool)
+void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
 {
+    if (button.getProperties()[rackKeyProperty])
+    {
+        const auto key = button.getLocalBounds().toFloat();
+        drawSmallKey (g, key, down, highlighted);
+        drawKeyStripe (g, key.reduced (4.0f, 2.0f), button.getToggleState(), down);
+        return;
+    }
+
     auto bounds = button.getLocalBounds().toFloat();
     const auto ledSize = juce::jmin (12.0f, bounds.getHeight() - 4.0f);
     const auto led = bounds.removeFromLeft (bounds.getHeight()).withSizeKeepingCentre (ledSize, ledSize);
@@ -170,6 +178,8 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     const auto neonKey = Finish::neonKeys();
     g.setColour (button.isEnabled() ? (on ? (neonKey ? juce::Colour (0xffffe9a8) : ParagonColours::accent) : (neonKey ? juce::Colours::white : ParagonColours::text))
                                     : (neonKey ? juce::Colours::white.withAlpha (0.5f) : ParagonColours::textDim));
+    if (button.getProperties()[dimTextProperty] && ! on)
+        g.setColour (neonKey ? juce::Colours::white.withAlpha (0.45f) : ParagonColours::textDim.withAlpha (0.6f));
     g.drawFittedText (button.getButtonText(), area.toNearestInt(), juce::Justification::centred, 1);
 }
 

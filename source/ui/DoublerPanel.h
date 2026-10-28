@@ -21,7 +21,15 @@ public:
     // The colour of the header icon and the voice numbers: the DOUBLER block's colour in the chain.
     void setAccent (juce::Colour colour);
 
+    // On the rack unit's face (see Faceplate), at full size: no dark panel
+    // (the rack's display shows the voices by pan and delay); the numbers on
+    // small screens, the switches as the unit's keys, names stamped on the
+    // face, MOD RESET as a key in the top row.
+    void setRack (bool inRack);
+    bool isRack() const noexcept { return rack; }
+
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
 private:
@@ -55,4 +63,7 @@ private:
 
     // Where the labels go, worked out in resized() and drawn in paint().
     std::vector<std::pair<juce::String, juce::Rectangle<int>>> labels;
+    bool rack = false;
+    mutable std::vector<juce::Rectangle<float>> glasses;   // on the rack: the screens' glass, for their overlay
+    void layOutRack();
 };

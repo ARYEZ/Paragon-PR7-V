@@ -5,6 +5,7 @@
 #include "ui/ParagonLookAndFeel.h"
 
 #include "dsp/effects/Harmony.h"
+#include "ui/HarmonySnapshotsView.h"
 #include "ui/NoteMapEditor.h"
 
 // HARMONY's knobs, shown when the PITCH block is picked: laid out after
@@ -33,7 +34,19 @@ public:
     // The colour of the header icon, the graph, the fixed voices and the note sung: the PITCH block's colour in the chain. (Note voices stay blue.)
     void setAccent (juce::Colour colour);
 
+    // On the rack unit's face (see Faceplate), at full size. The panel then
+    // covers the rack's display too (`displayArea`, in this component): KEY,
+    // SCALE and the note sung on the left of it, the graph on a screen beside
+    // them, played with the mouse as before. Along the top (after the view
+    // keys the main view places), HARMONY's key, GLOBAL and TUNE VOICE; then
+    // the voice keys 1-8, NOTES and FX; then the view's controls in one row
+    // (the unit's big knobs, lists on screens, switches as keys). The Note
+    // Map and SNAPSHOTS open on one wide screen across the display and the controls.
+    void setRack (bool inRack, juce::Rectangle<int> displayArea);
+    bool isRack() const noexcept { return rack; }
+
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -50,6 +63,20 @@ public:
     // FEEDBACK and FILTER, in place of the two rows of controls.
     void showFx (bool show);
     bool isShowingFx() const noexcept { return fxShown; }
+    // GLOBAL: GLIDE, its SYNC, PITCH and FORMANT for all the harmony
+    // voices, over the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT).
+    void showGlobal (bool show);
+    bool isShowingGlobal() const noexcept { return globalShown; }
+    // SNAPSHOTS (stage 8): the page over the graph, opened by the button on
+    // the graph. Needs the processor's snapshot functions (set by MainView).
+    void setSnapshotActions (HarmonySnapshotsView::Actions);
+    void openSnapshots();
+    void closeSnapshots();
+    bool isShowingSnapshots() const noexcept { return snapshots.isVisible(); }
+    HarmonySnapshotsView& getSnapshots() noexcept { return snapshots; }
+    // Re-reads the sung note, the voices and GLOBAL's state now (the timer
+    // does it; screenshots call it directly).
+    void updateReadings() { timerCallback(); }
     // The Note Map Editor (EDIT on the NOTES tab): CHORD becomes Custom; a
     // built-in map is copied in first if the Custom map is empty.
     void openNoteMap();
@@ -119,6 +146,8 @@ private:
     Knob minNote, tolerance, toleranceTime, noteLevel, noteWidth, noteFormant, noteAttack, noteRelease;
     juce::TextButton editMap { "EDIT" };
     NoteMapEditor noteMap;
+    juce::TextButton snapshotsButton { "SNAPSHOTS" };
+    HarmonySnapshotsView snapshots;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
     // Stage 6: FLATTEN (the PITCH knob becomes NOTE while it's on), and the FX view.
@@ -132,8 +161,23 @@ private:
     juce::ComboBox echoSync, filterType;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> echoSyncAttachment, filterTypeAttachment;
     juce::String fxId (const char* voicePart, const char* noteId) const;   // the picked voice's part, or the note voices' parameter
+    // Stage 7: the GLOBAL view.
+    juce::TextButton globalTab { "GLOBAL" };
+    bool globalShown = false;
+    Knob glide, globalPitch, globalFormant;
+    juce::Label glideSyncLabel;
+    juce::ComboBox glideSync;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> glideSyncAttachment;
     std::array<juce::TextButton, effects::Harmony::numVoices> tabs;
 
     juce::Rectangle<float> graph, sungArea, readoutArea;
+    bool rack = false;
+    juce::Rectangle<int> rackDisplay;          // on the rack: where the rack's display is
+    juce::Rectangle<float> graphFrame, wideScreen, sungFrame;   // on the rack: the screens drawn
+    juce::Colour inkColour;
+    mutable std::vector<juce::Rectangle<float>> glasses;
+    void layOutRack();
+    void styleForRack();
+    void rackOverlayChanged();
     juce::String shownSung, shownTuned;
 };

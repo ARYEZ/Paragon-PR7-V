@@ -372,15 +372,17 @@ namespace effects
             voice.panTarget = count > 1 ? notes.width * (-1.0f + 2.0f * (float) rank / (float) (count - 1)) : 0.0f;
         }
 
-        // Each note voice plays its note exactly, gliding (30 ms) when it changes.
-        const auto glide = 1.0 - std::exp (-(double) hop / (0.03 * sampleRate));
+        // Each note voice plays its note exactly, gliding when it changes
+        // (its own 30 ms, or GLIDE's if that's slower), then GLOBAL PITCH.
+        const auto glideSeconds = 0.001 * (double) juce::jmax (noteGlideMs, settings.glideMs / 3.0f);
+        const auto glide = 1.0 - std::exp (-(double) hop / (glideSeconds * sampleRate));
         for (auto& voice : noteVoices)
         {
             if (voice.note >= 0)
                 voice.glided = voice.envelope < 1.0e-3f ? (double) voice.note : voice.glided + glide * ((double) voice.note - voice.glided);
-            const auto shift = voiced ? voice.glided - sung : 0.0;
+            const auto shift = voiced ? voice.glided + (double) settings.pitch - sung : 0.0;
             voice.state.ratio = (float) juce::jlimit (0.25, 4.0, std::pow (2.0, shift / 12.0));
-            const auto formantSemitones = notes.formant + (1.0f - settings.correctFormant) * (float) shift;
+            const auto formantSemitones = notes.formant + settings.formant + (1.0f - settings.correctFormant) * (float) shift;
             voice.state.formantRatio = juce::jlimit (0.5f, 2.0f, std::pow (2.0f, formantSemitones / 12.0f));
         }
     }
@@ -460,6 +462,8 @@ namespace effects
         correction = (float) correctSemitones;
         correctNote = (float) correctTarget;
 
+        // GLIDE is the time to get there (to within 5%: three time constants).
+        const auto fixedGlide = 1.0 - std::exp (-(double) hop / (0.001 * (double) juce::jmax (minGlideMs, settings.glideMs) / 3.0 * sampleRate));
         for (size_t v = 0; v < voices.size(); ++v)
         {
             const auto& setting = settings.voices[v];
@@ -489,10 +493,27 @@ namespace effects
                 }
             }
             auto& voice = voices[v];
+            if (voiced)
+            {
+                // GLOBAL PITCH after everything else, then GLIDE along the
+                // pitch it's heading for (straight there at the shortest,
+                // and when a new note starts after a silence).
+                const auto target = sung + shift + (double) settings.pitch;
+                if (voice.glidedNote < 0.0 || settings.glideMs <= minGlideMs)
+                    voice.glidedNote = target;
+                else
+                    voice.glidedNote += fixedGlide * (target - voice.glidedNote);
+                shift = voice.glidedNote - sung;
+            }
+            else
+            {
+                voice.glidedNote = -1.0;
+            }
             voice.ratio = (float) juce::jlimit (0.25, 4.0, std::pow (2.0, shift / 12.0));
             // CORRECT FORMANT at 1 keeps the voice's resonances where they
             // are; at 0 they move with the pitch, as a sped-up tape's do.
-            const auto formantSemitones = setting.formant + (1.0f - settings.correctFormant) * (float) shift;
+            // GLOBAL FORMANT adds to the voice's own.
+            const auto formantSemitones = setting.formant + settings.formant + (1.0f - settings.correctFormant) * (float) shift;
             voice.formantRatio = juce::jlimit (0.5f, 2.0f, std::pow (2.0f, formantSemitones / 12.0f));
         }
     }
@@ -549,6 +570,7 @@ namespace effects
             std::fill (voice.output.begin(), voice.output.end(), 0.0f);
             voice.running = false;
             voice.leftGain = voice.rightGain = 0.0f;
+            voice.glidedNote = -1.0;
             voice.fx.clear();
         }
     }

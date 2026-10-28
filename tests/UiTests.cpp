@@ -6,6 +6,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "ui/DoublerPanel.h"
+#include "ui/EffectPanel.h"
 #include "ui/Footswitch.h"
 #include "ui/Faceplate.h"
 #include "ui/SignalChain.h"
@@ -14,6 +15,7 @@
 #include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
+#include "ui/ParagonLookAndFeel.h"
 #include "ui/PerformanceControls.h"
 
 using Catch::Matchers::WithinAbs;
@@ -855,6 +857,191 @@ TEST_CASE ("HARMONY's FLATTEN and FX view", "[ui][harmony][voicefx]")
     CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
 }
 
+TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN on one unit", "[ui][faceplate][rack]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    auto& rack = *faceplates[0];
+    REQUIRE (rack.isRack());
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    std::vector<EffectPanel*> effectPanels;
+    findAll (*editor, effectPanels);
+    std::vector<juce::Component*> editors;   // HARMONY, the EQ, the DOUBLER, MARS
+    {
+        std::vector<HarmonyPanel*> harmony; findAll (*editor, harmony);
+        std::vector<GraphicEqPanel*> eq; findAll (*editor, eq);
+        std::vector<DoublerPanel*> doubler; findAll (*editor, doubler);
+        std::vector<MarsPanel*> mars; findAll (*editor, mars);
+        REQUIRE ((harmony.size() == 1 && eq.size() == 1 && doubler.size() == 1 && mars.size() == 1));
+        editors = { harmony[0], eq[0], doubler[0], mars[0] };
+    }
+    auto* parent = rack.getParentComponent();
+    const auto rackBounds = rack.getBounds();
+
+    // EXPRESSION ASSIGN at the rack's right end, on the same unit.
+    std::vector<ExpressionPanel*> expression;
+    findAll (*editor, expression);
+    REQUIRE (expression.size() == 1);
+    CHECK (expression[0]->getBounds() == rack.getSideArea() + rack.getPosition());
+    CHECK (expression[0]->getRight() > rack.getControlArea().getRight() + rack.getX());
+
+    for (int block = 0; block < 12; ++block)
+    {
+        CAPTURE (block);
+        chains[0]->onSelect (block);
+        // Exactly one set of controls showing, on the rack's face, between
+        // its display and EXPRESSION ASSIGN.
+        juce::Component* showing = nullptr;
+        int count = 0;
+        for (auto* panel : effectPanels)
+            if (panel->isVisible())
+            {
+                CHECK (panel->isRack());
+                showing = panel;
+                ++count;
+            }
+        for (auto* panel : editors)
+            if (panel->isVisible())
+            {
+                showing = panel;
+                ++count;
+            }
+        REQUIRE (count == 1);
+        const auto shown = showing->getBoundsInParent();   // as drawn, scaled for an editor
+        CHECK (rackBounds.contains (shown));
+        CHECK (shown.getX() >= rack.getX() + rack.getDisplayArea().getX());
+        CHECK (shown.getRight() <= expression[0]->getX());
+        // On the face at full size, nothing shrunk. HARMONY and MARS cover
+        // the rack's display too (their graph and band display are the
+        // display), and a click there lands on them.
+        CHECK (showing->getTransform().isIdentity());
+        const auto controls = rack.getControlArea() + rack.getPosition();
+        const auto coversDisplay = dynamic_cast<MarsPanel*> (showing) != nullptr || dynamic_cast<HarmonyPanel*> (showing) != nullptr;
+        CHECK (shown == (coversDisplay ? controls.getUnion (rack.getDisplayArea() + rack.getPosition()) : controls));
+        if (coversDisplay)
+        {
+            auto* hit = parent->getComponentAt ((rack.getDisplayArea() + rack.getPosition()).getCentre());
+            CHECK ((hit == showing || showing->isParentOf (hit)));
+        }
+    }
+
+    // The DOUBLER on the rack: its number boxes set their voices' settings.
+    chains[0]->onSelect (7);
+    auto* doublerPanel = dynamic_cast<DoublerPanel*> (editors[2]);
+    REQUIRE (doublerPanel != nullptr);
+    CHECK (doublerPanel->isRack());
+    std::vector<juce::Slider*> numbers;
+    findAll (*doublerPanel, numbers);
+    REQUIRE (! numbers.empty());
+    // The first box in reading order is voice 1's GAIN.
+    std::sort (numbers.begin(), numbers.end(), [] (auto* a, auto* b) { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    juce::Slider* gain = nullptr;
+    for (auto* number : numbers)
+        if (gain == nullptr && number->getX() < doublerPanel->getWidth() / 2)
+            gain = number;
+    REQUIRE (gain != nullptr);
+    gain->setValue (-9.0, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (0, "Gain"))->load(), Catch::Matchers::WithinAbs (-9.0, 0.05));
+
+    // MARS on the rack: its band display is the rack's display, and clicking
+    // it picks a band; its DRIVE knob (one of the unit's big knobs) sets the band's drive.
+    chains[0]->onSelect (4);
+    auto* marsPanel = dynamic_cast<MarsPanel*> (editors[3]);
+    REQUIRE (marsPanel != nullptr);
+    CHECK (marsPanel->isRack());
+    set (processor, ParamIDs::marsBands, 1.0f);   // two bands
+    set (processor, ParamIDs::marsCross1, 1000.0f);
+    marsPanel->selectBand (0);
+    const auto displayArea = rack.getDisplayArea() + rack.getPosition() - marsPanel->getPosition();
+    const juce::Point<float> inBand2 (marsPanel->xFor (5000.0f), (float) displayArea.getCentreY());
+    CHECK (displayArea.toFloat().contains (inBand2));
+    marsPanel->mouseDown (mouseAt (*marsPanel, inBand2));
+    marsPanel->mouseUp (mouseAt (*marsPanel, inBand2));
+    CHECK (marsPanel->getSelectedBand() == 1);
+    std::vector<juce::Slider*> marsKnobs;
+    findAll (*marsPanel, marsKnobs);
+    juce::Slider* driveKnob = nullptr;
+    for (auto* knob : marsKnobs)
+        if (knob->isVisible() && (bool) knob->getProperties()[ParagonLookAndFeel::pedalKnobProperty]
+            && (driveKnob == nullptr || knob->getX() < driveKnob->getX()))
+            driveKnob = knob;   // the first knob in the row: DRIVE
+    REQUIRE (driveKnob != nullptr);
+    driveKnob->setValue (0.75, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::marsBand (1, "Drive"))->load(), Catch::Matchers::WithinAbs (0.75, 0.01));
+
+    // The GRAPHIC EQ's faders on the rack set their bands.
+    chains[0]->onSelect (5);
+    auto* eqPanel = dynamic_cast<GraphicEqPanel*> (editors[1]);
+    REQUIRE (eqPanel != nullptr);
+    CHECK (eqPanel->isRack());
+    std::vector<juce::Slider*> eqFaders;
+    findAll (*eqPanel, eqFaders);
+    REQUIRE (eqFaders.size() == 10);   // nine bands and LEVEL
+    std::sort (eqFaders.begin(), eqFaders.end(), [] (auto* a, auto* b) { return a->getX() < b->getX(); });
+    eqFaders[2]->setValue (-5.0, juce::sendNotificationSync);   // 250 Hz
+    CHECK_THAT (processor.getParameters().getRawParameterValue ("eq250")->load(), Catch::Matchers::WithinAbs (-5.0, 0.05));
+    eqFaders[9]->setValue (3.0, juce::sendNotificationSync);    // LEVEL
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::eqLevel)->load(), Catch::Matchers::WithinAbs (3.0, 0.05));
+
+    // HARMONY on the rack: its graph is in the rack's display, and a click
+    // on an empty spot there adds a voice, as before.
+    chains[0]->onSelect (0);
+    auto* harmonyPanel = dynamic_cast<HarmonyPanel*> (editors[0]);
+    REQUIRE (harmonyPanel != nullptr);
+    REQUIRE (harmonyPanel->isVisible());
+    CHECK (harmonyPanel->isRack());
+    // (Voices 1 and 2 start in use; a click on an empty spot adds the first free one, voice 3.)
+    REQUIRE (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() < 0.5f);
+    const auto spot = harmonyPanel->pointFor (0.6f, -12.0f);
+    const auto harmonyDisplay = rack.getDisplayArea() + rack.getPosition() - harmonyPanel->getPosition();
+    CHECK (harmonyDisplay.toFloat().contains (spot));
+    harmonyPanel->mouseDown (mouseAt (*harmonyPanel, spot));
+    harmonyPanel->mouseUp (mouseAt (*harmonyPanel, spot));
+    CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() > 0.5f);
+    CHECK (harmonyPanel->getSelectedVoice() == 2);
+    // The Note Map opens on the wide screen, hiding what's under it; closing it brings that back.
+    harmonyPanel->showNotes (true);
+    harmonyPanel->openNoteMap();
+    CHECK (harmonyPanel->getNoteMap().getX() < harmonyDisplay.getRight());   // across the display too
+    std::vector<juce::TextButton*> harmonyButtons;
+    findAll (*harmonyPanel, harmonyButtons);
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (! button->isVisible());
+    harmonyPanel->closeNoteMap();
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (button->isVisible());
+    harmonyPanel->showNotes (false);
+
+    // On the rack the controls are the real ones: DELAY's FEEDBACK knob
+    // (one of the unit's big knobs) sets the delay's feedback.
+    chains[0]->onSelect (9);
+    EffectPanel* delay = nullptr;
+    for (auto* panel : effectPanels)
+        if (panel->isVisible())
+            delay = panel;
+    REQUIRE (delay != nullptr);
+    juce::Label* feedbackName = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* label = dynamic_cast<juce::Label*> (child); label != nullptr && label->getText() == "FEEDBACK")
+            feedbackName = label;
+    REQUIRE (feedbackName != nullptr);
+    juce::Slider* feedback = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* slider = dynamic_cast<juce::Slider*> (child); slider != nullptr && slider->getBounds().contains (feedbackName->getBounds().getCentreX(), slider->getY() + 1))
+            feedback = slider;
+    REQUIRE (feedback != nullptr);
+    CHECK ((bool) feedback->getProperties()[ParagonLookAndFeel::pedalKnobProperty]);
+    feedback->setValue (0.8, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::delayFeedback)->load(), Catch::Matchers::WithinAbs (0.8, 0.01));
+}
+
 TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meters", "[ui][faceplate]")
 {
     ParagonX1AudioProcessor processor;
@@ -943,4 +1130,98 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
     for (int tick = 0; tick < 60; ++tick)
         faceplate.updateMeters();
     CHECK (faceplate.getShownReduction() > -0.5f);
+}
+
+TEST_CASE ("HARMONY's GLOBAL view: GLIDE, SYNC, PITCH, FORMANT, and its asterisk", "[ui][harmony][global]")
+{
+    ParagonX1AudioProcessor processor;
+    HarmonyPanel panel (processor.getParameters(), [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::TextButton*> buttons;
+    std::vector<juce::Label*> labels;
+    findAll (panel, buttons);
+    findAll (panel, labels);
+    const auto button = [&buttons] (const juce::String& prefix) -> juce::TextButton*
+    {
+        for (auto* b : buttons)
+            if (b->getButtonText().startsWith (prefix))
+                return b;
+        return nullptr;
+    };
+    const auto labelShown = [&labels] (const juce::String& text)
+    {
+        for (auto* label : labels)
+            if (label->isVisible() && label->getText() == text)
+                return true;
+        return false;
+    };
+    auto* global = button ("GLOBAL");
+    REQUIRE (global != nullptr);
+    CHECK (global->isVisible());
+    CHECK_FALSE (labelShown ("GLIDE"));
+
+    panel.showGlobal (true);
+    CHECK (panel.isShowingGlobal());
+    CHECK (labelShown ("GLIDE"));
+    CHECK (labelShown ("SOURCE"));       // the mix stays
+    CHECK_FALSE (labelShown ("FLATTEN"));
+
+    // The asterisk: a global setting changed.
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL");
+    set (processor, ParamIDs::harmonyGlobalPitch, 7.0f);
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL*");
+
+    // FX and GLOBAL take turns; a voice tab goes back to the voice.
+    panel.showFx (true);
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK_FALSE (labelShown ("GLIDE"));
+    panel.showGlobal (true);
+    CHECK_FALSE (panel.isShowingFx());
+    button ("2")->onClick();   // what clicking tab 2 does
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK (labelShown ("FLATTEN"));
+}
+
+TEST_CASE ("HARMONY's SNAPSHOTS page: pick to recall, STORE, COPY / PASTE, DELETE", "[ui][harmony][snapshots]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<HarmonyPanel*> panels;
+    findAll (*editor, panels);
+    REQUIRE (panels.size() == 1);
+    auto& panel = *panels[0];
+    panel.openSnapshots();
+    CHECK (panel.isShowingSnapshots());
+    auto& page = panel.getSnapshots();
+    const auto pitch = [&processor] { return processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (0, "Pitch"))->load(); };
+
+    // STORE with nothing picked: the first empty slot.
+    page.storeHere();
+    CHECK (page.getPicked() == 0);
+    REQUIRE (processor.getHarmonySnapshot (0).has_value());
+    CHECK (HarmonySnapshotsView::summary (*processor.getHarmonySnapshot (0)) == "+4 +7");   // the two starting voices
+
+    // Change the voice, store in slot 3, and pick slot 1 again: it's recalled.
+    set (processor, ParamIDs::harmonyVoice (0, "Pitch").toRawUTF8(), 3.0f);
+    page.pick (2);
+    page.storeHere();
+    page.pick (0);
+    CHECK (pitch() == 4.0f);
+    page.pick (2);
+    CHECK (pitch() == 3.0f);
+
+    // COPY slot 3, PASTE into slot 8; DELETE it again.
+    page.copyPicked();
+    page.pick (7);   // empty: just picked
+    CHECK (pitch() == 3.0f);
+    page.pastePicked();
+    REQUIRE (processor.getHarmonySnapshot (7).has_value());
+    CHECK (*processor.getHarmonySnapshot (7) == *processor.getHarmonySnapshot (2));
+    page.deletePicked();
+    CHECK_FALSE (processor.getHarmonySnapshot (7).has_value());
+
+    panel.closeSnapshots();
+    CHECK_FALSE (panel.isShowingSnapshots());
 }

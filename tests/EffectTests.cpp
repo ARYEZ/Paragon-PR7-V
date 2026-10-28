@@ -4,6 +4,7 @@
 
 #include "Parameters.h"
 #include "PluginProcessor.h"
+#include "rigs/Rig.h"
 #include "dsp/effects/Modulation.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Mars.h"
@@ -4291,4 +4292,152 @@ TEST_CASE ("HARMONY NOTES DELAY and FEEDBACK: the note voices' echo outlasts the
     CAPTURE (afterRelease (0.6f), afterRelease (0.0f));
     CHECK (afterRelease (0.6f) > 1.0e-3f);
     CHECK (afterRelease (0.6f) > 10.0f * afterRelease (0.0f));   // without: only RELEASE's last trace
+}
+
+//==============================================================================
+// HARMONY stage 7: GLOBAL GLIDE, PITCH and FORMANT.
+TEST_CASE ("HARMONY GLOBAL PITCH: every harmony voice moves, the singer doesn't", "[effects][harmony][global]")
+{
+    const auto A3 = 220.0, E4 = 329.628, E5 = 659.255, C5 = 523.251;
+    HarmonyRig fixed (7.0f);
+    fixed.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto heard = pitchOf (fixed.runMono (sungVowel (A3, 1.0)));
+    CAPTURE (heard);
+    CHECK (std::abs (cents (heard, E5)) < 20.0);   // a fifth above, an octave up
+    HarmonyRig plain (7.0f);
+    CHECK (std::abs (cents (pitchOf (plain.runMono (sungVowel (A3, 1.0))), E4)) < 20.0);
+
+    // The singer's own voice (SOURCE up, voices off) isn't moved.
+    HarmonyRig singer (7.0f);
+    singer.set (ParamIDs::harmonySource, 0.0f);
+    singer.setVoice ("Active", 0.0f);
+    singer.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto sung = sungVowel (A3, 1.0);
+    CHECK (maxAbsDifference (sung, singer.runMono (sung), (size_t) (0.1 * sampleRate)) < 1.0e-5f);
+
+    // And note voices too: a held C4 comes out as C5.
+    MidiRig midi;
+    midi.set (ParamIDs::harmonyGlobalPitch, 12.0f);
+    const auto out = runWithMidi (midi, sungVowel (A3, 1.0), { { 0.0, keyDown (60) } });
+    CAPTURE (pitchOf (out));
+    CHECK (std::abs (cents (pitchOf (out), C5)) < 20.0);
+}
+
+TEST_CASE ("HARMONY GLOBAL FORMANT: the same as each voice's own FORMANT", "[effects][harmony][global]")
+{
+    const auto sung = sungVowel (220.0, 1.0);
+    HarmonyRig global (7.0f);
+    global.set (ParamIDs::harmonyGlobalFormant, 5.0f);
+    HarmonyRig own (7.0f);
+    own.setVoice ("Formant", 5.0f);
+    HarmonyRig plain (7.0f);
+    const auto a = global.runMono (sung), b = own.runMono (sung), c = plain.runMono (sung);
+    CHECK (maxAbsDifference (a, b, 0) < 1.0e-6f);
+    CHECK (maxAbsDifference (a, c, (size_t) (0.2 * sampleRate)) > 1.0e-3f);   // and it does change the voice
+}
+
+TEST_CASE ("HARMONY GLIDE: the voices slide to a new note instead of jumping", "[effects][harmony][global]")
+{
+    // Sung A3 then C4 (from 0.6 s): the fifth above goes from E4 to G4. A
+    // voice gliding there is, for a moment, less than a fifth above the
+    // singer; one that jumps is a fifth above straight away. (A pitch
+    // can't be read off a slide, so this reads the voice's own shift.)
+    const auto line = sungLine ({ { 220.0, 0.6 }, { 261.626, 0.9 } });
+    const auto shiftAt = [&line] (std::function<void (HarmonyRig&)> setUp, double seconds)
+    {
+        HarmonyRig rig (7.0f);
+        setUp (rig);
+        rig.runMono (std::vector<float> (line.begin(), line.begin() + (long) (seconds * sampleRate)));
+        return 12.0 * std::log2 ((double) rig.processor.getHarmony().getRatio (0));
+    };
+    const auto noGlide = [] (HarmonyRig&) {};
+    const auto glide300 = [] (HarmonyRig& rig) { rig.set (ParamIDs::harmonyGlide, 300.0f); };
+    const auto synced = [] (HarmonyRig& rig) { rig.set (ParamIDs::harmonyGlideSync, 3.0f); };   // 1/4 at 120: 500 ms
+    const auto soon = 0.6 + 0.12;   // once the new note's been heard
+    CAPTURE (shiftAt (noGlide, soon), shiftAt (glide300, soon), shiftAt (synced, soon), shiftAt (glide300, 0.6 + 0.45));
+    CHECK (std::abs (shiftAt (noGlide, soon) - 7.0) < 0.2);    // straight to the fifth
+    CHECK (shiftAt (glide300, soon) < 6.0);                      // still sliding up from E4
+    CHECK (shiftAt (synced, soon) < shiftAt (glide300, soon));   // the longer glide, further behind
+    CHECK (std::abs (shiftAt (glide300, 0.6 + 0.45) - 7.0) < 0.3);   // there within GLIDE (plus the note's detection)
+}
+
+//==============================================================================
+// HARMONY stage 8: SNAPSHOTS.
+TEST_CASE ("HARMONY SNAPSHOTS: store, recall (from the panel or the SNAPSHOT parameter), save", "[effects][harmony][snapshots]")
+{
+    const auto A3 = 220.0, E4 = 329.628;
+    const auto sung = sungVowel (A3, 1.0);
+    const auto pitchOfVoice = [&sung] (HarmonyRig& rig) { return pitchOf (rig.runMono (sung)); };
+    const auto pitchId = ParamIDs::harmonyVoice (0, "Pitch");
+
+    SECTION ("Recall brings back what was stored, and the voice sounds it")
+    {
+        HarmonyRig rig (7.0f);   // a fifth: E4
+        rig.processor.storeHarmonySnapshot (0);
+        rig.setVoice ("Pitch", 4.0f);   // a third up (C4 in C major): not E4
+        CHECK (std::abs (cents (pitchOfVoice (rig), E4)) > 100.0);
+        rig.processor.recallHarmonySnapshot (0);
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 7.0f);
+        CHECK (std::abs (cents (pitchOfVoice (rig), E4)) < 20.0);
+        CHECK (juce::roundToInt (rig.processor.getParameters().getRawParameterValue (ParamIDs::harmonySnapshot)->load()) == 1);
+    }
+
+    SECTION ("Moving the SNAPSHOT parameter (automation, MIDI) recalls; an empty slot does nothing")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (2);
+        rig.setVoice ("Pitch", 4.0f);
+        rig.set (ParamIDs::harmonySnapshot, 5.0f);   // slot 5: empty
+        rig.processor.followSnapshotParameter();
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 4.0f);
+        rig.set (ParamIDs::harmonySnapshot, 3.0f);   // slot 3: stored
+        rig.processor.followSnapshotParameter();
+        CHECK (rig.processor.getParameters().getRawParameterValue (pitchId)->load() == 7.0f);
+    }
+
+    SECTION ("Only the harmony voices: KEY, GLOBAL and the mix are left alone")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (0);
+        rig.set (ParamIDs::harmonyKey, 2.0f);
+        rig.set (ParamIDs::harmonyGlobalPitch, 5.0f);
+        rig.set (ParamIDs::harmonyLevel, -6.0f);
+        rig.processor.recallHarmonySnapshot (0);
+        auto& state = rig.processor.getParameters();
+        CHECK (state.getRawParameterValue (ParamIDs::harmonyKey)->load() == 2.0f);
+        CHECK (state.getRawParameterValue (ParamIDs::harmonyGlobalPitch)->load() == 5.0f);
+        CHECK_THAT (state.getRawParameterValue (ParamIDs::harmonyLevel)->load(), WithinAbs (-6.0, 0.001));   // a smooth range: -5.999999 on macOS
+    }
+
+    SECTION ("Saved with the project and in rig files; loading isn't a recall")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.storeHarmonySnapshot (4);
+        rig.setVoice ("Pitch", 4.0f);   // changed since, and saved like that
+        juce::MemoryBlock project;
+        rig.processor.getStateInformation (project);
+        HarmonyRig other (0.0f);
+        other.processor.setStateInformation (project.getData(), (int) project.getSize());
+        other.processor.followSnapshotParameter();   // SNAPSHOT is 5 in the project: not recalled on load
+        CHECK (other.processor.getParameters().getRawParameterValue (pitchId)->load() == 4.0f);
+        REQUIRE (other.processor.getHarmonySnapshot (4).has_value());
+        CHECK (other.processor.getHarmonySnapshot (4)->at (pitchId) == 7.0f);
+        CHECK_FALSE (other.processor.getHarmonySnapshot (0).has_value());
+
+        const auto xml = rig.processor.captureRig().toXml();
+        const auto reloaded = Rig::fromXml (*xml);
+        REQUIRE (reloaded.has_value());
+        CHECK (reloaded->harmonySnapshots == rig.processor.captureRig().harmonySnapshots);
+    }
+
+    SECTION ("Undo takes back a stored snapshot")
+    {
+        HarmonyRig rig (7.0f);
+        rig.processor.flushUndoStep();
+        rig.processor.storeHarmonySnapshot (0);
+        rig.processor.flushUndoStep();
+        REQUIRE (rig.processor.getHarmonySnapshot (0).has_value());
+        rig.processor.undo();
+        CHECK_FALSE (rig.processor.getHarmonySnapshot (0).has_value());
+    }
 }

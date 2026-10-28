@@ -1,6 +1,8 @@
 #include "GraphicEqPanel.h"
 
 #include "Parameters.h"
+#include "ui/Finish.h"
+#include "ui/LedDisplay.h"
 #include "ui/EqPresets.h"
 #include "ui/Icons.h"
 #include "ui/ParagonLookAndFeel.h"
@@ -82,6 +84,21 @@ GraphicEqPanel::GraphicEqPanel (juce::AudioProcessorValueTreeState& state)
     addAndMakeVisible (flat);
 }
 
+void GraphicEqPanel::setRack (bool inRack)
+{
+    if (rack == inRack)
+        return;
+    rack = inRack;
+    onButton.getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
+    flat.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    presets.setColour (juce::ComboBox::backgroundColourId, rack ? juce::Colours::transparentBlack : juce::Colour (0xff151217));
+    presets.setColour (juce::ComboBox::outlineColourId, rack ? juce::Colours::transparentBlack : ParagonColours::panelEdge);
+    presets.setColour (juce::ComboBox::textColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+    presets.setColour (juce::ComboBox::arrowColourId, rack ? LedDisplay::ledOrange.withAlpha (0.6f) : ParagonColours::textDim);
+    resized();
+    repaint();
+}
+
 void GraphicEqPanel::flatten()
 {
     for (const auto& id : ParamIDs::eqBands)
@@ -149,6 +166,38 @@ float GraphicEqPanel::yForDb (float db) const
 
 void GraphicEqPanel::resized()
 {
+    if (rack)
+    {
+        // The row of keys: ON, then PRESETS on a screen and FLAT.
+        auto area = getLocalBounds();
+        auto keys = area.removeFromTop (24);
+        onLabel = keys.removeFromLeft (24);
+        onButton.setBounds (keys.removeFromLeft (48).withSizeKeepingCentre (44, 24));
+        keys.removeFromLeft (24);
+        presets.setBounds (keys.removeFromLeft (220).reduced (0, 1));
+        keys.removeFromLeft (12);
+        flat.setBounds (keys.removeFromLeft (70));
+        area.removeFromTop (10);
+
+        // The faders, evenly spaced as on a hardware graphic EQ, a printed
+        // scale at the left and LEVEL at the right; each value on a screen
+        // over its fader, each frequency stamped under it.
+        area.removeFromLeft (30);   // the scale
+        area.removeFromTop (24);    // the values' screens
+        area.removeFromBottom (16); // the frequencies
+        const auto columns = effects::GraphicEq::numBands + 1;
+        const auto column = (float) area.getWidth() / ((float) columns + 0.4f);   // LEVEL a little apart
+        for (int band = 0; band <= effects::GraphicEq::numBands; ++band)
+        {
+            auto& fader = band < effects::GraphicEq::numBands ? faders[(size_t) band] : level;
+            const auto x = (float) area.getX() + column * ((float) band + 0.5f + (band == effects::GraphicEq::numBands ? 0.4f : 0.0f));
+            fader.setBounds (juce::Rectangle<int> (34, area.getHeight()).withCentre ({ juce::roundToInt (x), area.getCentreY() }));
+        }
+        graph = area.toFloat();
+        faderTrack = graph.reduced (0.0f, faderPadding);
+        return;
+    }
+
     auto area = getLocalBounds().reduced (16, 10);
     auto header = area.removeFromTop (24);
     header.removeFromLeft (34);   // icon
@@ -174,8 +223,56 @@ void GraphicEqPanel::resized()
     level.setBounds (levelArea.withTrimmedTop (14).withTrimmedBottom (18).withSizeKeepingCentre (34, area.getHeight()));
 }
 
+void GraphicEqPanel::paintOverChildren (juce::Graphics& g)
+{
+    for (const auto& glass : glasses)
+        LedDisplay::paintGlassOverlay (g, glass, 0.35f);
+}
+
 void GraphicEqPanel::paint (juce::Graphics& g)
 {
+    if (rack)
+    {
+        // On the unit's face: names stamped in its ink, the scale printed
+        // in its red, values on small screens.
+        glasses.clear();
+        const auto ink = Finish::ink();
+        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+        ParagonLookAndFeel::drawStampedText (g, "ON", onLabel.toFloat(), juce::Justification::centredRight, ink);
+        glasses.push_back (LedDisplay::paintScreen (g, presets.getBounds().toFloat().expanded (2.0f, 3.0f), 0.35f));
+
+        // The scale: +12, 0 and -12 dB, with a fine line across the faders at 0 dB.
+        g.setColour (Finish::printedRed());
+        g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+        for (auto db : { 12.0f, 6.0f, 0.0f, -6.0f, -12.0f })
+        {
+            const auto y = yForDb (db);
+            g.drawText ((db > 0.0f ? "+" : "") + juce::String ((int) db), juce::Rectangle<float> (0.0f, y - 6.0f, 24.0f, 12.0f),
+                        juce::Justification::centredRight, false);
+            g.fillRect (juce::Rectangle<float> (26.0f, y - 0.5f, 4.0f, 1.0f));
+        }
+        g.setColour (Finish::printedRed().withAlpha (0.35f));
+        g.fillRect (juce::Rectangle<float> (graph.getX(), yForDb (0.0f) - 0.5f, graph.getWidth(), 1.0f));
+
+        for (int band = 0; band <= effects::GraphicEq::numBands; ++band)
+        {
+            const auto isLevel = band == effects::GraphicEq::numBands;
+            const auto& fader = isLevel ? level : faders[(size_t) band];
+            const auto x = (float) fader.getBounds().getCentreX();
+            const auto db = (float) fader.getValue();
+            const auto glass = LedDisplay::paintScreen (g, juce::Rectangle<float> (50.0f, 20.0f).withCentre ({ x, graph.getY() - 13.0f }), 0.35f);
+            g.setColour (LedDisplay::ledOrange.withAlpha (std::abs (db) < 0.05f ? 0.55f : 1.0f));
+            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.drawText ((db > 0.05f ? "+" : "") + juce::String (db, 1), glass, juce::Justification::centred, false);
+            glasses.push_back (glass);
+            g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+            ParagonLookAndFeel::drawStampedText (g, isLevel ? juce::String ("LEVEL") : ParamIDs::eqBandNames[band],
+                                                 juce::Rectangle<float> (56.0f, 14.0f).withCentre ({ x, graph.getBottom() + 8.0f }),
+                                                 juce::Justification::centred, ink);
+        }
+        return;
+    }
+
     // Same dark panel as the rest of the dock.
     const auto bounds = getLocalBounds().toFloat();
     g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),

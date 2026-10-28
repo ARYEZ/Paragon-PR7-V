@@ -215,6 +215,27 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYFX", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
             harmonyPanel->showFx (true);
+    // PARAGON_SNAPSHOT_STORE=1,2,5: store the voices in those snapshot slots
+    // first (each a step higher, so they differ); PARAGON_SNAPSHOT_SNAPSHOTS=1
+    // opens the SNAPSHOTS page.
+    if (const auto store = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_STORE", {}); store.isNotEmpty())
+    {
+        auto step = 0.0f;
+        for (const auto& slot : juce::StringArray::fromTokens (store, ",", {}))
+        {
+            auto* pitch = processor.getParameters().getParameter (ParamIDs::harmonyVoice (0, "Pitch"));
+            pitch->setValueNotifyingHost (pitch->convertTo0to1 (4.0f + step));
+            processor.storeHarmonySnapshot (slot.getIntValue() - 1);
+            step += 1.0f;
+        }
+    }
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_SNAPSHOTS", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->openSnapshots();
+    // PARAGON_SNAPSHOT_HARMONYGLOBAL=1: its GLOBAL view.
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYGLOBAL", {}) == "1")
+        if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+            harmonyPanel->showGlobal (true);
     // PARAGON_SNAPSHOT_PANELPAGE=n shows page n of the open block's panel, for
     // a panel with pages (DELAY's MAIN, STEREO, COLOUR: 0, 1, 2; MARS's
     // BANDS, GLOBAL, MOD, SLOTS: 0-3).
@@ -243,6 +264,9 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto width = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_WIDTH", {}).getIntValue(); width > 0)
         editor->setSize (width, width * 9 / 16);
     editor->resized();
+    // HARMONY's readings (the sung note, GLOBAL*) as its timer would show them.
+    if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
+        harmonyPanel->updateReadings();
     // The FACEPLATE's meters settle as they would over a second of the timer.
     if (auto* faceplate = findType<Faceplate> (*editor))
         for (int tick = 0; tick < 30; ++tick)

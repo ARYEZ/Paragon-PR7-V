@@ -51,7 +51,16 @@ public:
     void showPage (int page);
     int getPage() const noexcept { return currentPage; }
 
+    // In the rack: the panel's controls drawn on the rack unit's face
+    // (Faceplate) instead of on dark cards. Knobs are the unit's big knobs
+    // with their values on small LCD screens, lists are LCD screens, switches
+    // are small keys with light stripes, names are stamped in ink. No
+    // background and no header name: the unit shows both.
+    void setRack (bool inRack);
+    bool isRack() const noexcept { return rack; }
+
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
 private:
@@ -79,4 +88,7 @@ private:
     juce::Rectangle<int> meterArea;
     std::vector<std::unique_ptr<juce::TextButton>> pageButtons;
     int currentPage = 0;
+    bool rack = false;
+    juce::Colour inkColour;                            // the stamped names' colour, for the finish showing
+    mutable std::vector<juce::Rectangle<float>> glasses;   // the LCD screens' glass, for their overlay
 };

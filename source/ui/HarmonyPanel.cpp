@@ -4,6 +4,8 @@
 #include "Parameters.h"
 #include "ParagonLookAndFeel.h"
 #include "dsp/PitchDetector.h"
+#include "ui/Finish.h"
+#include "ui/LedDisplay.h"
 #include "dsp/effects/Delay.h"
 
 namespace
@@ -113,6 +115,7 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
         {
             if (! isActive (voice))
                 addVoiceAt (voice, 0.0f, 0.0f);
+            showGlobal (false);
             selectVoice (voice);
             showNotes (false);
         };
@@ -126,7 +129,7 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     notesTab.setColour (juce::TextButton::textColourOnId, noteBlue);
     notesTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
     notesTab.setTooltip ("GENERATE NOTES: harmonies from chord maps, made from the notes you sing");
-    notesTab.onClick = [this] { showNotes (true); };
+    notesTab.onClick = [this] { showGlobal (false); showNotes (true); };
     addAndMakeVisible (notesTab);
     setUp (generate, "GENERATE");
     generate.button.setTooltip ("Turn your singing into notes, and each note into the CHORD map's harmonies");
@@ -177,6 +180,37 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     fxTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
     fxTab.setTooltip ("The picked voice's DELAY, FEEDBACK and FILTER (on NOTES: the note voices')");
     fxTab.onClick = [this] { showFx (fxTab.getToggleState()); };
+
+    // GLOBAL: how the harmony voices glide, and an offset for all of them.
+    globalTab.setClickingTogglesState (true);
+    globalTab.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    globalTab.setColour (juce::TextButton::textColourOnId, ParagonColours::accent);
+    globalTab.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    globalTab.setTooltip ("GLIDE, PITCH and FORMANT for all the harmony voices, with the mix (* when a global setting is changed)");
+    globalTab.onClick = [this] { showGlobal (globalTab.getToggleState()); };
+    addAndMakeVisible (globalTab);
+    const std::tuple<Knob*, const char*, const char*, const char*> globalKnobs[] = {
+        { &glide, "GLIDE", ParamIDs::harmonyGlide, "How long the voices take to move to a new note: 1 ms jumps straight there (greyed while SYNC sets it)" },
+        { &globalPitch, "PITCH", ParamIDs::harmonyGlobalPitch, "Moves every harmony voice up or down (your own voice stays put)" },
+        { &globalFormant, "FORMANT", ParamIDs::harmonyGlobalFormant, "The character of every harmony voice: lower for bigger singers, higher for smaller" } };
+    for (const auto& [knob, label, id, tip] : globalKnobs)
+    {
+        setUp (*knob, label);
+        knob->attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (parameters, id, knob->slider);
+        auto* parameter = parameters.getParameter (id);
+        knob->slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
+        knob->slider.setTooltip (tip);
+    }
+    styleLabel (glideSyncLabel, "SYNC");
+    addAndMakeVisible (glideSyncLabel);
+    glideSync.addItemList (effects::Delay::syncNames, 1);
+    glideSync.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
+    glideSync.setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
+    glideSync.setColour (juce::ComboBox::textColourId, ParagonColours::accent);
+    glideSync.setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
+    glideSync.setTooltip ("GLIDE as a note length at the song's tempo (Off: in ms)");
+    addAndMakeVisible (glideSync);
+    glideSyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonyGlideSync, glideSync);
     addAndMakeVisible (fxTab);
     setUp (echoDelay, "DELAY");
     setUp (echoFeedback, "FEEDBACK");
@@ -227,6 +261,14 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     addAndMakeVisible (editMap);
     noteMap.onDone = [this] { closeNoteMap(); };
     addChildComponent (noteMap);   // last: on top of everything when open
+    snapshotsButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217).withAlpha (0.85f));
+    snapshotsButton.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    snapshotsButton.setTooltip ("SNAPSHOTS: store the voices in up to 32 slots and switch between them (the SNAPSHOT parameter switches them from your DAW)");
+    snapshotsButton.onClick = [this] { openSnapshots(); };
+    snapshotsButton.setEnabled (false);   // until the processor's snapshots are connected
+    addAndMakeVisible (snapshotsButton);
+    snapshots.onDone = [this] { closeSnapshots(); };
+    addChildComponent (snapshots);
 
     selectVoice (0);
     showNotes (false);
@@ -305,11 +347,63 @@ void HarmonyPanel::openNoteMap()
     }
     noteMap.setVisible (true);
     noteMap.toFront (false);
+    rackOverlayChanged();
+}
+
+void HarmonyPanel::setSnapshotActions (HarmonySnapshotsView::Actions actions)
+{
+    snapshots.setActions (std::move (actions));
+    snapshotsButton.setEnabled (snapshots.hasActions());
+}
+
+void HarmonyPanel::openSnapshots()
+{
+    if (! snapshots.hasActions())
+        return;
+    noteMap.setVisible (false);
+    snapshots.setVisible (true);
+    snapshots.toFront (false);
+    rackOverlayChanged();
+}
+
+void HarmonyPanel::closeSnapshots()
+{
+    snapshots.setVisible (false);
+    rackOverlayChanged();
+    repaint();
 }
 
 void HarmonyPanel::closeNoteMap()
 {
     noteMap.setVisible (false);
+    rackOverlayChanged();
+    repaint();
+}
+
+void HarmonyPanel::rackOverlayChanged()
+{
+    // On the rack the Note Map and SNAPSHOTS open on a screen across the
+    // display and the controls: what's under it is hidden (its screen's
+    // frame would otherwise show the edges of the keys and knobs below),
+    // leaving the top row (HARMONY, GLOBAL, TUNE VOICE).
+    if (! rack)
+        return;
+    const auto open = noteMap.isVisible() || snapshots.isVisible();
+    const std::initializer_list<juce::Component*> topRow { &noteMap, &snapshots, &harmonyOn.label, &harmonyOn.button, &globalTab, &correct, &correctLabel };
+    if (open)
+    {
+        for (auto* child : getChildren())
+            if (std::find (topRow.begin(), topRow.end(), child) == topRow.end())
+                child->setVisible (false);
+    }
+    else
+    {
+        for (auto* child : std::initializer_list<juce::Component*> { &key, &scale, &keyLabel, &scaleLabel, &snapshotsButton, &notesTab, &fxTab })
+            child->setVisible (true);
+        for (auto& tab : tabs)
+            tab.setVisible (true);
+        updateVisibility();
+    }
     repaint();
 }
 
@@ -330,13 +424,31 @@ void HarmonyPanel::showFx (bool show)
 {
     fxShown = show;
     fxTab.setToggleState (show, juce::dontSendNotification);
+    if (show)
+    {
+        globalShown = false;
+        globalTab.setToggleState (false, juce::dontSendNotification);
+    }
+    updateVisibility();
+}
+
+void HarmonyPanel::showGlobal (bool show)
+{
+    globalShown = show;
+    globalTab.setToggleState (show, juce::dontSendNotification);
+    if (show)
+    {
+        fxShown = false;
+        fxTab.setToggleState (false, juce::dontSendNotification);
+    }
     updateVisibility();
 }
 
 void HarmonyPanel::updateVisibility()
 {
-    // Three views: the picked voice (with the mix), NOTES, or FX (either's).
-    const auto voiceMain = ! notesShown && ! fxShown, notesMain = notesShown && ! fxShown;
+    // Four views: the picked voice (with the mix), NOTES, FX (either's), or GLOBAL (with the mix).
+    const auto fx = fxShown && ! globalShown;
+    const auto voiceMain = ! notesShown && ! fx && ! globalShown, notesMain = notesShown && ! fx && ! globalShown;
     shownFlatten = value (voiceId (selected, "Flatten")) > 0.5f;
     const auto show = [] (auto& control, bool visible)
     {
@@ -346,8 +458,14 @@ void HarmonyPanel::updateVisibility()
         else
             control.button.setVisible (visible);
     };
-    for (auto* knob : { &fine, &formant, &source, &harmony, &spread, &correctFormant })
+    for (auto* knob : { &fine, &formant })
         show (*knob, voiceMain);
+    for (auto* knob : { &source, &harmony, &spread, &correctFormant })
+        show (*knob, voiceMain || globalShown);
+    for (auto* knob : { &glide, &globalPitch, &globalFormant })
+        show (*knob, globalShown);
+    glideSyncLabel.setVisible (globalShown);
+    glideSync.setVisible (globalShown);
     show (pitch, voiceMain && ! shownFlatten);
     show (flattenNote, voiceMain && shownFlatten);
     for (auto* control : { &voiceOn, &voiceCorrect, &voiceFlatten })
@@ -358,9 +476,9 @@ void HarmonyPanel::updateVisibility()
     for (auto* component : std::initializer_list<juce::Component*> { &chordLabel, &chord, &midiLabel, &midiMap, &editMap })
         component->setVisible (notesMain);
     for (auto* knob : { &echoDelay, &echoFeedback, &cutoff })
-        show (*knob, fxShown);
+        show (*knob, fx);
     for (auto* component : std::initializer_list<juce::Component*> { &syncLabel, &echoSync, &filterLabel, &filterType })
-        component->setVisible (fxShown);
+        component->setVisible (fx);
     resized();
     repaint();
 }
@@ -530,16 +648,41 @@ void HarmonyPanel::mouseWheelMove (const juce::MouseEvent& event, const juce::Mo
 void HarmonyPanel::refreshTabs()
 {
     for (size_t i = 0; i < tabs.size(); ++i)
+    {
         tabs[i].setColour (juce::TextButton::textColourOffId, isActive ((int) i) ? ParagonColours::text : ParagonColours::textDim.withAlpha (0.5f));
+        // On the rack's keys: a voice not in use is lettered dimmer.
+        if ((bool) tabs[i].getProperties()[ParagonLookAndFeel::dimTextProperty] == isActive ((int) i))
+        {
+            tabs[i].getProperties().set (ParagonLookAndFeel::dimTextProperty, ! isActive ((int) i));
+            tabs[i].repaint();
+        }
+    }
 }
 
 void HarmonyPanel::timerCallback()
 {
+    // On the rack, the names follow the finish's ink.
+    const auto ink = rack ? Finish::ink() : ParagonColours::textDim;
+    if (ink != inkColour)
+    {
+        inkColour = ink;
+        for (auto* child : getChildren())
+            if (auto* label = dynamic_cast<juce::Label*> (child))
+                label->setColour (juce::Label::textColourId, ink);
+    }
     // The voices can move from the DAW (automation, undo, a rig), and the
     // sung note changes all the time: keep both up to date.
     refreshTabs();
     if ((value (voiceId (selected, "Flatten")) > 0.5f) != shownFlatten)
         updateVisibility();   // PITCH becomes NOTE, or back
+    // GLOBAL*: a global setting isn't where it starts (as the guide's asterisk).
+    const auto globalChanged = value (ParamIDs::harmonyGlide) > effects::Harmony::minGlideMs + 0.5f
+                               || juce::roundToInt (value (ParamIDs::harmonyGlideSync)) != 0
+                               || std::abs (value (ParamIDs::harmonyGlobalPitch)) > 0.01f
+                               || std::abs (value (ParamIDs::harmonyGlobalFormant)) > 0.01f;
+    if (const auto text = globalChanged ? "GLOBAL*" : "GLOBAL"; globalTab.getButtonText() != text)
+        globalTab.setButtonText (text);
+    glide.slider.setEnabled (juce::roundToInt (value (ParamIDs::harmonyGlideSync)) == 0);
     echoDelay.slider.setEnabled (juce::roundToInt (value (fxId ("Sync", ParamIDs::harmonyNoteSync))) == 0);
     const auto note = sungNote ? sungNote() : -1.0f;
     juce::String text ("--");
@@ -564,16 +707,216 @@ void HarmonyPanel::timerCallback()
     repaint (graph.expanded (2.0f).getSmallestIntegerContainer());
 }
 
+void HarmonyPanel::setRack (bool inRack, juce::Rectangle<int> displayArea)
+{
+    const auto changed = rack != inRack || rackDisplay != displayArea;
+    rack = inRack;
+    rackDisplay = displayArea;
+    if (! changed)
+        return;
+    styleForRack();
+    resized();
+    repaint();
+}
+
+void HarmonyPanel::styleForRack()
+{
+    for (auto* knob : { &pitch, &fine, &formant, &source, &harmony, &spread, &correctFormant, &flattenNote,
+                        &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease,
+                        &echoDelay, &echoFeedback, &cutoff, &glide, &globalPitch, &globalFormant })
+    {
+        knob->slider.getProperties().set (ParagonLookAndFeel::pedalKnobProperty, rack);
+        knob->slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, rack ? 18 : 16);
+        knob->slider.setColour (juce::Slider::textBoxTextColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+        knob->slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    }
+    for (auto* box : { &key, &scale, &correct, &chord, &midiMap, &echoSync, &filterType, &glideSync })
+    {
+        box->setColour (juce::ComboBox::backgroundColourId, rack ? juce::Colours::transparentBlack : juce::Colour (0xff151217));
+        box->setColour (juce::ComboBox::outlineColourId, rack ? juce::Colours::transparentBlack : ParagonColours::panelEdge);
+        if (box != &chord && box != &midiMap)   // the note voices' lists stay blue
+            box->setColour (juce::ComboBox::textColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+        box->setColour (juce::ComboBox::arrowColourId, rack ? LedDisplay::ledOrange.withAlpha (0.6f) : ParagonColours::textDim);
+    }
+    for (auto* control : { &harmonyOn, &voiceOn, &voiceCorrect, &voiceFlatten, &generate })
+        control->button.getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
+    for (auto& tab : tabs)
+        tab.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    for (auto* button : { &notesTab, &fxTab, &globalTab, &editMap, &snapshotsButton })
+        button->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    inkColour = {};
+    timerCallback();
+}
+
+void HarmonyPanel::layOutRack()
+{
+    // The screens' glass, as LedDisplay::paintScreen will draw them.
+    const auto glassOf = [] (juce::Rectangle<float> frame, float size)
+    {
+        juce::Image scratch (juce::Image::ARGB, 1, 1, true);
+        juce::Graphics g (scratch);
+        return LedDisplay::paintScreen (g, frame, size);
+    };
+
+    // The display: KEY, SCALE and the note sung, then the graph on its screen.
+    auto left = rackDisplay;
+    auto column = left.removeFromLeft (104);
+    left.removeFromLeft (10);
+    keyLabel.setBounds (column.removeFromTop (13));
+    key.setBounds (column.removeFromTop (26).reduced (3, 1));
+    column.removeFromTop (5);
+    scaleLabel.setBounds (column.removeFromTop (13));
+    scale.setBounds (column.removeFromTop (26).reduced (3, 1));
+    column.removeFromTop (6);
+    sungFrame = column.toFloat();
+    sungArea = glassOf (sungFrame, 0.35f).reduced (4.0f, 2.0f);
+    graphFrame = left.toFloat();
+    auto glass = glassOf (graphFrame, 0.45f).reduced (4.0f, 4.0f);
+    readoutArea = glass.removeFromBottom (14.0f);
+    graph = glass;
+    snapshotsButton.setBounds (graph.toNearestInt().removeFromTop (24).removeFromRight (84).reduced (3, 2));
+
+    // The controls, right of the display.
+    auto area = getLocalBounds().withTrimmedLeft (rackDisplay.getRight() + 28);
+
+    // Top row (the main view puts HARMONY / OCTAVE-FREEZE first, and GRAPHIC EQ at the right).
+    auto keys = area.removeFromTop (24);
+    keys.removeFromLeft (248);
+    harmonyOn.label.setBounds (keys.removeFromLeft (62));
+    harmonyOn.button.setBounds (keys.removeFromLeft (48).withSizeKeepingCentre (44, 24));
+    keys.removeFromLeft (12);
+    globalTab.setBounds (keys.removeFromLeft (82));
+    keys.removeFromRight (120);
+    correct.setBounds (keys.removeFromRight (96).reduced (0, 1));
+    correctLabel.setBounds (keys.removeFromRight (74));
+    area.removeFromTop (6);
+
+    // The wide screen the Note Map and SNAPSHOTS open on.
+    wideScreen = rackDisplay.withRight (area.getRight()).withTop (area.getY()).toFloat();
+    const auto wide = glassOf (wideScreen, 0.35f).reduced (2.0f).toNearestInt();
+    noteMap.setBounds (wide);
+    snapshots.setBounds (wide);
+
+    // Second row: the voices' keys, NOTES and FX.
+    auto tabRow = area.removeFromTop (24);
+    for (auto& tab : tabs)
+    {
+        tab.setBounds (tabRow.removeFromLeft (38));
+        tabRow.removeFromLeft (4);
+    }
+    tabRow.removeFromLeft (8);
+    notesTab.setBounds (tabRow.removeFromLeft (70));
+    tabRow.removeFromLeft (4);
+    fxTab.setBounds (tabRow.removeFromLeft (48));
+    area.removeFromTop (6);
+
+    // Then the view's controls in one row: knobs (with their values on
+    // screens under them), lists on screens, switches as keys, all lined up
+    // on the knobs' middle.
+    enum Kind { knob, list, key };
+    struct Item { juce::Label* label; juce::Component* widget; Kind kind; float weight; };
+    std::vector<Item> row;
+    const auto addKnob = [&row] (Knob& k) { row.push_back ({ &k.label, &k.slider, knob, 1.0f }); };
+    if (globalShown)
+    {
+        addKnob (glide);
+        row.push_back ({ &glideSyncLabel, &glideSync, list, 1.7f });
+        addKnob (globalPitch);
+        addKnob (globalFormant);
+        for (auto* k : { &source, &harmony, &spread, &correctFormant })
+            addKnob (*k);
+    }
+    else if (fxShown)
+    {
+        addKnob (echoDelay);
+        row.push_back ({ &syncLabel, &echoSync, list, 1.7f });
+        addKnob (echoFeedback);
+        row.push_back ({ &filterLabel, &filterType, list, 1.7f });
+        addKnob (cutoff);
+    }
+    else if (notesShown)
+    {
+        row.push_back ({ &generate.label, &generate.button, key, 0.8f });
+        row.push_back ({ &chordLabel, &chord, list, 2.9f });
+        row.push_back ({ &midiLabel, &midiMap, list, 1.5f });
+        for (auto* k : { &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease })
+            addKnob (*k);
+    }
+    else
+    {
+        for (auto* s : { &voiceOn, &voiceCorrect, &voiceFlatten })
+            row.push_back ({ &s->label, &s->button, key, 0.75f });
+        addKnob (shownFlatten ? flattenNote : pitch);
+        for (auto* k : { &fine, &formant, &source, &harmony, &spread, &correctFormant })
+            addKnob (*k);
+    }
+    auto totalWeight = 0.0f;
+    for (const auto& item : row)
+        totalWeight += item.weight;
+    const auto unit = juce::jmin (112.0f, (float) area.getWidth() / juce::jmax (1.0f, totalWeight));
+    auto x = (float) area.getX();
+    const auto knobSize = juce::jmin (juce::roundToInt (unit * 1.3f), area.getHeight() - 14 - 18 - 4);
+    for (const auto& item : row)
+    {
+        const auto width = unit * item.weight;
+        auto cell = juce::Rectangle<int> (juce::roundToInt (x), area.getY(), juce::roundToInt (width), area.getHeight()).reduced (3, 0);
+        x += width;
+        item.label->setBounds (cell.removeFromTop (14).expanded (4, 0));
+        const auto knobCentreY = cell.getY() + juce::roundToInt ((float) knobSize * 0.42f);
+        if (item.kind == knob)
+            item.widget->setBounds (cell.withSizeKeepingCentre (knobSize, knobSize + 18 + 4).withY (cell.getY()));
+        else if (item.kind == key)
+            item.widget->setBounds (juce::Rectangle<int> (juce::jmin (44, cell.getWidth()), 24).withCentre ({ cell.getCentreX(), knobCentreY }));
+        else
+        {
+            auto box = juce::Rectangle<int> (cell.getWidth(), 28).withCentre ({ cell.getCentreX(), knobCentreY });
+            if (item.widget == &chord)
+            {
+                editMap.setBounds (box.removeFromRight (48).reduced (0, 2));
+                box.removeFromRight (6);
+            }
+            item.widget->setBounds (box);
+        }
+    }
+    // PITCH and NOTE share their place.
+    if (! globalShown && ! fxShown && ! notesShown)
+    {
+        const auto& shown = shownFlatten ? flattenNote : pitch;
+        auto& other = shownFlatten ? pitch : flattenNote;
+        other.label.setBounds (shown.label.getBounds());
+        other.slider.setBounds (shown.slider.getBounds());
+    }
+}
+
+void HarmonyPanel::paintOverChildren (juce::Graphics& g)
+{
+    for (const auto& glass : glasses)
+        LedDisplay::paintGlassOverlay (g, glass, 0.35f);
+}
+
 void HarmonyPanel::resized()
 {
+    if (rack)
+    {
+        layOutRack();
+        return;
+    }
     auto area = getLocalBounds().reduced (16, 10);
     area.removeFromTop (34);   // header: the icon, PITCH and the view tabs (placed by the main view)
 
     // Left: on, key, scale, the sung note.
     auto left = area.removeFromLeft (112);
     area.removeFromLeft (10);
-    harmonyOn.label.setBounds (left.removeFromTop (14));
-    harmonyOn.button.setBounds (left.removeFromTop (28).withSizeKeepingCentre (26, 26));
+    // HARMONY's switch, and GLOBAL (its settings for every voice) beside it.
+    {
+        auto labels = left.removeFromTop (14);
+        auto row = left.removeFromTop (28);
+        // The switch needs only 26 px; its label can run wider, in the row above.
+        const auto switchWidth = 38;
+        harmonyOn.label.setBounds (labels.removeFromLeft (56));
+        harmonyOn.button.setBounds (row.removeFromLeft (switchWidth).withSizeKeepingCentre (26, 26));
+        globalTab.setBounds (row.reduced (2, 2));
+    }
     left.removeFromTop (6);
     keyLabel.setBounds (left.removeFromTop (14));
     key.setBounds (left.removeFromTop (26).reduced (4, 0));
@@ -583,6 +926,7 @@ void HarmonyPanel::resized()
     left.removeFromTop (4);
     sungArea = left.toFloat();
     noteMap.setBounds (area);   // over the graph and the controls
+    snapshots.setBounds (area);
 
     // CORRECT (Waves Harmony puts it by SOURCE; here there's room in the
     // header, left of the GRAPHIC EQ button the main view places).
@@ -591,11 +935,14 @@ void HarmonyPanel::resized()
     correct.setBounds (header.removeFromRight (78).reduced (0, 1));
     correctLabel.setBounds (header.removeFromRight (62));
 
+
     // Middle: the graph, and the picked voice's pan and level under it.
     auto middle = area.removeFromLeft (notesShown ? 150 : 196);   // NOTES: a narrower graph, room for its controls
     area.removeFromLeft (10);
     readoutArea = middle.removeFromBottom (16).toFloat();
     graph = middle.toFloat();
+    // SNAPSHOTS in the graph's top right corner (above its 0 dB line).
+    snapshotsButton.setBounds (middle.withSizeKeepingCentre (middle.getWidth(), middle.getHeight()).removeFromTop (20).removeFromRight (74).reduced (3, 3));
 
     // Right: voice tabs, the picked voice, then the mix.
     auto right = area;
@@ -612,6 +959,30 @@ void HarmonyPanel::resized()
     }
     right.removeFromTop (6);
     const auto rowHeight = (right.getHeight() - 6) / 2;
+
+    if (globalShown)
+    {
+        // GLOBAL: GLIDE, SYNC, PITCH, FORMANT; then the mix, as in the voice view.
+        const auto knobIn = [] (Knob& knob, juce::Rectangle<int> cell)
+        {
+            knob.label.setBounds (cell.removeFromTop (14));
+            knob.slider.setBounds (cell.reduced (1, 0));
+        };
+        auto top = right.removeFromTop (rowHeight);
+        const auto unit = top.getWidth() / 5;
+        knobIn (glide, top.removeFromLeft (unit));
+        auto syncCell = top.removeFromLeft (unit * 2).reduced (4, 0);
+        glideSyncLabel.setBounds (syncCell.removeFromTop (14));
+        glideSync.setBounds (syncCell.withSizeKeepingCentre (syncCell.getWidth(), 24).translated (0, -8));
+        knobIn (globalPitch, top.removeFromLeft (unit));
+        knobIn (globalFormant, top);
+        right.removeFromTop (6);
+        auto mixRow = right;
+        const auto mixWidth = mixRow.getWidth() / 4;
+        for (auto* knob : { &source, &harmony, &spread, &correctFormant })
+            knobIn (*knob, mixRow.removeFromLeft (mixWidth));
+        return;
+    }
 
     if (fxShown)
     {
@@ -704,45 +1075,95 @@ void HarmonyPanel::resized()
 
 void HarmonyPanel::paint (juce::Graphics& g)
 {
-    // The same dark panel and header as the other blocks' panels.
-    const auto bounds = getLocalBounds().toFloat();
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
-                                             juce::Colour (0xff09070a), 0.0f, bounds.getBottom(), false));
-    g.fillRoundedRectangle (bounds, 8.0f);
-    g.setColour (ParagonColours::panelEdge);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
+    glasses.clear();
+    if (rack)
+    {
+        // On the unit's face: the Note Map / SNAPSHOTS screen when one is
+        // open; otherwise the display's screens, and screens behind the
+        // values and lists.
+        if (noteMap.isVisible() || snapshots.isVisible())
+        {
+            LedDisplay::paintScreen (g, wideScreen, 0.35f);
+            glasses.push_back (LedDisplay::paintScreen (g, correct.getBounds().toFloat().expanded (2.0f, 3.0f), 0.35f));
+            return;
+        }
+        LedDisplay::paintScreen (g, graphFrame, 0.45f);
+        glasses.push_back (LedDisplay::paintScreen (g, sungFrame, 0.35f));
+        for (auto* child : getChildren())
+        {
+            if (! child->isVisible())
+                continue;
+            if (auto* box = dynamic_cast<juce::ComboBox*> (child))
+                glasses.push_back (LedDisplay::paintScreen (g, box->getBounds().toFloat().expanded (2.0f, 3.0f), 0.35f));
+            else if (auto* slider = dynamic_cast<juce::Slider*> (child))
+            {
+                const auto valueBox = slider->getBounds().toFloat().removeFromBottom (18.0f);
+                // As wide as the knob's own column (its name's width), so neighbours' screens don't touch.
+                auto width = juce::jmin (valueBox.getWidth(), 84.0f);
+                for (auto* label : getChildren())
+                    if (auto* name = dynamic_cast<juce::Label*> (label); name != nullptr && name->isVisible()
+                        && name->getBottom() <= slider->getY() + 2 && std::abs (name->getBounds().getCentreX() - slider->getBounds().getCentreX()) < 3)
+                        width = juce::jmin (width, (float) name->getWidth() - 14.0f);
+                glasses.push_back (LedDisplay::paintScreen (g, valueBox.withSizeKeepingCentre (width, valueBox.getHeight()).expanded (0.0f, 3.0f), 0.35f));
+            }
+        }
+    }
+    else
+    {
+        // The same dark panel and header as the other blocks' panels.
+        const auto bounds = getLocalBounds().toFloat();
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
+                                                 juce::Colour (0xff09070a), 0.0f, bounds.getBottom(), false));
+        g.fillRoundedRectangle (bounds, 8.0f);
+        g.setColour (ParagonColours::panelEdge);
+        g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
 
-    auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
-    Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
-    header.removeFromLeft (8.0f);
-    g.setColour (ParagonColours::text);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-    g.drawText ("PITCH", header, juce::Justification::centredLeft, false);
+        auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).toFloat();
+        Icons::draw (g, Icons::Type::pitch, header.removeFromLeft (26.0f).withSizeKeepingCentre (22.0f, 20.0f), accent, 1.6f, true);
+        header.removeFromLeft (8.0f);
+        g.setColour (ParagonColours::text);
+        g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+        g.drawText ("PITCH", header, juce::Justification::centredLeft, false);
+    }
 
     // The sung note, big, under KEY and SCALE.
     if (! sungArea.isEmpty())
     {
         auto area = sungArea;
-        g.setColour (ParagonColours::textDim);
-        g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+        g.setColour (rack ? LedDisplay::ledOrange.withAlpha (0.6f) : ParagonColours::textDim);
+        g.setFont (juce::FontOptions (rack ? 8.5f : 10.5f, juce::Font::bold));
         g.drawText ("SINGING", area.removeFromTop (14.0f), juce::Justification::centred, false);
         g.setColour (shownSung == "--" ? ParagonColours::textDim.withAlpha (0.6f) : accent);
-        g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
-        const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
-        g.drawText (shownSung, area, juce::Justification::centred, false);
-        if (shownTuned.isNotEmpty())
+        if (shownTuned.isNotEmpty() && area.getHeight() < 36.0f)
         {
-            g.setColour (ParagonColours::accent);
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-            g.drawText (shownTuned, tunedLine, juce::Justification::centred, false);
+            // Short of room (GLOBAL sits below): the note and where it's
+            // being tuned to on one line.
+            g.setFont (juce::FontOptions (juce::jlimit (11.0f, 18.0f, area.getHeight() * 0.85f), juce::Font::bold));
+            g.drawFittedText (shownSung + " " + shownTuned, area.toNearestInt(), juce::Justification::centred, 1, 0.7f);
+        }
+        else
+        {
+            g.setFont (juce::FontOptions (juce::jmin (22.0f, area.getHeight() * 0.9f), juce::Font::bold));
+            const auto tunedLine = area.removeFromBottom (shownTuned.isEmpty() ? 0.0f : 14.0f);
+            g.drawText (shownSung, area, juce::Justification::centred, false);
+            if (shownTuned.isNotEmpty())
+            {
+                g.setColour (ParagonColours::accent);
+                g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+                g.drawText (shownTuned, tunedLine, juce::Justification::centred, false);
+            }
         }
     }
 
-    // The graph: level lines across, the middle line down, L and R.
-    g.setColour (juce::Colour (0xff0f0c10));
-    g.fillRoundedRectangle (graph, 6.0f);
-    g.setColour (ParagonColours::panelEdge);
-    g.drawRoundedRectangle (graph.reduced (0.5f), 6.0f, 1.0f);
+    // The graph: level lines across, the middle line down, L and R (on the
+    // rack, on its screen's glass).
+    if (! rack)
+    {
+        g.setColour (juce::Colour (0xff0f0c10));
+        g.fillRoundedRectangle (graph, 6.0f);
+        g.setColour (ParagonColours::panelEdge);
+        g.drawRoundedRectangle (graph.reduced (0.5f), 6.0f, 1.0f);
+    }
     g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
     for (const auto db : { 0, -6, -12, -24 })
     {

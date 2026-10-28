@@ -2,6 +2,91 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.32.0
+
+- **HARMONY rebuilt for the rack, at full size** (the last of the four editors: now nothing on the rack is shrunk). In 0.28.0 it was scaled down into a screen in the rack.
+  - **The display** is HARMONY's own: KEY and SCALE on screens, the note you're singing on a screen under them (with TUNE VOICE's target), and the voice graph on the unit's screen beside them. You play the graph as before: click an empty spot to add a voice, drag one to move it, scroll over one for its interval, right-click to remove it. SNAPSHOTS sits in the graph's corner.
+  - **Along the top:** HARMONY / OCTAVE-FREEZE, then HARMONY's own key (on/off), GLOBAL and TUNE VOICE.
+  - **Then the voice keys 1-8** (a voice not in use is lettered dimmer), **NOTES** and **FX**.
+  - **Then the view's controls in one row,** at full size: the voice's ON, CORRECT and FLATTEN keys and its PITCH (or NOTE), FINE, FORMANT with the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT); or NOTES (GENERATE, CHORD with EDIT, MIDI and the note voices' eight knobs); or FX (DELAY, SYNC, FEEDBACK, FILTER, CUTOFF); or GLOBAL (GLIDE, SYNC, PITCH, FORMANT and the mix). The unit's big knobs, values on small screens, lists on screens.
+  - **The Note Map and SNAPSHOTS** open on one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
+## 0.31.0
+
+- **MARS (SATURATION) rebuilt for the rack, at full size** (the third of the four editors; HARMONY is last). In 0.28.0 it was shrunk into a screen in the rack.
+  - **The band display is now the rack's display:** on the unit's screen on the left, each band a column in its colour, its drive as a bar and how hard it's driven right now as a line. You play it as before: click a band to pick it, drag a crossover line to move it, drag up or down in a band for its DRIVE, double-click to split a band, right-click to remove one.
+  - **Along the top:** the BANDS, GLOBAL, MOD and SLOTS page keys, then ON and how many BANDS.
+  - **BANDS:** the picked band's name in its colour, its ON key and STYLE, then all ten of its knobs in one row (DRIVE, DYNAMICS, FEEDBACK, FB FREQ, MIX, BASS, MID, TREBLE, PRESENCE, LEVEL) as the unit's big knobs, each value on a small screen. Right-click a knob to modulate it, as before; a modulated knob still shows its coloured ring.
+  - **GLOBAL:** INPUT, OUTPUT, MIX, QUALITY, SLOPE and the three crossovers in one row; the band display stays on the left.
+  - **MOD and SLOTS** are full editors of their own (the XLFO steps, envelopes, the 16 slots), so each gets one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
+## 0.30.0
+
+- **The DOUBLER rebuilt for the rack, at full size** (the second of the four editors; MARS and HARMONY follow). In 0.28.0 it was shrunk into a screen in the rack; now it's laid out on the rack's face, its numbers larger than they've ever been.
+  - **The display** on the left shows the voices by pan and delay, as before.
+  - **The voice table:** a row per voice across the face (VOICE, GAIN, PAN, DELAY, FDBK, OCT, DETUNE, DEPTH, RATE, DRIFT), each number on a small orange screen, VOICE and OCT as the unit's keys (lit while on), the voice numbers printed in red. Drag a number up or down, or double-click it to reset, as before.
+  - **Beside it:** DIRECT (key, GAIN, PAN) and OUTPUT, the LOW and HIGH shelves on the doubles (key, GAIN, FREQ), and FB HIGH-PASS.
+  - **MOD RESET** is a key in the top row.
+  - Nothing changes in the sound or your settings.
+
+## 0.29.0
+
+- **The GRAPHIC EQ rebuilt for the rack, at full size** (the first of the four editors; the DOUBLER, MARS and HARMONY follow, in that order). In 0.28.0 it was shrunk to fit a screen in the rack; now it's laid out on the rack's face like the other blocks, nothing shrunk.
+  - **The display** on the left is the EQ's response curve, across the whole screen.
+  - **The faders** stand evenly spaced, as on a hardware graphic EQ, with LEVEL a little apart on the right. Each one's setting is on a small orange screen above it, its frequency stamped under it, and a printed +12 / +6 / 0 / -6 / -12 dB scale with a line at 0 dB runs beside them. Drag a fader, or double-click it for 0 dB, as before.
+  - **ON** and **FLAT** are the unit's keys; **PRESETS** is on a screen.
+  - Nothing changes in the sound or your settings: the same nine bands, LEVEL and presets.
+
+## 0.28.0
+
+- **The rack: one unit under the floorboard.** The faceplate, the controls beside it and EXPRESSION ASSIGN are now one wide PR7 rack unit: the "brain" to go with the floorboard processor. Your idea; the layout is ours.
+  - **On the left, the block's display:** the faceplate's screens, live as before (the delay's repeats, the reverb's shape, the compressor's needle or meter, MARS's tubes, the note you sing...). The knobs and keys it used to *draw* are gone, as the real ones are right beside it.
+  - **In the middle, the block's real controls,** in the PR7's own parts: the floorboard's big knobs with each value on a small orange screen, menus on screens, switches as small keys with a light stripe, pages (MAIN / STEREO / COLOUR...) as keys, names stamped on the face. Every one works as before (they're the same controls, with the same settings, automation and undo).
+  - **HARMONY, the GRAPHIC EQ, the DOUBLER and MARS** are whole editors (graphs, tables, faders), so each sits on a big screen set into the face. They're laid out as before, a little wider, then scaled to fit the rack (the text is about four-fifths its old size): nothing in them is squeezed or cut off.
+  - **At the right end, EXPRESSION ASSIGN:** its list screen, MIN / MAX, and its scroll arrows as the unit's keys.
+  - **Printed red lines** divide the three parts, as the lines on the floorboard do.
+  - **All three finishes:** Pearl White, Pearl White + Neon (neon knobs and keys) and Pearl Black.
+- **Readouts fit their screens:** big seven-segment numbers (6.0 kHz, 0.80 Hz...) now shrink to fit a narrow screen instead of running off its edge.
+
+## 0.27.0
+
+- **HARMONY's GLOBAL controls were meant to be 0.26.0.** That build stopped on Linux with a crash inside the plugin checker, so 0.26.0 was never published. They arrive in this release (see 0.26.0 below).
+- **HARMONY stage 8: SNAPSHOTS.** Inspired by the snapshots in Waves Harmony's guide: store up to 32 sets of harmony voices and switch between them instantly.
+  - **Opening them:** the **SNAPSHOTS** button in the top-right corner of the HARMONY graph opens the snapshot page.
+  - **The slots:** 32 of them, each showing the voices it holds (for example "+4 +7", or a flattened voice's note). The one in use is lit.
+  - **Click a stored slot** to bring it back.
+  - **STORE** saves the voices as they are now into the picked slot (the first empty one if none is picked).
+  - **COPY, PASTE and DELETE** work on the picked slot; right-click a slot for the same.
+- **What a snapshot holds** (as in the guide, "harmony controls only"):
+  - **Stored:** every voice's settings (on, pitch, fine, formant, correct, pan, level, FLATTEN, delay, feedback, filter) and the note voices' sound.
+  - **Left alone:** KEY, SCALE, the GLOBAL controls, the note generator and chord map, and the mix.
+- **Switch them from your DAW:** the new **SNAPSHOT** parameter (–, 1 to 32) can be automated or controlled by MIDI. Moving it brings that snapshot back, which is handy for changing harmonies between song sections. An empty slot does nothing.
+- **Saved with your rig and your project,** and storing, pasting or deleting can be undone.
+- **Our design where the guide doesn't say:**
+  - A recall switches straight to the stored settings.
+  - Recalling from the DAW happens within about a 30th of a second of the parameter moving, not on the exact sample.
+  - Loading a rig or project never recalls a snapshot by itself.
+- **Not built:** the guide's Snapshot Selection *knob* on the panel. Its job is done by the SNAPSHOT parameter from your DAW, and by clicking a slot.
+
+## 0.26.0
+
+- **HARMONY stage 7: GLOBAL controls.** Inspired by the Global Controls section of Waves Harmony's guide. The new **GLOBAL** button sits beside the HARMONY switch.
+- **The GLOBAL view** shows four new controls above the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT, which the guide also counts as global):
+  - **GLIDE:** how long the harmony voices take to move to a new note, from 1 ms (straight there, as before) to 1 second. **SYNC** sets it as a note length at the song's tempo instead.
+  - **PITCH:** moves every harmony voice up or down, up to an octave either way. It's applied after the key correction, so a third stays a third, an octave up.
+  - **FORMANT:** changes the character of every harmony voice at once (lower for a bigger singer, higher for a smaller one), on top of each voice's own FORMANT.
+- **GLOBAL\* tells you a global setting is changed,** like the guide's asterisk.
+- **Everything starts where it changes nothing,** so rigs and projects sound as before.
+- **Our design where the guide doesn't say:**
+  - **Your own voice:** PITCH and FORMANT move only the harmony voices, not yours. "The entire process" could be read either way, and leaving your lead alone seemed the musical choice.
+  - **What GLIDE smooths:** the whole pitch curve, so a long GLIDE also softens how closely the voices follow your vibrato.
+  - **How long a glide takes:** GLIDE is the time to reach the new note.
+  - **The note voices** keep their own quick 30 ms glide as a minimum.
+  - **SYNC values:** PR7-V's usual note lengths.
+- **Also:** the SINGING note on the HARMONY panel adapts to the space, showing the note and TUNE VOICE's target on one line if needed.
+
 ## 0.25.0
 
 - **FACEPLATE stage 3: every block now has its own faceplate,** built from the same PR7 parts as the others.
