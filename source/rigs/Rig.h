@@ -15,7 +15,7 @@
 // RIG LEVEL for balancing rigs against each other instead.
 struct Rig
 {
-    static constexpr int numBanks = 6;          // A to F (factory: everyday, rock, delays, spaces, character, signature styles)
+    static constexpr int numBanks = 7;          // A to G (factory: everyday, rock, delays, spaces, character, signature styles, moving harmonies)
     static constexpr int maxNumber = 99;
 
     juce::String name { "New Rig" };
@@ -42,6 +42,26 @@ struct Rig
     HarmonySnapshots harmonySnapshots;
     static void writeSnapshots (const HarmonySnapshots&, juce::XmlElement& parent);
     static HarmonySnapshots readSnapshots (const juce::XmlElement& parent);
+
+    // HARMONY's modulation slots (stage 9): for each control a modulator
+    // moves (ParamIDs::harmonyModTargets), up to four modulators, each at
+    // its own depth. Saved beside the parameters (only the controls that
+    // have one); older plugins ignore them.
+    struct HarmonyModSlot
+    {
+        int source = 0;      // effects::HarmonyModulation::Source (0: none)
+        float depth = 0.0f;  // -1 to 1
+        bool operator== (const HarmonyModSlot& other) const { return source == other.source && juce::exactlyEqual (depth, other.depth); }
+    };
+    using HarmonyModSlots = std::map<juce::String, std::array<HarmonyModSlot, 4>>;
+    HarmonyModSlots harmonyModSlots;
+    static void writeModSlots (const HarmonyModSlots&, juce::XmlElement& parent);
+    static HarmonyModSlots readModSlots (const juce::XmlElement& parent);
+    // M1-M4's drawn shapes (stage 10): 32 points each, -1 to 1 (all 0: none drawn).
+    using HarmonyModShapes = std::array<std::array<float, 32>, 4>;
+    HarmonyModShapes harmonyModShapes {};
+    static void writeModShapes (const HarmonyModShapes&, juce::XmlElement& parent);
+    static HarmonyModShapes readModShapes (const juce::XmlElement& parent);
 
     juce::String getSlotName() const;           // e.g. "A01"
     static juce::String bankName (int bank);    // "A".."F"

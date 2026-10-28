@@ -213,6 +213,7 @@ Faceplate::Look Faceplate::getLook() const
         case Unit::doubler:     return Look::doubler;
         case Unit::eq:          return Look::eq;
         case Unit::loFi:        return Look::loFi;
+        case Unit::vocoder:     return Look::vocoder;
         case Unit::other:       break;
     }
     return Look::generic;
@@ -377,6 +378,7 @@ void Faceplate::paint (juce::Graphics& g)
         case Look::doubler:     paintDoubler (g, header, content); break;
         case Look::eq:          paintEq (g, header, content); break;
         case Look::loFi:        paintLoFi (g, header, content); break;
+        case Look::vocoder:     paintVocoder (g, header, content); break;
         case Look::generic:  paintGeneric (g, header, content); break;
     }
 }
@@ -1262,4 +1264,31 @@ void Faceplate::paintLoFi (juce::Graphics& g, juce::Rectangle<float> header, juc
     const auto half = knobs.getWidth() / 2.0f;
     bigKnob (g, knobs.removeFromLeft (half), "AMOUNT", normalised (ParamIDs::lofiAmount));
     bigKnob (g, knobs, "MIX", normalised (ParamIDs::lofiMix));
+}
+
+void Faceplate::paintVocoder (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)
+{
+    // Its MODE as the name; the bands as LED bars, as loud as the voice in
+    // each. On the rack VocoderBandsView draws them here, to edit.
+    const auto mode = juce::jlimit (0, effects::Vocoder::modeNames.size() - 1, juce::roundToInt (raw (ParamIDs::vocoderMode)));
+    nameplate (g, header, effects::Vocoder::modeNames[mode].toUpperCase(), "VOCODER");
+    if (displayCovered)
+        return;
+    const auto on = isOn();
+    const auto glass = screen (g, body);
+    caption (g, glass, "BANDS");
+    const auto plot = plotArea (glass);
+    const auto count = effects::Vocoder::bandCounts[mode];
+    const auto width = plot.getWidth() / (float) count;
+    for (int b = 0; b < count; ++b)
+    {
+        const auto db = juce::Decibels::gainToDecibels (processor.getVocoder().getBandLevel (b) * 1.57f, -60.0f);
+        const auto t = on ? juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f) : 0.0f;
+        const auto column = juce::Rectangle<float> (plot.getX() + width * (float) b, plot.getY(), width, plot.getHeight()).reduced (width * 0.2f, 0.0f);
+        g.setColour (orange.withAlpha (0.1f));
+        g.fillRoundedRectangle (column, 1.5f);
+        g.setColour (orange);
+        g.fillRoundedRectangle (column.withTrimmedTop (column.getHeight() * (1.0f - t)), 1.5f);
+    }
+    finish (g, glass);
 }

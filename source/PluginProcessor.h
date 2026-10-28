@@ -11,9 +11,11 @@
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
 #include "dsp/effects/FilterPitch.h"
+#include "dsp/effects/HarmonyModulation.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/Vocoder.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/LowCut.h"
 #include "dsp/effects/Mars.h"
@@ -98,6 +100,20 @@ public:
     void setHarmonySnapshot (int slot, std::optional<Rig::HarmonySnapshot>); // paste one, or empty the slot
     void recallHarmonySnapshot (int slot);
     void followSnapshotParameter();   // the timer: recall if SNAPSHOT was moved (by the DAW or MIDI); public for tests
+
+    // HARMONY's modulation slots (stage 9): `target` is a control's place in
+    // ParamIDs::harmonyModTargets() (-1: not one), `slot` 0-3. Saved with
+    // the rig and the project, part of undo. Message thread.
+    static int harmonyModTarget (const juce::String& parameterId);
+    Rig::HarmonyModSlot getHarmonyModSlot (int target, int slot) const;
+    void setHarmonyModSlot (int target, int slot, Rig::HarmonyModSlot);
+    // How far the modulation has a control moved right now, as a fraction of
+    // its range (for its knob's ring; any thread).
+    float getHarmonyModOffset (int target) const noexcept;
+    // M1-M4's drawn shapes (stage 10): saved and undone like the slots.
+    std::array<float, 32> getHarmonyModShape (int mod) const;
+    void setHarmonyModShape (int mod, const std::array<float, 32>&);
+    const effects::HarmonyModulation& getHarmonyModulation() const noexcept { return harmonyModulation; }
 
     void loadRig (const RigLibrary::Entry& entry);
 
@@ -186,6 +202,7 @@ public:
     float getMarsBandDrive (int band) const noexcept { return mars.getBandDrive (band); }
     // MARS itself, for its panel to show the modulation (its getters are safe from the message thread).
     const effects::Mars& getMars() const noexcept { return mars; }
+    const effects::Vocoder& getVocoder() const noexcept { return vocoder; }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
@@ -219,6 +236,7 @@ private:
         bool operator== (const Snapshot& other) const
         {
             return rig.parameters == other.rig.parameters && rig.harmonySnapshots == other.rig.harmonySnapshots
+                   && rig.harmonyModSlots == other.rig.harmonyModSlots && rig.harmonyModShapes == other.rig.harmonyModShapes
                    && current == other.current;
         }
     };
@@ -288,6 +306,47 @@ private:
     // synced DELAY turned into ms at the tempo now.
     effects::Harmony::Fx harmonyFx (float delayMs, int sync, float feedback, int filter, float cutoffHz) const noexcept;
     std::array<HarmonyVoiceParameters, effects::Harmony::numVoices> harmonyVoiceParameters {};
+    // Stage 9: the modulators, their parameters (found once) and the slots.
+    effects::HarmonyModulation harmonyModulation;
+    struct HarmonyModParameters
+    {
+        struct Mod { std::atomic<float>* parts[11] {}; std::array<std::atomic<float>*, effects::HarmonyModulation::maxSteps> steps {}; };   // harmonyModParts
+        std::array<Mod, effects::HarmonyModulation::numMods> mods {};
+        std::atomic<float> *amAttack = nullptr, *amRelease = nullptr, *amLevel = nullptr, *ptSmooth = nullptr, *ptOffset = nullptr, *ptLevel = nullptr;
+        std::array<std::array<std::atomic<float>*, 7>, effects::HarmonyModulation::numEnvelopes> envelopes {};   // harmonyEnvelopeParts
+        std::atomic<float> *spMode = nullptr, *spTrigger = nullptr, *spSpread = nullptr, *spLevel = nullptr;
+        void bind (juce::AudioProcessorValueTreeState&);
+        void read (effects::HarmonyModulation::Settings&) const noexcept;
+    } harmonyModParameters;
+    struct HarmonyModSlotState { std::atomic<int> source { 0 }; std::atomic<float> depth { 0.0f }; };
+    struct HarmonyModTarget
+    {
+        std::atomic<float>* value = nullptr;
+        juce::NormalisableRange<float> range;
+        bool pitch = false;
+    };
+    std::vector<HarmonyModTarget> harmonyModTargets;                        // ParamIDs::harmonyModTargets(), found once
+    std::unique_ptr<std::array<HarmonyModSlotState, 4>[]> harmonyModSlots;  // by target
+    std::unique_ptr<std::atomic<float>[]> harmonyModShown;                  // each target's offset now, for the panel
+    bool harmonyModInUse() const noexcept;
+    void applyHarmonyModulation (effects::Harmony::Settings&, const effects::HarmonyModulation::Settings&) noexcept;
+    void processHarmony (juce::dsp::AudioBlock<float>, const float* cleanVoice, const effects::Harmony::Settings&, double songBeats);
+    Rig::HarmonyModSlots captureHarmonyModSlots() const;
+    void restoreHarmonyModSlots (const Rig::HarmonyModSlots&);
+    bool harmonyMidiNoteStarted = false, harmonyMidiHeldBefore = false;   // audio thread: a MIDI note began this block
+    effects::HarmonyModulation::Midi harmonyModMidi;                       // audio thread: what MIDI has said, for the MIDI sources
+    std::array<std::array<std::atomic<float>, 32>, effects::HarmonyModulation::numMods> harmonyModShapes {};
+    int lastGeneratedNote = -1;
+    // The VOCODER: after HARMONY, the voice (as it leaves the mono part) doing the talking.
+    effects::Vocoder vocoder;
+    juce::AudioBuffer<float> vocoderVoice;
+    struct VocoderParameters
+    {
+        std::array<std::array<std::atomic<float>*, 8>, 2> osc {};   // vocoderOscParts
+        std::array<std::atomic<float>*, effects::Vocoder::curvePoints> bandVol {}, bandPan {};
+        std::array<std::atomic<float>*, effects::Vocoder::numIntervals> intervals {};
+    } vocoderParameters;
+    void readVocoder (effects::Vocoder::Settings&, const Scales::Custom&) const noexcept;
     effects::Doubler doubler;
     struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };
     std::array<DoublerVoiceParameters, effects::Doubler::numVoices> doublerVoiceParameters {};

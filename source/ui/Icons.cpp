@@ -338,6 +338,22 @@ namespace Icons
                 break;
             }
 
+            case Type::vocoder:
+            {
+                // A voice's bands: a row of bars rising and falling like a
+                // spoken vowel, under a small wave (the synth it shapes).
+                constexpr float heights[] = { 0.3f, 0.55f, 0.8f, 0.62f, 0.4f, 0.7f, 0.5f, 0.28f };
+                for (int i = 0; i < 8; ++i)
+                    p.addRoundedRectangle (0.04f + (float) i * 0.12f, 0.96f - heights[i] * 0.7f, 0.07f, heights[i] * 0.7f, 0.03f);
+                p.startNewSubPath (0.04f, 0.12f);
+                for (int i = 1; i <= 24; ++i)
+                {
+                    const auto t = (float) i / 24.0f;
+                    p.lineTo (0.04f + 0.92f * t, 0.12f + 0.08f * std::sin (t * juce::MathConstants<float>::twoPi * 3.0f));
+                }
+                break;
+            }
+
             case Type::doubler:
                 // Two takes of the same phrase, the second a little late and
                 // lower: the same wave twice, offset.

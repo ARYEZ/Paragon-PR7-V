@@ -35,6 +35,7 @@
 //   DOUBLER     the four voices by pan and delay; a key per voice.
 //   GRAPHIC EQ  the EQ's own response curve; LEVEL.
 //   LO-FI       its TYPE; a wave showing AMOUNT and NOISE; AMOUNT and MIX.
+//   VOCODER     its MODE; the bands, live (on the rack VocoderBandsView draws them, to edit).
 //   (the generic unit, name, icon and TYPE, is kept for any block added later)
 class Faceplate final : public juce::Component,
                         private juce::Timer,
@@ -45,10 +46,10 @@ public:
     ~Faceplate() override;
 
     // Which kind of block: the ones with their own faceplates, or any other.
-    enum class Unit { dynamics, saturation, delay, reverb, pitch, modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, other };
+    enum class Unit { dynamics, saturation, delay, reverb, pitch, modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder, other };
     // What's drawn now (for tests).
     enum class Look { generic, classic, daybreak, revival, mars, delay, reverb, harmony,
-                      modulation, filterPitch, deEsser, glitch, doubler, eq, loFi };
+                      modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder };
 
     // `onIds`: the block's on switches (comma separated); `typeId`: its TYPE
     // (or empty).
@@ -105,6 +106,7 @@ private:
     void paintDoubler (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintEq (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintLoFi (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintVocoder (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
 
     ParagonX1AudioProcessor& processor;
     juce::AudioProcessorValueTreeState& parameters;

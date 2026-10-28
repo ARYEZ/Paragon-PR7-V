@@ -192,6 +192,10 @@ namespace effects
             NoteMap customMap {};            // CHORD Custom
             bool fold = false;
             Fx fx;                           // shared by the note voices
+            // Stage 10: each note voice's own offsets from the modulators
+            // that go note by note (an envelope per note, the Spreader...).
+            struct VoiceMod { float levelDb = 0.0f, width = 0.0f, pitch = 0.0f, formant = 0.0f; };
+            std::array<VoiceMod, 8> voiceMods {};
         };
         static inline const juce::StringArray midiMapNames { "As Played", "Through Chord" };
 
@@ -252,6 +256,10 @@ namespace effects
         int getNoteVoiceNote (int voice) const noexcept { return noteVoiceShown[(size_t) voice].note.load(); }
         float getNoteVoicePan (int voice) const noexcept { return noteVoiceShown[(size_t) voice].pan.load(); }
         float getNoteVoiceLevel (int voice) const noexcept { return noteVoiceShown[(size_t) voice].level.load(); }
+        // A note voice's note as it's being played (-1: let go) and its
+        // velocity: what the modulators follow (audio thread).
+        int getNoteVoiceTarget (int voice) const noexcept { return noteVoices[(size_t) voice].note; }
+        float getNoteVoiceVelocity (int voice) const noexcept { return noteVoices[(size_t) voice].velocity; }
         // A note voice's pitch ratio right now. For tests.
         float getNoteVoiceRatio (int voice) const noexcept { return noteVoices[(size_t) voice].state.ratio; }
 

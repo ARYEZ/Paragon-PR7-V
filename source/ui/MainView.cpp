@@ -192,22 +192,24 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
       doublerPanel (processorToShow.getParameters(), [&processorToShow] { processorToShow.resetDoublerModulation(); }),
       marsPanel (processorToShow.getParameters(), [&processorToShow] (int band) { return processorToShow.getMarsBandDrive (band); },
                  &processorToShow.getMars()),
+      vocoderBands (processorToShow.getParameters(), &processorToShow.getVocoder()),
       // Each block in the red to pink to orange of the PR7 family's chains, by
       // its place in the chain: red first, orange last.
       signalChain (processorToShow.getParameters(), {
-          { "PITCH", Icons::Type::pitch, ParagonColours::chainColour (0, numBlocks),
+          { "PITCH", Icons::Type::pitch, ParagonColours::chainColour (pitchBlock, numBlocks),
             juce::String (ParamIDs::harmonyOn) + "," + ParamIDs::octOn + "," + ParamIDs::freezeOn + "," + ParamIDs::harmonyCorrect },
-          { "DYNAMICS", Icons::Type::comp, ParagonColours::chainColour (1, numBlocks), ParamIDs::compOn },
-          { "DE-ESS", Icons::Type::deEsser, ParagonColours::chainColour (2, numBlocks), ParamIDs::deessOn },
-          { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::chainColour (3, numBlocks), ParamIDs::fpOn },
-          { "SATURATION", Icons::Type::drive, ParagonColours::chainColour (4, numBlocks), ParamIDs::driveOn },
-          { "EQ", Icons::Type::eq, ParagonColours::chainColour (5, numBlocks), ParamIDs::eqOn },
-          { "GLITCH", Icons::Type::glitch, ParagonColours::chainColour (6, numBlocks), ParamIDs::glitchOn },
-          { "DOUBLER", Icons::Type::doubler, ParagonColours::chainColour (7, numBlocks), ParamIDs::doublerOn },
-          { "MOD", Icons::Type::modulation, ParagonColours::chainColour (8, numBlocks), ParamIDs::modOn },   // MODULATION: short, to fit the strip
-          { "DELAY", Icons::Type::delay, ParagonColours::chainColour (9, numBlocks), ParamIDs::delayOn },
-          { "REVERB", Icons::Type::reverb, ParagonColours::chainColour (10, numBlocks), ParamIDs::reverbOn },
-          { "LO-FI", Icons::Type::loFi, ParagonColours::chainColour (11, numBlocks), ParamIDs::lofiOn } }),
+          { "DYNAMICS", Icons::Type::comp, ParagonColours::chainColour (compBlock, numBlocks), ParamIDs::compOn },
+          { "DE-ESS", Icons::Type::deEsser, ParagonColours::chainColour (deEssBlock, numBlocks), ParamIDs::deessOn },
+          { "FILTER / PITCH", Icons::Type::filterPitch, ParagonColours::chainColour (filterPitchBlock, numBlocks), ParamIDs::fpOn },
+          { "SATURATION", Icons::Type::drive, ParagonColours::chainColour (driveBlock, numBlocks), ParamIDs::driveOn },
+          { "EQ", Icons::Type::eq, ParagonColours::chainColour (eqBlock, numBlocks), ParamIDs::eqOn },
+          { "GLITCH", Icons::Type::glitch, ParagonColours::chainColour (glitchBlock, numBlocks), ParamIDs::glitchOn },
+          { "VOCODER", Icons::Type::vocoder, ParagonColours::chainColour (vocoderBlock, numBlocks), ParamIDs::vocoderOn },
+          { "DOUBLER", Icons::Type::doubler, ParagonColours::chainColour (doublerBlock, numBlocks), ParamIDs::doublerOn },
+          { "MOD", Icons::Type::modulation, ParagonColours::chainColour (modBlock, numBlocks), ParamIDs::modOn },   // MODULATION: short, to fit the strip
+          { "DELAY", Icons::Type::delay, ParagonColours::chainColour (delayBlock, numBlocks), ParamIDs::delayOn },
+          { "REVERB", Icons::Type::reverb, ParagonColours::chainColour (reverbBlock, numBlocks), ParamIDs::reverbOn },
+          { "LO-FI", Icons::Type::loFi, ParagonColours::chainColour (loFiBlock, numBlocks), ParamIDs::lofiOn } }),
       rigBrowser (processorToShow),
       settingsPage (processorToShow)
 {
@@ -518,11 +520,40 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     panels[loFiBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "LO-FI", { { ParamIDs::lofiOn, "ON" }, { ParamIDs::lofiType, "TYPE" }, { ParamIDs::lofiAmount, "AMOUNT" },
                      { ParamIDs::lofiNoise, "NOISE" }, { ParamIDs::lofiMix, "MIX" }, { ParamIDs::lofiLevel, "LEVEL" } } } });
+    // VOCODER (inspired by VocalSynth 2's): MAIN, what the synth plays, its
+    // two oscillators, its NOISE and LFO, and the MIX; the bands are drawn
+    // on the rack's display (VocoderBandsView).
+    const auto vocoderAuto = [this] { return juce::roundToInt (rawValue (ParamIDs::vocoderCarrier)) == 0; };
+    const auto vocoderMidi = [this] { return juce::roundToInt (rawValue (ParamIDs::vocoderCarrier)) == 1; };
+    const auto vocoderMono = [this] { return juce::roundToInt (rawValue (ParamIDs::vocoderCarrier)) == 1 && juce::roundToInt (rawValue (ParamIDs::vocoderVoicing)) == 0; };
+    const auto oscItems = [] (int o)
+    {
+        const auto id = [o] (const char* part) { return ParamIDs::vocoderOsc (o, part); };
+        return std::vector<EffectPanel::Item> { { id ("On"), "ON" }, { id ("Wave"), "WAVE" }, { id ("Gain"), "GAIN" },
+                                                { id ("Coarse"), "COARSE" }, { id ("Fine"), "FINE" }, { id ("Shape"), "SHAPE" },
+                                                { id ("PitchMod"), "PITCH MOD" }, { id ("ShapeMod"), "SHAPE MOD" } };
+    };
+    panels[vocoderBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
+        { "VOCODER", { { ParamIDs::vocoderOn, "ON" }, { ParamIDs::vocoderMode, "MODE" }, { ParamIDs::vocoderShift, "SHIFT" },
+                       { ParamIDs::vocoderScale, "SCALE" }, { ParamIDs::vocoderLevel, "LEVEL" }, { ParamIDs::vocoderDry, "DRY" } } },
+        { "PLAYS", { { ParamIDs::vocoderCarrier, "CARRIER" }, { ParamIDs::vocoderVoicing, "VOICING", vocoderMidi, true },
+                     { ParamIDs::vocoderGlide, "GLIDE", vocoderMono, true },
+                     { ParamIDs::vocoderInterval (0), "INTERVAL 1", vocoderAuto, true },
+                     { ParamIDs::vocoderInterval (1), "INTERVAL 2", vocoderAuto, true },
+                     { ParamIDs::vocoderInterval (2), "INTERVAL 3", vocoderAuto, true },
+                     { ParamIDs::vocoderIntervalLevel, "INT. LEVEL", vocoderAuto, true } }, 1 },
+        { "OSC 1", oscItems (0), 2 },
+        { "OSC 2", oscItems (1), 3 },
+        { "NOISE", { { ParamIDs::vocoderNoiseOn, "ON" }, { ParamIDs::vocoderNoiseGain, "GAIN" }, { ParamIDs::vocoderNoiseCrush, "CRUSH" },
+                     { ParamIDs::vocoderNoiseCrushMod, "CRUSH MOD" }, { ParamIDs::vocoderNoiseModSource, "MOD BY" } }, 4 },
+        { "LFO", { { ParamIDs::vocoderLfoShape, "SHAPE" }, { ParamIDs::vocoderLfoRate, "RATE" } }, 4 },
+        { "MIX", { { ParamIDs::vocoderPan, "PAN" }, { ParamIDs::vocoderLowCut, "LOW CUT" }, { ParamIDs::vocoderHighCut, "HIGH CUT" } }, 5 } });
+    panels[vocoderBlock]->setPages ({ "MAIN", "PLAYS", "OSC 1", "OSC 2", "NOISE", "MIX" });
     // Each panel's header and accents in its block's colour in the chain.
     const Icons::Type headers[] = { Icons::Type::pitch, Icons::Type::comp, Icons::Type::deEsser, Icons::Type::filterPitch,
-                                    Icons::Type::drive, Icons::Type::eq, Icons::Type::glitch, Icons::Type::doubler,
+                                    Icons::Type::drive, Icons::Type::eq, Icons::Type::glitch, Icons::Type::vocoder, Icons::Type::doubler,
                                     Icons::Type::modulation, Icons::Type::delay, Icons::Type::reverb, Icons::Type::loFi };
-    const char* titles[] = { "PITCH", "DYNAMICS", "DE-ESSER", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
+    const char* titles[] = { "PITCH", "DYNAMICS", "DE-ESSER", "FILTER / PITCH", "SATURATION", "GRAPHIC EQ", "GLITCH", "VOCODER", "DOUBLER", "MODULATION", "DELAY", "REVERB", "LO-FI" };
     static_assert (std::size (headers) == numBlocks && std::size (titles) == numBlocks);
     for (size_t i = 0; i < panels.size(); ++i)
     {
@@ -543,8 +574,18 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                                        [&processorToShow] (int slot) { processorToShow.recallHarmonySnapshot (slot); },
                                        [&processorToShow] (int slot, std::optional<Rig::HarmonySnapshot> snapshot) { processorToShow.setHarmonySnapshot (slot, std::move (snapshot)); },
                                        [&processorToShow] { return juce::roundToInt (processorToShow.getParameters().getRawParameterValue (ParamIDs::harmonySnapshot)->load()); } });
+    harmonyPanel.setModActions ({ [&processorToShow] (int target, int slot) { return processorToShow.getHarmonyModSlot (target, slot); },
+                                  [&processorToShow] (int target, int slot, Rig::HarmonyModSlot value) { processorToShow.setHarmonyModSlot (target, slot, value); },
+                                  [&processorToShow] (int target) { return processorToShow.getHarmonyModOffset (target); },
+                                  [&processorToShow] (int source) { return processorToShow.getHarmonyModulation().getShownValue (source); },
+                                  [&processorToShow] (int mod) { return processorToShow.getHarmonyModulation().getShownPosition (mod); },
+                                  [&processorToShow] (int source, int voice) { return processorToShow.getHarmonyModulation().getShownVoiceValue (source, voice); },
+                                  [&processorToShow] (int voice) { return processorToShow.getHarmony().getNoteVoiceNote (voice); },
+                                  [&processorToShow] (int mod) { return processorToShow.getHarmonyModShape (mod); },
+                                  [&processorToShow] (int mod, const std::array<float, 32>& points) { processorToShow.setHarmonyModShape (mod, points); } });
     addChildComponent (doublerPanel);
     addChildComponent (marsPanel);
+    addChildComponent (vocoderBands);
     for (auto* view : { &harmonyView, &octaveView })
     {
         view->setClickingTogglesState (true);
@@ -612,6 +653,7 @@ void MainView::selectBlock (int block)
     harmonyPanel.setVisible (showingPitch && pitchShowsHarmony);
     doublerPanel.setVisible (block == doublerBlock && onProcessorPage);
     marsPanel.setVisible (block == driveBlock && onProcessorPage);
+    vocoderBands.setVisible (block == vocoderBlock && onProcessorPage);
     harmonyView.setToggleState (pitchShowsHarmony, juce::dontSendNotification);
     octaveView.setToggleState (! pitchShowsHarmony, juce::dontSendNotification);
     for (auto* view : { &harmonyView, &octaveView })
@@ -635,6 +677,7 @@ void MainView::selectBlock (int block)
         { "SATURATION", Icons::Type::drive, ParamIDs::driveOn, "" },
         { "GRAPHIC EQ", Icons::Type::eq, ParamIDs::eqOn, "" },
         { "GLITCH", Icons::Type::glitch, ParamIDs::glitchOn, ParamIDs::glitchMode },
+        { "VOCODER", Icons::Type::vocoder, ParamIDs::vocoderOn, ParamIDs::vocoderMode },
         { "DOUBLER", Icons::Type::doubler, ParamIDs::doublerOn, "" },
         { "MODULATION", Icons::Type::modulation, ParamIDs::modOn, ParamIDs::modType },
         { "DELAY", Icons::Type::delay, ParamIDs::delayOn, ParamIDs::delayType },
@@ -656,6 +699,7 @@ void MainView::selectBlock (int block)
             case deEssBlock:  return Faceplate::Unit::deEsser;
             case glitchBlock: return Faceplate::Unit::glitch;
             case doublerBlock: return Faceplate::Unit::doubler;
+            case vocoderBlock: return Faceplate::Unit::vocoder;
             case eqBlock:     return Faceplate::Unit::eq;
             case loFiBlock:   return Faceplate::Unit::loFi;
             default:          return Faceplate::Unit::other;
@@ -702,7 +746,10 @@ void MainView::layoutDock()
         editor->setBounds (controls.getUnion (display));
     marsPanel.setRack (true, display - marsPanel.getPosition());
     harmonyPanel.setRack (true, display - harmonyPanel.getPosition());
-    faceplate.setDisplayCovered (marsPanel.isVisible() || harmonyPanel.isVisible());
+    vocoderBands.setBounds (display);
+    faceplate.setDisplayCovered (marsPanel.isVisible() || harmonyPanel.isVisible() || vocoderBands.isVisible());
+    if (vocoderBands.isVisible())
+        vocoderBands.toFront (false);
 
     for (auto& panel : panels)
         if (panel != nullptr && panel->isVisible())

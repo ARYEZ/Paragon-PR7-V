@@ -2,6 +2,86 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.36.0
+
+- **Three new LO-FI types: voices through a device.** Telephone, AM Radio and Megaphone stay exactly as they were, so your saved rigs keep their sound. These are added after them, each our own design (not modelled on a particular product):
+  - **Cell Phone:** a digital call.
+    - The phone band (300 Hz to 3.4 kHz) through a phone codec's grainy, companded steps.
+    - **AMOUNT** takes the codec from a decent call (8 kHz, 8 bits) to a poor one (4 kHz, 4 bits).
+    - **NOISE** is a bad signal: whole moments of the call drop out (up to one in six at 10).
+  - **Walkie-Talkie:** a handheld radio. Narrow, driven hard and squashed, with **static under your voice while you talk** and **the squelch's "kssh" when you stop**, as the receiver closes. It waits 150 ms before closing, so gaps between words don't set it off. NOISE sets the static and how loud the squelch is.
+  - **Gramophone:** an old 78 record. A horn's two resonances, a slow warble (more with AMOUNT), and the record's **crackle and hiss** (NOISE).
+  - All three are mono, like the real things, and come out about as loud as they went in.
+- **Three new rigs in bank E:**
+  - **E27 Phone Call:** a call on a bad line.
+  - **E28 Radio Check:** a walkie-talkie, squelch and all.
+  - **E29 Old 78:** an old record in a little room.
+- **Can't be checked here by ear:** the tests check the sound (each type keeps the voice band and drops the lows and highs, the codec gets grittier with AMOUNT, NOISE drops moments of a call, the squelch bursts after the voice and stays silent when nothing's said, the record crackles in silence), but whether they sound right on your voice is yours to judge.
+
+## 0.35.0
+
+- **New block: VOCODER**, inspired by the Vocoder in iZotope VocalSynth 2 (the manual you sent). It's in the signal chain between GLITCH and DOUBLER. A vocoder splits your voice into frequency bands, measures how loud you are in each, and uses that to shape a synth: the robot voice. Your words and vowels, the synth's sound and pitch.
+  - **What the synth plays (PLAYS page):**
+    - **Auto:** the pitch you sing, exactly. Add up to three **INTERVAL** voices (a 2nd to an octave, up or down), kept in HARMONY's KEY and SCALE, for an instant vocoder choir. No keyboard needed.
+    - **MIDI:** your keyboard. **Mono** (one note, with GLIDE between notes) or **Poly** (up to 8 notes, for chords).
+  - **MAIN:**
+    - **MODE:** Smooth, Vintage or Hard (12, 20 or 32 bands, from soft and smooth to crisp and articulate).
+    - **SHIFT:** brighter or darker.
+    - **SCALE:** how fast it follows you, from soft pad to sharp consonants.
+    - **LEVEL**, and **DRY** (your voice underneath; off to start).
+  - **The synth:** two oscillators (Saw, Square, Sync Saw, Triangle, Saws: seven detuned saws), each with GAIN, COARSE, FINE, SHAPE and LFO amounts on pitch and shape. A NOISE with CRUSH (from a buzz at the note's pitch to white hiss), and an LFO.
+  - **MIX:** PAN, LOW CUT and HIGH CUT on what comes out.
+  - **The bands on the rack's display:** live LED bars show how loud your voice is in each band. Draw over them to set each band's **VOL** or **PAN** (spread the high bands right and the low ones left, or cut a range). RESET or a double-click flattens it.
+  - **Four new rigs in bank E:** **E23 Robot Voice**, **E24 Vocoder Choir** (your note plus a third, a fifth and an octave below), **E25 Deep Robot**, and **E26 Keys Vocoder** for a MIDI keyboard (your voice stays faintly underneath, so it's never silent without keys).
+- **Our design where the manual doesn't say:**
+  - the band counts;
+  - how each band's synth is levelled before your voice shapes it (this keeps the words clear whatever wave you pick);
+  - the oscillator shapes, the noise's CRUSH and the envelope speeds;
+  - Auto keeps your own note exactly (not snapped to the key) while the INTERVAL voices are in the key.
+- **Not in this release:** the manual's **Sidechain** mode (another track as the synth). It needs the plugin to take a second audio input, which changes how BeatMaker routes it, so it's a stage of its own. Also not here: synth presets, and the manual's round "anemone" display.
+- **Can't be checked here by ear:** the tests check the sound (the synth's harmonics follow your voice's shape, the pitch is the key's or your own, SHIFT, the bands' VOL and PAN, no sound without a voice, the level matches your voice), but how it sounds singing into it is yours to judge.
+
+## 0.34.0
+
+- **HARMONY stage 10: the rest of the MODULATORS**, inspired by the Waves Harmony guide's Modulators chapter. Stage 9 made the harmony move on its own; stage 10 makes **each note move on its own**, so a chord from GENERATE or your MIDI keyboard can swell, spread and bend note by note.
+  - **A1 and A2, envelopes:** each note that starts gets its own ATTACK, DECAY, SUSTAIN and RELEASE, with a CURVE for each stage (1 straight; lower starts slowly, higher starts quickly). Put one on NOTES LEVEL turned down and each new note swells in while the held ones stay put.
+  - **SP, the Spreader:** gives each note sounding its own value by its place in the chord. Outward: the lowest note -SPREAD, the highest +SPREAD. Inward: the other way round. Random. TRIGGER Retrigger works every note out again when one starts; Poly lets each note keep the value it began with. On GLOBAL PITCH at a small depth it detunes a chord outward; on NOTES WIDTH it spreads it.
+  - **MIDI sources:** Velocity, Keyboard (where the key is), Pitch Wheel, Mod Wheel and Aftertouch. In the knob menu they're in their own MIDI group.
+  - **Poly** (M1-M4's TRIGGER): each note runs its own cycle from when it started, so a vibrato isn't in step across the chord.
+  - **Drawn shapes** (M1-M4's SHAPE): draw your own shape on the MODS display (ERASE flattens it). Saved with your rig and project, and undoable.
+  - **Per note, where it matters:** a note-by-note source (A1, A2, SP, Velocity, Keyboard, a Poly M) moves each note voice separately on NOTES LEVEL, WIDTH and FORMANT and on GLOBAL PITCH and FORMANT. On other controls it uses the newest note. With no notes coming in (no GENERATE, no MIDI), A1, A2 and SP stay at 0, as in the guide.
+  - **SNAPSHOTS now store the modulators** on the controls a snapshot keeps (a voice's PITCH, PAN...), as the guide's do. Snapshots stored with 0.33.0 or earlier leave your modulators alone when recalled.
+  - **The MODS page** has tabs M1-M4, A1, A2, AM, PT, SP and MIDI: the envelope drawn with each note's level beside it, the Spreader's notes as dots, and MIDI's five as bars.
+- **New factory bank G, "Moving harmonies"** (9 rigs), one modulator idea each. Right-click a HARMONY knob or open MODS to see how each is built:
+  - **G01 Living Choir:** a five-voice choir where every voice has its own slow vibrato (Poly), so they never wobble together.
+  - **G02 Swell Stack:** each new harmony note swells in behind you (A1).
+  - **G03 Spread Gospel:** a wide gospel chord the Spreader opens out, low notes a touch flat and darker, high ones a touch sharp and brighter.
+  - **G04 Circling Thirds:** a third and a fifth that slowly circle you in the stereo, in opposite directions.
+  - **G05 Arp Harmony:** a harmony stepping octave, fifth, octave, tenth in eighth notes with the song (SEQ).
+  - **G06 Breathing Harmony:** push and the harmonies step back, sing softly and they come forward (AM).
+  - **G07 Gated Choir:** a rhythmic gate drawn into M1, locked to the bar.
+  - **G08 Rising Harmony:** the higher you sing, the bigger the harmony (PT).
+  - **G09 Keyboard Choir:** for a MIDI keyboard. Play the chord and sing the words: how hard you play sets each note's level, the mod wheel widens the chord, the pitch wheel bends it two semitones.
+  - All but G09 work from your voice alone. A test checks that each rig's modulators really change its sound, and that every rig sits within 6 dB of the others.
+- **Fixed:** a pitch depth showed as "+1.9992 st" in the knob menu and on the MODS page. Whole semitones now show as "+2 st".
+- **Our design where the guide doesn't say:** how the curves bend, an envelope that follows the notes as a whole for controls that aren't per note, how Random picks, and the Keyboard's range (two octaves either side of middle C).
+- **Can't be checked here by ear:** the tests check the sound itself (each note's pitch, level and pan, the envelopes' shape), but how it feels to play is yours to judge.
+
+## 0.33.0
+
+- **HARMONY stage 9: MODULATORS** (the first of two stages), inspired by the Modulators chapter of the Waves Harmony guide you sent. Modulators move HARMONY's controls on their own: vibrato, a wobble, voices drifting across the stereo, harmonies that duck while you sing loudly, or follow how high you sing.
+  - **Six modulators,** on the new **MODS** page (the MODS key beside GLOBAL):
+    - **M1-M4:** each an **LFO** (a repeating shape: Sine, Triangle, Saw Up, Saw Down, Square, Pulse, Stairs, Random Steps, Smooth Random, Bump; our own shapes) or a **SEQ**uencer (2 to 16 steps of -24 to +24; drag the bars). RATE in Hz or SYNCed to the song (8 bars down to 1/64), PHASE, WARP, SMOOTH, LEVEL, TRIGGER (Free, Sync, Retrigger, Legato) and PLAY (Loop, One Shot, Seesaw, Hold), as in the guide.
+    - **AM:** how loud you sing (ATTACK, RELEASE, LEVEL).
+    - **PT:** the pitch you sing (SMOOTH, OFFSET, LEVEL).
+  - **Putting one on a control:** right-click any HARMONY knob that can be modulated. A voice's PITCH, NOTE, FORMANT, DELAY, FEEDBACK and CUTOFF, the note voices' sound, the mix and GLOBAL PITCH and FORMANT can be; FINE can't, as in the guide. "Add a modulator" puts it in one of the knob's four slots, and each slot sets its own depth or is removed. A pitch control starts at a semitone either way (a vibrato), anything else at a quarter of its range.
+  - **Depth, as in the guide:** at 100% a modulator at full swing moves a control through its whole range, and a pitch two octaves either way. So a SEQ step of +7 at 100% is exactly a fifth up.
+  - **You can see it move:** a modulated knob gets a ring in its modulator's colour (white for several) with a dot where it is now. On the graph, a dim ghost dot shows where a voice's modulated pan and level have it. The MODS page shows each shape with a dot riding it, and what each modulator is on.
+  - **Saved with your rig and project,** and putting on, changing or removing one can be undone. The modulators' own settings can be automated from BeatMaker.
+  - **Smooth, not stepped:** while anything is modulated, HARMONY updates every 32 samples (under a millisecond). With nothing modulated it runs exactly as before.
+- **Our design where the guide doesn't say:** the shapes, how AM reads loudness (-60 dB to full scale), PT's middle (middle C, two octaves either way), and the menu instead of the guide's drag-and-drop (your choice).
+- **Coming in stage 10:** A1 and A2 (envelopes on each note), the Spreader (a value per note, to spread the note voices), the MIDI sources (velocity, keyboard, pitch wheel, mod wheel, aftertouch), Poly trigger, drawing your own shapes, and modulator slots stored in SNAPSHOTS (the guide stores them; ours don't yet).
+
 ## 0.32.0
 
 - **HARMONY rebuilt for the rack, at full size** (the last of the four editors: now nothing on the rack is shrunk). In 0.28.0 it was scaled down into a screen in the rack.

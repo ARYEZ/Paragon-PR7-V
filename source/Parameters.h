@@ -220,6 +220,64 @@ namespace ParamIDs
                                                        "Flatten", "Note", "Delay", "Sync", "Feedback", "Filter", "Cutoff" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
 
+    // Version 46: HARMONY's modulators (stage 9, effects::HarmonyModulation).
+    // M1-M4: "hm1Type", "hm2Rate"... and their sequencer steps "hm1Step1"...
+    // Saved by name: only add to the end.
+    inline const juce::StringArray harmonyModParts { "Type", "Shape", "Rate", "Sync", "Phase", "Warp", "Smooth", "Level",
+                                                     "Trigger", "Play", "Steps" };
+    inline juce::String harmonyMod (int mod, const juce::String& part) { return "hm" + juce::String (mod + 1) + part; }
+    inline juce::String harmonyModStep (int mod, int step) { return harmonyMod (mod, "Step" + juce::String (step + 1)); }
+    inline constexpr auto harmonyAmAttack  = "harmonyAmAttack";    // ms
+    inline constexpr auto harmonyAmRelease = "harmonyAmRelease";   // ms
+    inline constexpr auto harmonyAmLevel   = "harmonyAmLevel";     // 0 to 2
+    inline constexpr auto harmonyPtSmooth  = "harmonyPtSmooth";    // ms
+    inline constexpr auto harmonyPtOffset  = "harmonyPtOffset";    // -1 to 1
+    inline constexpr auto harmonyPtLevel   = "harmonyPtLevel";     // 0 to 2
+    // Version 47 (stage 10): A1-A2 ("harmonyA1Attack"... in harmonyEnvelopeParts' order) and the Spreader.
+    inline const juce::StringArray harmonyEnvelopeParts { "Attack", "Decay", "Sustain", "Release", "AttackCurve", "DecayCurve", "ReleaseCurve" };
+    inline juce::String harmonyEnvelope (int envelope, const juce::String& part) { return "harmonyA" + juce::String (envelope + 1) + part; }
+    inline constexpr auto harmonySpMode    = "harmonySpMode";      // HarmonyModulation::spreadModeNames
+    inline constexpr auto harmonySpTrigger = "harmonySpTrigger";   // spreadTriggerNames
+    inline constexpr auto harmonySpSpread  = "harmonySpSpread";    // 0 to 1
+    inline constexpr auto harmonySpLevel   = "harmonySpLevel";     // 0 to 1
+
+    // Version 48: the VOCODER (effects::Vocoder, inspired by VocalSynth 2's).
+    inline constexpr auto vocoderOn            = "vocOn";
+    inline constexpr auto vocoderMode          = "vocMode";           // Vocoder::modeNames
+    inline constexpr auto vocoderShift         = "vocShift";          // semitones
+    inline constexpr auto vocoderScale         = "vocScale";          // 0 to 1
+    inline constexpr auto vocoderLevel         = "vocLevel";          // dB
+    inline constexpr auto vocoderDry           = "vocDry";            // dB
+    inline constexpr auto vocoderCarrier       = "vocCarrier";        // Vocoder::carrierNames
+    inline constexpr auto vocoderVoicing       = "vocVoicing";        // Vocoder::voicingNames
+    inline constexpr auto vocoderGlide         = "vocGlide";          // ms
+    inline constexpr auto vocoderIntervalLevel = "vocIntervalLevel";  // dB
+    inline constexpr auto vocoderNoiseOn       = "vocNoiseOn";
+    inline constexpr auto vocoderNoiseGain     = "vocNoiseGain";      // dB
+    inline constexpr auto vocoderNoiseCrush    = "vocNoiseCrush";     // 0 to 1
+    inline constexpr auto vocoderNoiseCrushMod = "vocNoiseCrushMod";  // -1 to 1
+    inline constexpr auto vocoderNoiseModSource = "vocNoiseModSource"; // Vocoder::noiseModNames
+    inline constexpr auto vocoderLfoShape      = "vocLfoShape";       // Vocoder::lfoShapeNames
+    inline constexpr auto vocoderLfoRate       = "vocLfoRate";        // Hz
+    inline constexpr auto vocoderPan           = "vocPan";            // -1 to 1
+    inline constexpr auto vocoderLowCut        = "vocLowCut";         // Hz (20: off)
+    inline constexpr auto vocoderHighCut       = "vocHighCut";        // Hz (20000: off)
+    inline juce::String vocoderInterval (int i) { return "vocInterval" + juce::String (i + 1); }   // Vocoder::intervalNames
+    // Each oscillator's parts, in this order: "vocOsc1On", "vocOsc1Wave"...
+    inline const juce::StringArray vocoderOscParts { "On", "Wave", "Gain", "Coarse", "Fine", "PitchMod", "Shape", "ShapeMod" };
+    inline juce::String vocoderOsc (int osc, const juce::String& part) { return "vocOsc" + juce::String (osc + 1) + part; }
+    // The bands' VOL (dB) and PAN curves: 32 points each across the range.
+    inline juce::String vocoderBandVol (int point) { return "vocBandVol" + juce::String (point + 1); }
+    inline juce::String vocoderBandPan (int point) { return "vocBandPan" + juce::String (point + 1); }
+    // The HARMONY controls a modulator can move (the guide's "most
+    // controls"; FINE can't be, as in the guide), by parameter ID. Their
+    // modulation slots are saved by these IDs, not as parameters. The
+    // processor reads them in this order: only add to the end.
+    juce::StringArray harmonyModTargets();
+    // A pitch control (a voice's PITCH or NOTE, GLOBAL PITCH): moved in
+    // semitones, two octaves either way at 100%, rather than through its range.
+    bool isHarmonyPitchTarget (const juce::String& id);
+
     // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).
     inline constexpr auto doublerDirectOn   = "doublerDirectOn";
     inline constexpr auto doublerDirectGain = "doublerDirectGain";

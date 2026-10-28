@@ -1,6 +1,7 @@
 #include "FactoryRigs.h"
 
 #include "Parameters.h"
+#include "dsp/effects/HarmonyModulation.h"
 
 namespace
 {
@@ -19,6 +20,38 @@ namespace
         return rig;
     }
 
+    // HARMONY's modulators on controls (stage 9-10): each in the control's
+    // next free slot, at its depth (a pitch's in 24ths: 1/24 is a semitone).
+    struct ModOn { const char* target; int source; float depth; };
+    Rig withMods (Rig rig, std::initializer_list<ModOn> mods)
+    {
+        for (const auto& [target, source, depth] : mods)
+        {
+            auto& slots = rig.harmonyModSlots[target];
+            for (auto& slot : slots)
+                if (slot.source == 0)
+                {
+                    slot = { source, depth };
+                    break;
+                }
+        }
+        return rig;
+    }
+    // A drawn shape (SHAPE Drawn) for modulator `mod` (0 = M1).
+    Rig withShape (Rig rig, int mod, const std::array<float, 32>& points)
+    {
+        rig.harmonyModShapes[(size_t) mod] = points;
+        return rig;
+    }
+    using HMod = effects::HarmonyModulation;
+    // M1-M4's choices, by index.
+    constexpr float lfo = 0, seq = 1;                                                    // TYPE
+    constexpr float sineShape = 0, smoothRandomShape = 8, drawnShape = HMod::drawnShape; // SHAPE
+    constexpr float syncTrigger = HMod::sync, polyTrigger = HMod::poly;                  // TRIGGER
+    constexpr float modOneBar = 4, modEighth = 10, modSixteenth = 13;                    // RATE SYNC
+    constexpr float outward = 0;                                                         // SP MODE
+    constexpr float threePartStack = 9, gospelStack = 17;                                // more CHORD maps
+
     // Choices, by their index in each list (see the effects' typeNames).
     constexpr float classicComp = 0, daybreakComp = 1, revival = 2;                     // DYNAMICS' TYPE
     constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
@@ -28,7 +61,8 @@ namespace
     constexpr float warm = 1, roundAnalog = 2, hiss = 3, grit = 4;                           // DELAY's ANALOG
     constexpr float room = 1, hall = 2, cathedral = 3, plate = 4, spring = 5, digital = 6,
                     reverse = 7, chamber = 8;                                            // REVERB's TYPE
-    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4;   // LO-FI's TYPE
+    constexpr float telephone = 0, amRadio = 1, megaphone = 2, cassette = 3, bitcrusher = 4,
+                    cellPhone = 5, walkieTalkie = 6, gramophone = 7;                       // LO-FI's TYPE
     constexpr float pedalMorph = 3;                                                      // the expression pedal's MORPH FX
     // SATURATION (MARS)'s styles (index into effects::Mars::styleNames).
     constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, brokenTubeStyle = 3, warmTapeStyle = 5,
@@ -53,12 +87,14 @@ namespace
 //   E  character: doubles, harmonies, modulation and lo-fi voices
 //   F  signature styles: the vocal sounds of genres and eras (pop-punk,
 //      metalcore, prog, grunge...), named for the style, not any artist
+//   G  moving harmonies: HARMONY's modulators (0.33.0-0.34.0) at work, one
+//      idea each; all but the last work from your voice alone
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -504,6 +540,79 @@ std::vector<Rig> makeFactoryRigs()
             { harmonyNoteAttack, 120 }, { harmonyNoteRelease, 400 },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.3f }, { reverbPreDelay, 40 } }),
 
+        // The VOCODER (0.35.0): the synth shaped by your voice. Auto plays
+        // what you sing, so these work without a keyboard.
+
+        // The classic robot: crisp (HARD, high SCALE), a saw on your own
+        // note, a little crushed noise so the consonants still cut.
+        make ("Robot Voice", E, 23, "Vocoder,Robot,Electronic,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { vocoderOn, 1 }, { vocoderMode, 2 }, { vocoderScale, 0.75f },
+            { vocoderNoiseOn, 1 }, { vocoderNoiseGain, -20 }, { vocoderNoiseCrush, 0.9f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.15f } }),
+
+        // A choir of synths: seven detuned saws on your note, a third and a
+        // fifth above and an octave below, in the key (INTERVAL voices).
+        make ("Vocoder Choir", E, 24, "Vocoder,Choir,Electronic,Ambient", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderScale, 0.45f },
+            { "vocOsc1Wave", 4 }, { "vocOsc1Shape", 0.4f },
+            { "vocInterval1", 3 }, { "vocInterval2", 5 }, { "vocInterval3", 15 }, { vocoderIntervalLevel, -5 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.28f }, { reverbPreDelay, 30 } }),
+
+        // A low, dark machine: the synth an octave under you, its bands
+        // shifted down, soft square waves, the top rolled off.
+        make ("Deep Robot", E, 25, "Vocoder,Robot,Dark,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderShift, -4 }, { vocoderScale, 0.5f },
+            { "vocOsc1Wave", 1 }, { "vocOsc1Shape", 0.3f }, { "vocOsc1Coarse", -12 },
+            { "vocOsc2On", 1 }, { "vocOsc2Wave", 0 }, { "vocOsc2Coarse", -24 }, { "vocOsc2Gain", -8 },
+            { vocoderHighCut, 7000 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.15f } }),
+
+        // For a MIDI keyboard: play chords, sing the words (POLY). Your own
+        // voice stays faintly underneath, so it's never silent without keys.
+        make ("Keys Vocoder", E, 26, "Vocoder,MIDI,Electronic,Choir", {
+            { rigLevel, 3 },   // without keys only the faint dry voice plays
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { vocoderOn, 1 }, { vocoderMode, 1 }, { vocoderScale, 0.55f }, { vocoderDry, -8 },
+            { vocoderCarrier, 1 }, { vocoderVoicing, 1 },
+            { "vocOsc1Wave", 4 }, { "vocOsc1Shape", 0.3f }, { "vocOsc2On", 1 }, { "vocOsc2Wave", 1 },
+            { "vocOsc2Shape", 0.5f }, { "vocOsc2ShapeMod", 0.4f }, { vocoderLfoRate, 0.4f },
+            { vocoderNoiseOn, 1 }, { vocoderNoiseGain, -22 }, { vocoderNoiseCrush, 0.9f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
+
+        // LO-FI's voices through a device (0.36.0).
+
+        // A call on a bad line: the phone's codec, a few lost moments, a
+        // short room around it (the other end).
+        make ("Phone Call", E, 27, "Lo-Fi,Phone,Intro,Experimental", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, cellPhone }, { lofiAmount, 4 }, { lofiNoise, 3 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.1f } }),
+
+        // Over the radio: narrow, squashed, static while you talk and the
+        // squelch's hiss when you stop.
+        make ("Radio Check", E, 28, "Lo-Fi,Radio,Intro,Experimental", {
+            { rigLevel, 7 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, walkieTalkie }, { lofiAmount, 6 }, { lofiNoise, 4 } }),
+
+        // An old 78: the horn, the warble, the crackle, in a little room.
+        make ("Old 78", E, 29, "Lo-Fi,Vintage,Intro,Jazz", {
+            { rigLevel, 4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
+            { deessOn, 1 }, { deessAmount, 4 },
+            { lofiOn, 1 }, { lofiType, gramophone }, { lofiAmount, 5 }, { lofiNoise, 5 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
+
         // ---- F: signature styles ---------------------------------------------
         // Each is our reading of a style's vocal sound (from how such records
         // are commonly made: doubling, compression, delays, saturation), not
@@ -692,5 +801,126 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.16f }, { delayDuck, 0.5f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.3f }, { reverbPreDelay, 0 },
             { reverbDecay, 0.25f }, { reverbSpread, 200 }, { reverbShape, 0.85f } }),
+
+        // ---- G: moving harmonies ---------------------------------------------
+        // HARMONY's modulators: right-click a HARMONY knob to see what's on
+        // it, or open MODS. The sounds generated by GENERATE NOTES follow
+        // your voice; MIDI keys add to them.
+
+        // A choir where every voice has its own slow vibrato (M1 TRIGGER Poly:
+        // each note's cycle from its own start), so they never wobble in step.
+        withMods (make ("Living Choir", G, 1, "Harmony,Choir,Modulators,Ambient", {
+            { rigLevel, -4 },   // even with the other rigs
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, choirMap }, { harmonyNoteLevel, -8 }, { harmonyNoteWidth, 0.9f },
+            { harmonyNoteAttack, 150 }, { harmonyNoteRelease, 500 },
+            { "hm1Rate", 4.8f }, { "hm1Trigger", polyTrigger },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.28f }, { reverbPreDelay, 40 } }),
+            { { harmonyGlobalPitch, HMod::m1, 0.18f / 24.0f } }),   // ±18 cents, note by note
+
+        // Each new harmony note swells in behind you (A1 on the note voices'
+        // LEVEL: a slow attack, held, a long fade), while you stay up front.
+        withMods (make ("Swell Stack", G, 2, "Harmony,Modulators,Ambient,Ballad", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, threePartStack }, { harmonyNoteLevel, -26 }, { harmonyNoteWidth, 0.8f },
+            { harmonyNoteRelease, 800 },
+            { "harmonyA1Attack", 700 }, { "harmonyA1Decay", 600 }, { "harmonyA1Sustain", 0.85f }, { "harmonyA1Release", 900 },
+            { "harmonyA1AttackCurve", 0.6f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.6f }, { reverbMix, 0.25f } }),
+            { { harmonyNoteLevel, HMod::a1, 0.3f } }),   // up to about 20 dB louder at the top of the swell
+
+        // A wide gospel chord the Spreader opens out: the low notes a touch
+        // flat and darker, the high ones a touch sharp and brighter.
+        withMods (make ("Spread Gospel", G, 3, "Harmony,Choir,Modulators,Soul", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, gospelStack }, { harmonyNoteLevel, -9 }, { harmonyNoteWidth, 1 },
+            { harmonyNoteAttack, 80 }, { harmonyNoteRelease, 400 },
+            { harmonySpMode, outward },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.6f }, { reverbMix, 0.24f } }),
+            { { harmonyGlobalPitch, HMod::sp, 0.12f / 24.0f },     // ±12 cents, outward
+              { harmonyGlobalFormant, HMod::sp, 0.06f } }),        // ±1.4 semitones of formant
+
+        // Two harmonies circling you: a third and a fifth panned by one slow
+        // LFO, in opposite directions.
+        withMods (make ("Circling Thirds", G, 4, "Harmony,Modulators,Stereo", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Level", -7 }, { "hv2Level", -9 }, { "hv1Pan", 0 }, { "hv2Pan", 0 },
+            { "hm1Rate", 0.2f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.55f }, { reverbMix, 0.22f } }),
+            { { "hv1Pan", HMod::m1, 0.45f }, { "hv2Pan", HMod::m1, -0.45f } }),   // each 0.9 either way
+
+        // A harmony that steps through a pattern in time: a 4-step SEQ on
+        // voice 1's PITCH (octave, fifth, octave, an octave and a third),
+        // locked to the song's eighth notes.
+        withMods (make ("Arp Harmony", G, 5, "Harmony,Modulators,Tempo,Electronic", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Pitch", 0 }, { "hv1Level", -6 }, { "hv1Pan", 0.3f }, { "hv2Active", 0 },
+            { "hm1Type", seq }, { "hm1Steps", 4 }, { "hm1Sync", modEighth }, { "hm1Trigger", syncTrigger },
+            { "hm1Step1", 12 }, { "hm1Step2", 7 }, { "hm1Step3", 12 }, { "hm1Step4", 16 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.15f }, { delayDuck, 0.5f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f } }),
+            { { "hv1Pitch", HMod::m1, 1.0f } }),   // the steps exactly, in semitones (then into the key)
+
+        // Harmonies that answer how hard you sing: push and they step back
+        // (AM ducks them), sing softly and they come forward.
+        withMods (make ("Breathing Harmony", G, 6, "Harmony,Modulators,Dynamics,Ballad", {
+            { rigLevel, 3 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -12 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Level", -4 }, { "hv2Level", -6 },
+            { harmonyAmAttack, 30 }, { harmonyAmRelease, 400 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.55f }, { reverbMix, 0.22f } }),
+            { { harmonyLevel, HMod::am, -0.3f } }),   // up to 20 dB down at the loudest
+
+        // A rhythmic gate on the harmonies, drawn in M1 (a bar of eighths and
+        // sixteenths), locked to the song: the trance-gate trick, on a choir.
+        withShape (withMods (make ("Gated Choir", G, 7, "Harmony,Choir,Modulators,Tempo,Electronic", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, threePartStack }, { harmonyNoteLevel, -6 }, { harmonyNoteWidth, 0.9f },
+            { "hm1Shape", drawnShape }, { "hm1Sync", modOneBar }, { "hm1Trigger", syncTrigger }, { "hm1Smooth", 4 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f } }),
+            { { harmonyLevel, HMod::m1, 0.6f } }),   // a closed step is 40 dB down
+            0, { 0, 0, 0, -1,  0, 0, 0, -1,  0, -1, 0, -1,  0, 0, -1, -1,  0, 0, 0, -1,  0, 0, 0, -1,  0, -1, 0, -1,  0, -1, 0, 0 }),
+
+        // Higher notes, bigger harmony: the pitch you sing (PT) brings the
+        // harmony up as you climb, and puts it away when you go low.
+        withMods (make ("Rising Harmony", G, 8, "Harmony,Modulators,Rock,Anthem", {
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { harmonyLevel, -8 }, { "hv1Level", -2 }, { "hv2Level", -4 },
+            { harmonyPtSmooth, 200 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.5f }, { reverbMix, 0.2f } }),
+            { { harmonyLevel, HMod::pt, 0.5f } }),   // about 4 dB down on an A3, 10 dB up an octave higher
+
+        // For a MIDI keyboard: play the chord, sing the words. How hard you
+        // play sets each note's level, the mod wheel widens the chord, the
+        // pitch wheel bends it two semitones. (Without MIDI: just your voice.)
+        withMods (make ("Keyboard Choir", G, 9, "Harmony,Choir,Modulators,MIDI", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyNoteLevel, -8 }, { harmonyNoteWidth, 0.3f }, { harmonyNoteAttack, 40 }, { harmonyNoteRelease, 350 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.24f } }),
+            { { harmonyNoteLevel, HMod::velocity, 0.15f },     // soft keys about 10 dB quieter than hard ones
+              { harmonyNoteWidth, HMod::modWheel, 0.7f },
+              { harmonyGlobalPitch, HMod::pitchWheel, 2.0f / 24.0f } }),
     };
 }

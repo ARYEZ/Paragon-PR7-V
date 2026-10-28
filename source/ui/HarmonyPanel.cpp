@@ -50,7 +50,8 @@ namespace
 HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::function<float()> sungNoteSource,
                             std::function<float()> correctNoteSource, const effects::Harmony* harmonyToShow)
     : parameters (state), sungNote (std::move (sungNoteSource)),
-      noteMap (state, [this] (int midiNote) { return midiKeyHeld != nullptr && midiKeyHeld (midiNote); })
+      noteMap (state, [this] (int midiNote) { return midiKeyHeld != nullptr && midiKeyHeld (midiNote); }),
+      mods (state)
 {
     correctNote = std::move (correctNoteSource);
     harmonyEngine = harmonyToShow;
@@ -269,6 +270,16 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     addAndMakeVisible (snapshotsButton);
     snapshots.onDone = [this] { closeSnapshots(); };
     addChildComponent (snapshots);
+    modsButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff151217));
+    modsButton.setColour (juce::TextButton::textColourOffId, ParagonColours::text);
+    modsButton.setTooltip ("MODS: the modulators (M1-M4, AM, PT). Right-click a knob to put one on it");
+    modsButton.onClick = [this] { openMods(); };
+    modsButton.setEnabled (false);   // until the processor's modulators are connected
+    addAndMakeVisible (modsButton);
+    mods.onDone = [this] { closeMods(); };
+    addChildComponent (mods);
+    for (auto* knob : allKnobs())
+        knob->slider.onModulateMenu = [this, knob] (int target) { showModulationMenu (target - 1, knob->slider); };
 
     selectVoice (0);
     showNotes (false);
@@ -366,6 +377,193 @@ void HarmonyPanel::openSnapshots()
     rackOverlayChanged();
 }
 
+std::vector<HarmonyPanel::Knob*> HarmonyPanel::allKnobs()
+{
+    return { &pitch, &fine, &formant, &source, &harmony, &spread, &correctFormant, &flattenNote,
+             &minNote, &tolerance, &toleranceTime, &noteLevel, &noteWidth, &noteFormant, &noteAttack, &noteRelease,
+             &echoDelay, &echoFeedback, &cutoff, &glide, &globalPitch, &globalFormant };
+}
+
+juce::String HarmonyPanel::targetIdOf (const Knob& knob) const
+{
+    if (&knob == &pitch) return voiceId (selected, "Pitch");
+    if (&knob == &flattenNote) return voiceId (selected, "Note");
+    if (&knob == &formant) return voiceId (selected, "Formant");
+    if (&knob == &echoDelay) return fxId ("Delay", ParamIDs::harmonyNoteDelay);
+    if (&knob == &echoFeedback) return fxId ("Feedback", ParamIDs::harmonyNoteFeedback);
+    if (&knob == &cutoff) return fxId ("Cutoff", ParamIDs::harmonyNoteCutoff);
+    if (&knob == &noteLevel) return ParamIDs::harmonyNoteLevel;
+    if (&knob == &noteWidth) return ParamIDs::harmonyNoteWidth;
+    if (&knob == &noteFormant) return ParamIDs::harmonyNoteFormant;
+    if (&knob == &source) return ParamIDs::harmonySource;
+    if (&knob == &harmony) return ParamIDs::harmonyLevel;
+    if (&knob == &spread) return ParamIDs::harmonySpread;
+    if (&knob == &correctFormant) return ParamIDs::harmonyCorrectFormant;
+    if (&knob == &globalPitch) return ParamIDs::harmonyGlobalPitch;
+    if (&knob == &globalFormant) return ParamIDs::harmonyGlobalFormant;
+    return {};   // FINE, GLIDE, the note generator's: not modulated (FINE as in the guide)
+}
+
+int HarmonyPanel::targetOf (const Knob& knob) const
+{
+    static const auto ids = ParamIDs::harmonyModTargets();
+    const auto id = targetIdOf (knob);
+    return id.isEmpty() ? -1 : ids.indexOf (id);
+}
+
+int HarmonyPanel::targetOfKnobAt (juce::Point<int> point) const
+{
+    for (auto* knob : const_cast<HarmonyPanel*> (this)->allKnobs())
+        if (knob->slider.isVisible() && knob->slider.getBounds().contains (point))
+            return targetOf (*knob);
+    return -1;
+}
+
+void HarmonyPanel::setModActions (ModActions actions)
+{
+    modActions = std::move (actions);
+    mods.setActions ({ modActions.value, modActions.position, modActions.get, modActions.voiceValue, modActions.voiceNote,
+                       modActions.shape, modActions.setShape });
+    modsButton.setEnabled (modActions.get != nullptr);
+    // Each knob that can be modulated answers a right-click (its target is
+    // looked up when it's clicked, as a voice's knobs follow the picked voice).
+    for (auto* knob : allKnobs())
+        knob->slider.target = modActions.get != nullptr && targetIdOf (*knob).isNotEmpty() ? 1 : 0;
+}
+
+void HarmonyPanel::openMods (int tab)
+{
+    if (modActions.get == nullptr)
+        return;
+    noteMap.setVisible (false);
+    snapshots.setVisible (false);
+    mods.showTab (tab >= 0 ? tab : mods.getTab());   // (and reads what each modulator is on now)
+    mods.setVisible (true);
+    mods.toFront (false);
+    rackOverlayChanged();
+}
+
+void HarmonyPanel::closeMods()
+{
+    mods.setVisible (false);
+    rackOverlayChanged();
+    repaint();
+}
+
+void HarmonyPanel::addModulator (int target, int sourceToAdd)
+{
+    if (modActions.get == nullptr || modActions.set == nullptr || target < 0)
+        return;
+    // A pitch at 1/24: a semitone either way (a vibrato); anything else a quarter of its range.
+    static const auto ids = ParamIDs::harmonyModTargets();
+    const auto depth = ParamIDs::isHarmonyPitchTarget (ids[target]) ? 1.0f / effects::HarmonyModulation::pitchSpan : 0.25f;
+    for (int slot = 0; slot < effects::HarmonyModulation::slotsPerTarget; ++slot)
+        if (modActions.get (target, slot).source == 0)
+        {
+            modActions.set (target, slot, { sourceToAdd, depth });
+            repaint();
+            return;
+        }
+}
+
+namespace
+{
+    // The modulation menu's items: 1-15 add a source; then per slot (0-3) 100 + 20 x slot + n:
+    // n 0 remove, 1-10 a depth from depths[].
+    constexpr float menuDepths[] = { 1.0f, 0.5f, 0.25f, 0.1f, 1.0f / 24.0f, -1.0f / 24.0f, -0.1f, -0.25f, -0.5f, -1.0f };
+    juce::String depthText (float depth, bool pitch)
+    {
+        if (pitch)
+        {
+            // Whole semitones without decimals (juce::String (x, 0) would print every digit).
+            const auto st = depth * effects::HarmonyModulation::pitchSpan;
+            return (depth >= 0.0f ? "+" : "") + (std::abs (st - std::round (st)) < 0.01f ? juce::String (juce::roundToInt (st)) : juce::String (st, 1)) + " st";
+        }
+        return (depth >= 0.0f ? "+" : "") + juce::String (juce::roundToInt (depth * 100.0f)) + "%";
+    }
+}
+
+juce::PopupMenu HarmonyPanel::modulationMenu (int target)
+{
+    juce::PopupMenu menu;
+    if (modActions.get == nullptr || target < 0)
+        return menu;
+    static const auto ids = ParamIDs::harmonyModTargets();
+    const auto pitchTarget = ParamIDs::isHarmonyPitchTarget (ids[target]);
+    menu.addSectionHeader ("MODULATE " + HarmonyModsView::targetName (ids[target]));
+    using Mod = effects::HarmonyModulation;
+    juce::PopupMenu add;
+    auto free = false;
+    for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
+        free = free || modActions.get (target, slot).source == 0;
+    // The modulators, then MIDI's own in a group of their own.
+    juce::PopupMenu midi;
+    for (int source = 1; source < Mod::numSources; ++source)
+        if (Mod::isBuilt (source))
+        {
+            auto used = false;
+            for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
+                used = used || modActions.get (target, slot).source == source;
+            (source >= Mod::velocity ? midi : add).addItem (source, Mod::sourceNames[source], free && ! used);
+        }
+    add.addSubMenu ("MIDI", midi, free);
+    menu.addSubMenu ("Add a modulator", add, free);
+    for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
+    {
+        const auto found = modActions.get (target, slot);
+        if (found.source == 0)
+            continue;
+        juce::PopupMenu slotMenu;
+        for (size_t d = 0; d < std::size (menuDepths); ++d)
+            slotMenu.addItem (100 + 20 * slot + 1 + (int) d, "Depth " + depthText (menuDepths[d], pitchTarget), true,
+                              std::abs (found.depth - menuDepths[d]) < 1.0e-4f);
+        slotMenu.addSeparator();
+        slotMenu.addItem (100 + 20 * slot, "Remove");
+        menu.addSubMenu (Mod::sourceNames[found.source] + "  " + depthText (found.depth, pitchTarget), slotMenu);
+    }
+    menu.addSeparator();
+    menu.addItem (99, "Show the MODS page");
+    return menu;
+}
+
+void HarmonyPanel::chooseFromModulationMenu (int target, int item)
+{
+    if (modActions.get == nullptr || modActions.set == nullptr || target < 0 || item <= 0)
+        return;
+    if (item < effects::HarmonyModulation::numSources)
+        addModulator (target, item);
+    else if (item == 99)
+        openMods();
+    else if (item >= 100)
+    {
+        const auto slot = (item - 100) / 20, choice = (item - 100) % 20;
+        auto found = modActions.get (target, slot);
+        if (choice == 0)
+            found = {};
+        else
+            found.depth = menuDepths[(size_t) juce::jlimit (0, (int) std::size (menuDepths) - 1, choice - 1)];
+        modActions.set (target, slot, found);
+    }
+    repaint();
+}
+
+void HarmonyPanel::showModulationMenu (int, juce::Component& knob)
+{
+    // Which control: the knob's own now (a voice's follow the picked voice).
+    int target = -1;
+    for (auto* k : allKnobs())
+        if (&k->slider == &knob)
+            target = targetOf (*k);
+    if (target < 0)
+        return;
+    juce::Component::SafePointer<HarmonyPanel> safe (this);
+    modulationMenu (target).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&knob), [safe, target] (int item)
+    {
+        if (safe != nullptr)
+            safe->chooseFromModulationMenu (target, item);
+    });
+}
+
 void HarmonyPanel::closeSnapshots()
 {
     snapshots.setVisible (false);
@@ -388,8 +586,9 @@ void HarmonyPanel::rackOverlayChanged()
     // leaving the top row (HARMONY, GLOBAL, TUNE VOICE).
     if (! rack)
         return;
-    const auto open = noteMap.isVisible() || snapshots.isVisible();
-    const std::initializer_list<juce::Component*> topRow { &noteMap, &snapshots, &harmonyOn.label, &harmonyOn.button, &globalTab, &correct, &correctLabel };
+    const auto open = noteMap.isVisible() || snapshots.isVisible() || mods.isVisible();
+    const std::initializer_list<juce::Component*> topRow { &noteMap, &snapshots, &mods, &harmonyOn.label, &harmonyOn.button, &globalTab,
+                                                           &modsButton, &correct, &correctLabel };
     if (open)
     {
         for (auto* child : getChildren())
@@ -661,6 +860,17 @@ void HarmonyPanel::refreshTabs()
 
 void HarmonyPanel::timerCallback()
 {
+    // A modulated knob's ring (and the graph's ghost dots) move with it.
+    if (modActions.offset != nullptr)
+    {
+        auto moving = false;
+        static const auto count = ParamIDs::harmonyModTargets().size();
+        for (int target = 0; target < count && ! moving; ++target)
+            moving = std::abs (modActions.offset (target)) > 1.0e-5f;
+        if (moving || anyModulated)
+            repaint();
+        anyModulated = moving;
+    }
     // On the rack, the names follow the finish's ink.
     const auto ink = rack ? Finish::ink() : ParagonColours::textDim;
     if (ink != inkColour)
@@ -742,7 +952,7 @@ void HarmonyPanel::styleForRack()
         control->button.getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
     for (auto& tab : tabs)
         tab.getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
-    for (auto* button : { &notesTab, &fxTab, &globalTab, &editMap, &snapshotsButton })
+    for (auto* button : { &notesTab, &fxTab, &globalTab, &modsButton, &editMap, &snapshotsButton })
         button->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
     inkColour = {};
     timerCallback();
@@ -786,6 +996,8 @@ void HarmonyPanel::layOutRack()
     harmonyOn.button.setBounds (keys.removeFromLeft (48).withSizeKeepingCentre (44, 24));
     keys.removeFromLeft (12);
     globalTab.setBounds (keys.removeFromLeft (82));
+    keys.removeFromLeft (6);
+    modsButton.setBounds (keys.removeFromLeft (64));
     keys.removeFromRight (120);
     correct.setBounds (keys.removeFromRight (96).reduced (0, 1));
     correctLabel.setBounds (keys.removeFromRight (74));
@@ -796,6 +1008,7 @@ void HarmonyPanel::layOutRack()
     const auto wide = glassOf (wideScreen, 0.35f).reduced (2.0f).toNearestInt();
     noteMap.setBounds (wide);
     snapshots.setBounds (wide);
+    mods.setBounds (wide);
 
     // Second row: the voices' keys, NOTES and FX.
     auto tabRow = area.removeFromTop (24);
@@ -892,6 +1105,25 @@ void HarmonyPanel::paintOverChildren (juce::Graphics& g)
 {
     for (const auto& glass : glasses)
         LedDisplay::paintGlassOverlay (g, glass, 0.35f);
+
+    // A modulated knob: a ring in its modulator's colour (white for
+    // several), with a dot where it has the control now.
+    if (modActions.get == nullptr || mods.isVisible() || noteMap.isVisible() || snapshots.isVisible())
+        return;
+    for (auto* knob : allKnobs())
+    {
+        if (! knob->slider.isVisible())
+            continue;
+        const auto target = targetOf (*knob);
+        if (target < 0)
+            continue;
+        auto colour = juce::Colours::transparentBlack;
+        for (int slot = 0; slot < effects::HarmonyModulation::slotsPerTarget; ++slot)
+            if (const auto found = modActions.get (target, slot); effects::HarmonyModulation::isBuilt (found.source))
+                colour = colour.isTransparent() ? HarmonyModsView::colourOf (found.source) : juce::Colours::white;
+        if (! colour.isTransparent())
+            MarsModUi::paintModulation (g, *this, knob->slider, modActions.offset != nullptr ? modActions.offset (target) : 0.0f, colour);
+    }
 }
 
 void HarmonyPanel::resized()
@@ -927,6 +1159,7 @@ void HarmonyPanel::resized()
     sungArea = left.toFloat();
     noteMap.setBounds (area);   // over the graph and the controls
     snapshots.setBounds (area);
+    mods.setBounds (area);
 
     // CORRECT (Waves Harmony puts it by SOURCE; here there's room in the
     // header, left of the GRAPHIC EQ button the main view places).
@@ -934,6 +1167,8 @@ void HarmonyPanel::resized()
     auto header = getLocalBounds().reduced (16, 10).removeFromTop (24).withRight (getWidth() - 130 - 8);
     correct.setBounds (header.removeFromRight (78).reduced (0, 1));
     correctLabel.setBounds (header.removeFromRight (62));
+    header.removeFromRight (8);
+    modsButton.setBounds (header.removeFromRight (56).reduced (0, 1));
 
 
     // Middle: the graph, and the picked voice's pan and level under it.
@@ -1081,7 +1316,7 @@ void HarmonyPanel::paint (juce::Graphics& g)
         // On the unit's face: the Note Map / SNAPSHOTS screen when one is
         // open; otherwise the display's screens, and screens behind the
         // values and lists.
-        if (noteMap.isVisible() || snapshots.isVisible())
+        if (noteMap.isVisible() || snapshots.isVisible() || mods.isVisible())
         {
             LedDisplay::paintScreen (g, wideScreen, 0.35f);
             glasses.push_back (LedDisplay::paintScreen (g, correct.getBounds().toFloat().expanded (2.0f, 3.0f), 0.35f));
@@ -1211,6 +1446,26 @@ void HarmonyPanel::paint (juce::Graphics& g)
                                                                : intervalText (value (voiceId (voice, "Pitch"))),
                     dot, juce::Justification::centred, false);
     };
+    // Ghost markers (as the guide's): where a modulated PAN or LEVEL has a voice now.
+    if (modActions.offset != nullptr)
+        for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        {
+            if (! isActive (voice))
+                continue;
+            static const auto ids = ParamIDs::harmonyModTargets();
+            const auto panOffset = modActions.offset (ids.indexOf (voiceId (voice, "Pan")));
+            const auto levelOffset = modActions.offset (ids.indexOf (voiceId (voice, "Level")));
+            if (std::abs (panOffset) < 1.0e-4f && std::abs (levelOffset) < 1.0e-4f)
+                continue;
+            auto* levelParameter = parameters.getParameter (voiceId (voice, "Level"));
+            const auto levelNow = levelParameter->convertFrom0to1 (juce::jlimit (0.0f, 1.0f, levelParameter->getValue() + levelOffset));
+            const auto panNow = juce::jlimit (-1.0f, 1.0f, value (voiceId (voice, "Pan")) + panOffset * 2.0f);
+            const auto ghost = juce::Rectangle<float> (dotRadius * 2.0f, dotRadius * 2.0f).withCentre (pointFor (panNow, levelNow));
+            g.setColour (accent.withAlpha (0.3f));
+            g.fillEllipse (ghost);
+            g.setColour (accent.withAlpha (0.6f));
+            g.drawEllipse (ghost, 1.0f);
+        }
     for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
         if (isActive (voice) && voice != selected)
             drawVoice (voice);
