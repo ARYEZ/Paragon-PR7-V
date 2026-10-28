@@ -769,7 +769,7 @@ void MainView::layoutDock()
         view->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, true);
     closePanel.setBounds (controls.getRight() - 108, controls.getY(), 108, 24);
     harmonyView.setBounds (controls.getX(), controls.getY(), 92, 24);
-    octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 132, 24);
+    octaveView.setBounds (harmonyView.getRight() + 6, controls.getY(), 204, 24);   // (FORMANT added in 0.37.0)
     for (auto* button : std::initializer_list<juce::Component*> { &closePanel, &harmonyView, &octaveView })
         if (button->isVisible())
             button->toFront (false);

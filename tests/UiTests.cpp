@@ -171,7 +171,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     findAll (*editor, doublerPanels);
     REQUIRE (doublerPanels.size() == 1);
     panels.insert (panels.begin() + 8, doublerPanels[0]);
-    // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE view is
+    // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE / FORMANT view is
     // the first EffectPanel, checked below.
     std::vector<HarmonyPanel*> harmonyPanels;
     findAll (*editor, harmonyPanels);
@@ -227,7 +227,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
         CHECK (footswitches[i]->getY() == footswitches[3]->getY());   // ...one bottom row of four...
     CHECK (footswitches[0]->getBottom() <= footswitches[3]->getY());   // ...above it
 
-    // PITCH's view tabs swap HARMONY for OCTAVE / FREEZE and back.
+    // PITCH's view tabs swap HARMONY for OCTAVE / FREEZE / FORMANT and back.
     std::vector<juce::TextButton*> buttons;
     findAll (*editor, buttons);
     const auto button = [&buttons] (const juce::String& text)
@@ -237,7 +237,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
         return *found;
     };
     chains[0]->onSelect (0);
-    button ("OCTAVE / FREEZE")->onClick();
+    button ("OCTAVE / FREEZE / FORMANT")->onClick();
     CHECK (octaveFreeze->isVisible());
     CHECK_FALSE (harmonyPanels[0]->isVisible());
     button ("HARMONY")->onClick();

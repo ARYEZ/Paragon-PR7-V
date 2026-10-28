@@ -2,9 +2,13 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.37.1
+
+- **The PITCH block's second view key is now "OCTAVE / FREEZE / FORMANT"** (it was "OCTAVE / FREEZE"), so FORMANT is easy to find. The key is a little wider to fit; nothing else moved.
+
 ## 0.37.0
 
-- **FORMANT: chipmunk to giant, without changing your pitch.** It's in the PITCH block's second view (the OCTAVE / FREEZE key), after FREEZE: **ON** and **SHIFT**, from -12 (bigger, darker: a giant) to +12 (smaller, brighter: a chipmunk). Your note stays exactly where you sing it; only the size of the voice changes. It works with HARMONY off, and together with TUNE VOICE.
+- **FORMANT: chipmunk to giant, without changing your pitch.** It's in the PITCH block's second view (the OCTAVE / FREEZE / FORMANT key since 0.37.1), after FREEZE: **ON** and **SHIFT**, from -12 (bigger, darker: a giant) to +12 (smaller, brighter: a chipmunk). Your note stays exactly where you sing it; only the size of the voice changes. It works with HARMONY off, and together with TUNE VOICE.
   - **How:** the same vocal "slices" TUNE VOICE uses. Each slice is read a little faster (smaller) or slower (bigger) and laid down at your own pitch.
   - **The trade-off:** like TUNE VOICE, it needs your voice a moment ahead, so while FORMANT is on the plugin runs **40 ms late** and tells BeatMaker, which lines it back up on playback. TUNE VOICE and FORMANT share that one delay, so having both on still costs 40 ms. With FORMANT off there's no delay at all.
   - The **PITCH stomp** switches it too, and its light shows when it's on.

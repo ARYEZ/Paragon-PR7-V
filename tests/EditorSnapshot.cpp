@@ -187,7 +187,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_BLOCK", {}); block.isNotEmpty())
         if (auto* chain = findType<SignalChain> (*editor))
             chain->onSelect (block.getIntValue());
-    // PARAGON_SNAPSHOT_PITCHVIEW=octave shows PITCH's OCTAVE / FREEZE view rather than HARMONY.
+    // PARAGON_SNAPSHOT_PITCHVIEW=octave shows PITCH's OCTAVE / FREEZE / FORMANT view rather than HARMONY.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PITCHVIEW", {}) == "octave")
     {
         std::vector<juce::TextButton*> buttons;
@@ -202,7 +202,7 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         };
         collect (*editor);
         for (auto* button : buttons)
-            if (button->getButtonText() == "OCTAVE / FREEZE")
+            if (button->getButtonText() == "OCTAVE / FREEZE / FORMANT")
                 button->onClick();
     }
     // PARAGON_SNAPSHOT_MIDI=60,64,67: hold these MIDI keys (and play a block so HARMONY hears them).

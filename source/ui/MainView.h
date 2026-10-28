@@ -164,13 +164,13 @@ private:
     ExpressionPanel expressionPanel;
     std::array<std::unique_ptr<EffectPanel>, numBlocks> panels;   // empty at eqBlock: the EQ has its own panel
     GraphicEqPanel eqPanel;
-    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE (the
+    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE / FORMANT (the
     // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
     HarmonyPanel harmonyPanel;
     VocoderBandsView vocoderBands;   // the VOCODER's band display on the rack's display
     DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
     MarsPanel marsPanel;         // SATURATION's own panel (panels[driveBlock] is empty)
-    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
+    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE / FORMANT" };
     bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default
     SignalChain signalChain;
