@@ -2,6 +2,24 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.40.0
+
+- **CYCLONE: a new rotary speaker, replacing MODULATION's old Rotary type** (as on PR7-G 0.55.0). It's our own design, inspired by the Neo Instruments Ventilator II, which simulates a model 122 rotary speaker cabinet.
+  - **Taken from the pedal's manual:**
+    - The rotor speeds: FAST SPEED and SLOW SPEED set both rotors, the bass drum turning a little slower than the treble horn. The defaults are an average 122's: fast horn 6.8 Hz and drum 6.5 Hz, slow horn 0.8 Hz and drum 0.76 Hz.
+    - How long they take to change speed (ACCELERATION). At its default the horn takes about 1 s to speed up and 1.6 s to slow down, and the heavy drum about 5.5 s either way.
+    - The 800 Hz split between horn and drum, and the stereo pair of mics on the horn with one mic on the drum.
+    - What every control does: SLOW / FAST, STOP (the rotors brake to a stop facing forward), BALANCE, DRIVE (the cabinet's valve amp, level-matched), MIX / DIST LO and HI (the first half mixes each rotor in, the second half moves its mics back for less wobble), MODE (GIT 1 neutral, GIT 2 brighter, KEY the 122's speakers) and LEVEL.
+  - **MODE starts on KEY** here (GIT 2 on the guitar PR7-G). The manual's GIT settings are for when a guitar amp follows; a voice goes straight to the mixer, so KEY, the cabinet's own speakers, is the natural start.
+  - **Our guesses**, as the manual doesn't say: the drive's curve, how strongly the sound swings as the rotors turn, the horn and drum sizes for the pitch wobble, the speaker and GIT 2 curves, BALANCE's range, and the curve of the expression pedal's speed sweep.
+  - **On the rack:** a ROTORS page (FAST, STOP, FAST SPEED, SLOW SPEED, ACCEL) and a TONE page. The display shows both rotors turning, with their real speeds.
+  - **Playing it live:**
+    - **Hold the MODULATION stomp (5)** to switch between SLOW and FAST; a tap still turns MOD on and off.
+    - **CYCLONE SPEED** on the expression pedal sets the speed, from SLOW SPEED at the heel to FAST SPEED at the toe, with the rotors catching up as a real cabinet's do.
+  - **Your saved rigs and projects** that used the old Rotary come in as Cyclone, set as close as it goes: its speed becomes SLOW or FAST at that speed, and its MIX and DEPTH set the MIX / DIST knobs. It won't sound identical. The factory rig Rotary Voice is set up for it.
+- On the MODULATION panel, RATE, DEPTH and MIX now leave the rack's face when they don't apply, rather than greying out (as on PR7-G).
+- A block's controls now show for the TYPE you've picked the moment its panel opens, not a moment later.
+
 ## 0.39.0
 
 - **GRAPHIC EQ: the fader lights now light up like the PR7's other keys.** While the EQ is on, the light on each fader's cap (all nine bands and LEVEL) is the same bright neon bar as the lit ON key, with its white-hot core and glow. Before, it was a thin pink line that looked the same whether the EQ was on or off.

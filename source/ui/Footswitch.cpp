@@ -17,6 +17,13 @@ Footswitch::Footswitch (int numberToShow, const juce::String& nameToShow, juce::
     // Parameters can change from the DAW (automation) as well as from here,
     // so poll them rather than only reacting to our own clicks.
     startTimerHz (15);
+
+    addMouseListener (&hold, false);
+    hold.onHold = [this]
+    {
+        heldPad = pressedPad && onHold != nullptr && onHold();
+        repaint();
+    };
 }
 
 bool Footswitch::isAnyOn() const
@@ -144,11 +151,21 @@ void Footswitch::paint (juce::Graphics& g)
     }
 }
 
+void Footswitch::mouseDown (const juce::MouseEvent& event)
+{
+    pressedPad = switchArea.contains (event.getPosition());
+    heldPad = false;
+}
+
 void Footswitch::mouseUp (const juce::MouseEvent& event)
 {
-    if (switchArea.contains (event.getPosition()))
-        toggle();
-    else if (onSelect)
-        onSelect();
+    // After a hold that did something, letting go does nothing more.
+    if (! std::exchange (heldPad, false))
+    {
+        if (switchArea.contains (event.getPosition()))
+            toggle();
+        else if (onSelect)
+            onSelect();
+    }
     repaint();
 }

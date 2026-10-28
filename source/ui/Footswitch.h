@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <map>
 
+#include "PerformanceControls.h"
+
 // One of the four footswitches along the bottom of the pedal: a status LED,
 // a big rubber pad, and the block's name printed on the metal. Pressing the
 // pad turns the block on or off; clicking the name selects the block so its
@@ -26,6 +28,10 @@ public:
     // Returns the text under the name, e.g. "Drive 5.0  Tone 5.0".
     std::function<juce::String()> describe;
     std::function<void()> onSelect;
+    // Optional: holding the pad down does something else (footswitch 3:
+    // Cyclone's SLOW / FAST). Return true if it did, so letting go doesn't
+    // also switch the block.
+    std::function<bool()> onHold;
 
     void setSelected (bool shouldBeSelected);
 
@@ -36,6 +42,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
 
 private:
@@ -49,4 +56,6 @@ private:
     bool selected = false, lastOn = false;
     juce::String summary;
     juce::Rectangle<int> ledArea, switchArea, nameArea;
+    HoldDetector hold { 500 };
+    bool pressedPad = false, heldPad = false;
 };

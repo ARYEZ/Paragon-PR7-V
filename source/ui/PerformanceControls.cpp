@@ -11,8 +11,9 @@ namespace
 {
     constexpr float screenSize = 7.0f / 11.0f;   // the assign screen's frame and bezel, relative to the main screen's
 
-    const char* pedalNames[] = { "VOLUME", "WAH / FILTER", "MORPH / FX", "PITCH / WHAMMY", "LO-FI", "WHAMMY-WAH", "GLITCH", "TALK BOX" };
-    constexpr int lastTarget = ExpressionTargets::talkBox;
+    const char* pedalNames[] = { "VOLUME", "WAH / FILTER", "MORPH / FX", "PITCH / WHAMMY", "LO-FI", "WHAMMY-WAH", "GLITCH", "TALK BOX",
+                                 "CYCLONE SPEED" };
+    constexpr int lastTarget = ExpressionTargets::cycloneSpeed;
     static_assert (std::size (pedalNames) == (size_t) lastTarget && ExpressionAssign::numTargets == lastTarget);
 
     juce::RangedAudioParameter& parameter (juce::AudioProcessorValueTreeState& state, const char* id)
@@ -196,6 +197,13 @@ void ExpressionAssign::select (int target)
     // LO-FI fades the LO-FI block in, so switch it on.
     if (newTarget == ExpressionTargets::loFi)
         set (ParamIDs::lofiOn, 1.0f);
+
+    // CYCLONE SPEED sets the rotary speaker's speed: switch MOD on as one.
+    if (newTarget == ExpressionTargets::cycloneSpeed)
+    {
+        set (ParamIDs::modOn, 1.0f);
+        set (ParamIDs::modType, (float) effects::Modulation::Type::rotary);
+    }
 
     attachment.setValueAsCompleteGesture ((float) newTarget);
 }
