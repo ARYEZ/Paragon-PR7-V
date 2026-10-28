@@ -422,7 +422,8 @@ int HarmonyPanel::targetOfKnobAt (juce::Point<int> point) const
 void HarmonyPanel::setModActions (ModActions actions)
 {
     modActions = std::move (actions);
-    mods.setActions ({ modActions.value, modActions.position, modActions.get });
+    mods.setActions ({ modActions.value, modActions.position, modActions.get, modActions.voiceValue, modActions.voiceNote,
+                       modActions.shape, modActions.setShape });
     modsButton.setEnabled (modActions.get != nullptr);
     // Each knob that can be modulated answers a right-click (its target is
     // looked up when it's clicked, as a voice's knobs follow the picked voice).
@@ -473,7 +474,11 @@ namespace
     juce::String depthText (float depth, bool pitch)
     {
         if (pitch)
-            return (depth >= 0.0f ? "+" : "") + juce::String (depth * effects::HarmonyModulation::pitchSpan, std::abs (depth * 24.0f - std::round (depth * 24.0f)) < 0.01f ? 0 : 1) + " st";
+        {
+            // Whole semitones without decimals (juce::String (x, 0) would print every digit).
+            const auto st = depth * effects::HarmonyModulation::pitchSpan;
+            return (depth >= 0.0f ? "+" : "") + (std::abs (st - std::round (st)) < 0.01f ? juce::String (juce::roundToInt (st)) : juce::String (st, 1)) + " st";
+        }
         return (depth >= 0.0f ? "+" : "") + juce::String (juce::roundToInt (depth * 100.0f)) + "%";
     }
 }
@@ -491,14 +496,17 @@ juce::PopupMenu HarmonyPanel::modulationMenu (int target)
     auto free = false;
     for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
         free = free || modActions.get (target, slot).source == 0;
+    // The modulators, then MIDI's own in a group of their own.
+    juce::PopupMenu midi;
     for (int source = 1; source < Mod::numSources; ++source)
         if (Mod::isBuilt (source))
         {
             auto used = false;
             for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
                 used = used || modActions.get (target, slot).source == source;
-            add.addItem (source, Mod::sourceNames[source], free && ! used);
+            (source >= Mod::velocity ? midi : add).addItem (source, Mod::sourceNames[source], free && ! used);
         }
+    add.addSubMenu ("MIDI", midi, free);
     menu.addSubMenu ("Add a modulator", add, free);
     for (int slot = 0; slot < Mod::slotsPerTarget; ++slot)
     {

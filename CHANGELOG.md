@@ -2,6 +2,21 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.34.0
+
+- **HARMONY stage 10: the rest of the MODULATORS**, inspired by the Waves Harmony guide's Modulators chapter. Stage 9 made the harmony move on its own; stage 10 makes **each note move on its own**, so a chord from GENERATE or your MIDI keyboard can swell, spread and bend note by note.
+  - **A1 and A2, envelopes:** each note that starts gets its own ATTACK, DECAY, SUSTAIN and RELEASE, with a CURVE for each stage (1 straight; lower starts slowly, higher starts quickly). Put one on NOTES LEVEL turned down and each new note swells in while the held ones stay put.
+  - **SP, the Spreader:** gives each note sounding its own value by its place in the chord. Outward: the lowest note -SPREAD, the highest +SPREAD. Inward: the other way round. Random. TRIGGER Retrigger works every note out again when one starts; Poly lets each note keep the value it began with. On GLOBAL PITCH at a small depth it detunes a chord outward; on NOTES WIDTH it spreads it.
+  - **MIDI sources:** Velocity, Keyboard (where the key is), Pitch Wheel, Mod Wheel and Aftertouch. In the knob menu they're in their own MIDI group.
+  - **Poly** (M1-M4's TRIGGER): each note runs its own cycle from when it started, so a vibrato isn't in step across the chord.
+  - **Drawn shapes** (M1-M4's SHAPE): draw your own shape on the MODS display (ERASE flattens it). Saved with your rig and project, and undoable.
+  - **Per note, where it matters:** a note-by-note source (A1, A2, SP, Velocity, Keyboard, a Poly M) moves each note voice separately on NOTES LEVEL, WIDTH and FORMANT and on GLOBAL PITCH and FORMANT. On other controls it uses the newest note. With no notes coming in (no GENERATE, no MIDI), A1, A2 and SP stay at 0, as in the guide.
+  - **SNAPSHOTS now store the modulators** on the controls a snapshot keeps (a voice's PITCH, PAN...), as the guide's do. Snapshots stored with 0.33.0 or earlier leave your modulators alone when recalled.
+  - **The MODS page** has tabs M1-M4, A1, A2, AM, PT, SP and MIDI: the envelope drawn with each note's level beside it, the Spreader's notes as dots, and MIDI's five as bars.
+- **Fixed:** a pitch depth showed as "+1.9992 st" in the knob menu and on the MODS page. Whole semitones now show as "+2 st".
+- **Our design where the guide doesn't say:** how the curves bend, an envelope that follows the notes as a whole for controls that aren't per note, how Random picks, and the Keyboard's range (two octaves either side of middle C).
+- **Can't be checked here by ear:** the tests check the sound itself (each note's pitch, level and pan, the envelopes' shape), but how it feels to play is yours to judge.
+
 ## 0.33.0
 
 - **HARMONY stage 9: MODULATORS** (the first of two stages), inspired by the Modulators chapter of the Waves Harmony guide you sent. Modulators move HARMONY's controls on their own: vibrato, a wobble, voices drifting across the stereo, harmonies that duck while you sing loudly, or follow how high you sing.

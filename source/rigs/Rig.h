@@ -57,6 +57,11 @@ struct Rig
     HarmonyModSlots harmonyModSlots;
     static void writeModSlots (const HarmonyModSlots&, juce::XmlElement& parent);
     static HarmonyModSlots readModSlots (const juce::XmlElement& parent);
+    // M1-M4's drawn shapes (stage 10): 32 points each, -1 to 1 (all 0: none drawn).
+    using HarmonyModShapes = std::array<std::array<float, 32>, 4>;
+    HarmonyModShapes harmonyModShapes {};
+    static void writeModShapes (const HarmonyModShapes&, juce::XmlElement& parent);
+    static HarmonyModShapes readModShapes (const juce::XmlElement& parent);
 
     juce::String getSlotName() const;           // e.g. "A01"
     static juce::String bankName (int bank);    // "A".."F"

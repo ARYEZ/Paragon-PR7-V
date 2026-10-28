@@ -214,6 +214,15 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         juce::AudioBuffer<float> buffer (2, 256);
         buffer.clear();
         processor.processBlock (buffer, midi);
+        // With PLAY, keep singing a little with the keys held, so the note voices sound (and their modulators move).
+        if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PLAY", {}).getDoubleValue() > 0.0)
+            for (int b = 0, n = 0; b < (int) (0.3 * 48000.0 / 256.0); ++b)
+            {
+                juce::MidiBuffer none;
+                for (int i = 0; i < 256; ++i, ++n)
+                    buffer.setSample (0, i, 0.25f * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * n / 48000.0));
+                processor.processBlock (buffer, none);
+            }
     }
     // PARAGON_SNAPSHOT_HARMONYNOTES=1: the HARMONY panel's NOTES tab.
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_HARMONYNOTES", {}) == "1")
@@ -246,7 +255,15 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
     if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_SNAPSHOTS", {}) == "1")
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
             harmonyPanel->openSnapshots();
-    // PARAGON_SNAPSHOT_MODS=n: HARMONY's MODS page on tab n (0-3 M1-M4, 4 AM, 5 PT).
+    // PARAGON_SNAPSHOT_DRAWN=1: a drawn shape in M1 (a rise with a wobble), for SHAPE Drawn.
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_DRAWN", {}) == "1")
+    {
+        std::array<float, 32> points {};
+        for (size_t i = 0; i < points.size(); ++i)
+            points[i] = -0.8f + 1.6f * (float) i / 31.0f * 0.8f + 0.3f * std::sin ((float) i * 0.9f);
+        processor.setHarmonyModShape (0, points);
+    }
+    // PARAGON_SNAPSHOT_MODS=n: HARMONY's MODS page on tab n (0-3 M1-M4, 4-5 A1-A2, 6 AM, 7 PT, 8 SP, 9 MIDI).
     if (const auto modsTab = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_MODS", {}); modsTab.isNotEmpty())
         if (auto* harmonyPanel = findType<HarmonyPanel> (*editor))
         {

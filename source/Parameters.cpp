@@ -698,6 +698,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         layout.add (makeFloat (ParamIDs::harmonyPtSmooth, "Harmony PT Smooth", skewed (0.1f, 1000.0f, 50.0f, 0.1f), 50.0f, v46, asMs));
         layout.add (makeFloat (ParamIDs::harmonyPtOffset, "Harmony PT Offset", { -1.0f, 1.0f, 0.01f }, 0.0f, v46, asPlusMinus));
         layout.add (makeFloat (ParamIDs::harmonyPtLevel, "Harmony PT Level", { 0.0f, 2.0f, 0.01f }, 1.0f, v46, asTwice));
+
+        // Added in plugin version 47: stage 10, the envelopes and the Spreader.
+        // (M1-M4's TRIGGER gained Poly and SHAPE gained Drawn, at the ends of their lists.)
+        constexpr int v47 = 47;
+        const ToText asCurve = [] (float value, int) { return juce::String (value, value < 10.0f ? 2 : 1); };
+        for (int e = 0; e < Mod::numEnvelopes; ++e)
+        {
+            const auto id = [e] (const char* part) { return ParamIDs::harmonyEnvelope (e, part); };
+            const auto name = "Harmony A" + juce::String (e + 1) + " ";
+            const auto timeRange = skewed (0.1f, 10000.0f, 300.0f, 0.1f);
+            layout.add (makeFloat (id ("Attack").toRawUTF8(), name + "Attack", timeRange, 10.0f, v47, asTime));
+            layout.add (makeFloat (id ("Decay").toRawUTF8(), name + "Decay", timeRange, 200.0f, v47, asTime));
+            layout.add (makeFloat (id ("Sustain").toRawUTF8(), name + "Sustain", { 0.0f, 1.0f, 0.01f }, 0.7f, v47, asPercent));
+            layout.add (makeFloat (id ("Release").toRawUTF8(), name + "Release", timeRange, 300.0f, v47, asTime));
+            for (auto* curve : { "AttackCurve", "DecayCurve", "ReleaseCurve" })
+                layout.add (makeFloat (id (curve).toRawUTF8(), name + juce::String (curve).replace ("Curve", " Curve"), skewed (0.1f, 10.0f, 1.0f, 0.01f), 1.0f, v47, asCurve));
+        }
+        layout.add (makeChoice (ParamIDs::harmonySpMode, "Harmony SP Mode", v47, Mod::spreadModeNames, 0));
+        layout.add (makeChoice (ParamIDs::harmonySpTrigger, "Harmony SP Trigger", v47, Mod::spreadTriggerNames, 0));
+        layout.add (makeFloat (ParamIDs::harmonySpSpread, "Harmony SP Spread", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
+        layout.add (makeFloat (ParamIDs::harmonySpLevel, "Harmony SP Level", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
     }
     return layout;
 }

@@ -19,6 +19,7 @@ namespace
     const juce::Identifier parameterTag { "Param" };
     const juce::Identifier snapshotTag { "HarmonySnapshot" };
     const juce::Identifier modSlotTag { "HarmonyMod" };
+    const juce::Identifier modShapeTag { "HarmonyShape" };
 }
 
 void Rig::writeSnapshots (const HarmonySnapshots& snapshots, juce::XmlElement& parent)
@@ -85,6 +86,36 @@ Rig::HarmonyModSlots Rig::readModSlots (const juce::XmlElement& parent)
     return slots;
 }
 
+void Rig::writeModShapes (const HarmonyModShapes& shapes, juce::XmlElement& parent)
+{
+    for (size_t mod = 0; mod < shapes.size(); ++mod)
+    {
+        if (std::all_of (shapes[mod].begin(), shapes[mod].end(), [] (float point) { return juce::exactlyEqual (point, 0.0f); }))
+            continue;
+        juce::StringArray points;
+        for (auto point : shapes[mod])
+            points.add (juce::String (point, 4));   // the points are kept to 4 decimals (setHarmonyModShape), so this is exact
+        auto* element = parent.createNewChildElement (modShapeTag);
+        element->setAttribute ("mod", (int) mod + 1);
+        element->setAttribute ("points", points.joinIntoString (" "));
+    }
+}
+
+Rig::HarmonyModShapes Rig::readModShapes (const juce::XmlElement& parent)
+{
+    HarmonyModShapes shapes {};
+    for (const auto* element : parent.getChildWithTagNameIterator (modShapeTag))
+    {
+        const auto mod = element->getIntAttribute ("mod", 0) - 1;
+        if (mod < 0 || mod >= (int) shapes.size())
+            continue;
+        const auto points = juce::StringArray::fromTokens (element->getStringAttribute ("points"), " ", {});
+        for (int i = 0; i < juce::jmin (points.size(), (int) shapes[(size_t) mod].size()); ++i)
+            shapes[(size_t) mod][(size_t) i] = juce::jlimit (-1.0f, 1.0f, points[i].getFloatValue());
+    }
+    return shapes;
+}
+
 juce::String Rig::bankName (int bankIndex)
 {
     return juce::String::charToString ((juce::juce_wchar) ('A' + juce::jlimit (0, numBanks - 1, bankIndex)));
@@ -114,6 +145,7 @@ std::unique_ptr<juce::XmlElement> Rig::toXml() const
     }
     writeSnapshots (harmonySnapshots, *xml);
     writeModSlots (harmonyModSlots, *xml);
+    writeModShapes (harmonyModShapes, *xml);
     return xml;
 }
 
@@ -142,6 +174,7 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
             rig.parameters[id] = (float) parameter->getDoubleAttribute ("value");
     rig.harmonySnapshots = readSnapshots (xml);
     rig.harmonyModSlots = readModSlots (xml);
+    rig.harmonyModShapes = readModShapes (xml);
 
     // Saved before the drive had a MODEL: it was the original overdrive,
     // model 0. Without this it would load as the newer default.

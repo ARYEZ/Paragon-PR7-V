@@ -547,7 +547,11 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
                                   [&processorToShow] (int target, int slot, Rig::HarmonyModSlot value) { processorToShow.setHarmonyModSlot (target, slot, value); },
                                   [&processorToShow] (int target) { return processorToShow.getHarmonyModOffset (target); },
                                   [&processorToShow] (int source) { return processorToShow.getHarmonyModulation().getShownValue (source); },
-                                  [&processorToShow] (int mod) { return processorToShow.getHarmonyModulation().getShownPosition (mod); } });
+                                  [&processorToShow] (int mod) { return processorToShow.getHarmonyModulation().getShownPosition (mod); },
+                                  [&processorToShow] (int source, int voice) { return processorToShow.getHarmonyModulation().getShownVoiceValue (source, voice); },
+                                  [&processorToShow] (int voice) { return processorToShow.getHarmony().getNoteVoiceNote (voice); },
+                                  [&processorToShow] (int mod) { return processorToShow.getHarmonyModShape (mod); },
+                                  [&processorToShow] (int mod, const std::array<float, 32>& points) { processorToShow.setHarmonyModShape (mod, points); } });
     addChildComponent (doublerPanel);
     addChildComponent (marsPanel);
     for (auto* view : { &harmonyView, &octaveView })

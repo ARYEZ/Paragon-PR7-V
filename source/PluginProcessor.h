@@ -109,6 +109,9 @@ public:
     // How far the modulation has a control moved right now, as a fraction of
     // its range (for its knob's ring; any thread).
     float getHarmonyModOffset (int target) const noexcept;
+    // M1-M4's drawn shapes (stage 10): saved and undone like the slots.
+    std::array<float, 32> getHarmonyModShape (int mod) const;
+    void setHarmonyModShape (int mod, const std::array<float, 32>&);
     const effects::HarmonyModulation& getHarmonyModulation() const noexcept { return harmonyModulation; }
 
     void loadRig (const RigLibrary::Entry& entry);
@@ -231,7 +234,7 @@ private:
         bool operator== (const Snapshot& other) const
         {
             return rig.parameters == other.rig.parameters && rig.harmonySnapshots == other.rig.harmonySnapshots
-                   && rig.harmonyModSlots == other.rig.harmonyModSlots
+                   && rig.harmonyModSlots == other.rig.harmonyModSlots && rig.harmonyModShapes == other.rig.harmonyModShapes
                    && current == other.current;
         }
     };
@@ -308,6 +311,8 @@ private:
         struct Mod { std::atomic<float>* parts[11] {}; std::array<std::atomic<float>*, effects::HarmonyModulation::maxSteps> steps {}; };   // harmonyModParts
         std::array<Mod, effects::HarmonyModulation::numMods> mods {};
         std::atomic<float> *amAttack = nullptr, *amRelease = nullptr, *amLevel = nullptr, *ptSmooth = nullptr, *ptOffset = nullptr, *ptLevel = nullptr;
+        std::array<std::array<std::atomic<float>*, 7>, effects::HarmonyModulation::numEnvelopes> envelopes {};   // harmonyEnvelopeParts
+        std::atomic<float> *spMode = nullptr, *spTrigger = nullptr, *spSpread = nullptr, *spLevel = nullptr;
         void bind (juce::AudioProcessorValueTreeState&);
         void read (effects::HarmonyModulation::Settings&) const noexcept;
     } harmonyModParameters;
@@ -322,11 +327,13 @@ private:
     std::unique_ptr<std::array<HarmonyModSlotState, 4>[]> harmonyModSlots;  // by target
     std::unique_ptr<std::atomic<float>[]> harmonyModShown;                  // each target's offset now, for the panel
     bool harmonyModInUse() const noexcept;
-    void applyHarmonyModulation (effects::Harmony::Settings&) noexcept;
+    void applyHarmonyModulation (effects::Harmony::Settings&, const effects::HarmonyModulation::Settings&) noexcept;
     void processHarmony (juce::dsp::AudioBlock<float>, const float* cleanVoice, const effects::Harmony::Settings&, double songBeats);
     Rig::HarmonyModSlots captureHarmonyModSlots() const;
     void restoreHarmonyModSlots (const Rig::HarmonyModSlots&);
     bool harmonyMidiNoteStarted = false, harmonyMidiHeldBefore = false;   // audio thread: a MIDI note began this block
+    effects::HarmonyModulation::Midi harmonyModMidi;                       // audio thread: what MIDI has said, for the MIDI sources
+    std::array<std::array<std::atomic<float>, 32>, effects::HarmonyModulation::numMods> harmonyModShapes {};
     int lastGeneratedNote = -1;
     effects::Doubler doubler;
     struct DoublerVoiceParameters { std::atomic<float>* parts[10] {}; };

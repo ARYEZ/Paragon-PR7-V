@@ -233,6 +233,13 @@ namespace ParamIDs
     inline constexpr auto harmonyPtSmooth  = "harmonyPtSmooth";    // ms
     inline constexpr auto harmonyPtOffset  = "harmonyPtOffset";    // -1 to 1
     inline constexpr auto harmonyPtLevel   = "harmonyPtLevel";     // 0 to 2
+    // Version 47 (stage 10): A1-A2 ("harmonyA1Attack"... in harmonyEnvelopeParts' order) and the Spreader.
+    inline const juce::StringArray harmonyEnvelopeParts { "Attack", "Decay", "Sustain", "Release", "AttackCurve", "DecayCurve", "ReleaseCurve" };
+    inline juce::String harmonyEnvelope (int envelope, const juce::String& part) { return "harmonyA" + juce::String (envelope + 1) + part; }
+    inline constexpr auto harmonySpMode    = "harmonySpMode";      // HarmonyModulation::spreadModeNames
+    inline constexpr auto harmonySpTrigger = "harmonySpTrigger";   // spreadTriggerNames
+    inline constexpr auto harmonySpSpread  = "harmonySpSpread";    // 0 to 1
+    inline constexpr auto harmonySpLevel   = "harmonySpLevel";     // 0 to 1
     // The HARMONY controls a modulator can move (the guide's "most
     // controls"; FINE can't be, as in the guide), by parameter ID. Their
     // modulation slots are saved by these IDs, not as parameters. The

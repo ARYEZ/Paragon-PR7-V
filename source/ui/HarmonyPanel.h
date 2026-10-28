@@ -86,6 +86,11 @@ public:
         std::function<float (int target)> offset;   // a control's movement now, a fraction of its range
         std::function<float (int source)> value;
         std::function<float (int mod)> position;
+        // Stage 10: a source's value for each note voice, the note voices' notes, the drawn shapes.
+        std::function<float (int source, int voice)> voiceValue;
+        std::function<int (int voice)> voiceNote;
+        std::function<std::array<float, 32> (int mod)> shape;
+        std::function<void (int mod, const std::array<float, 32>&)> setShape;
     };
     void setModActions (ModActions);
     void openMods (int tab = -1);

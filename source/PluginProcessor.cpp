@@ -361,6 +361,24 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
                 break;
             }
     }
+    // ...and the MIDI sources: the last key's velocity and place, the wheels, aftertouch.
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+        if (message.isNoteOn())
+        {
+            harmonyModMidi.velocity = message.getFloatVelocity();
+            harmonyModMidi.keyboard = juce::jlimit (-1.0f, 1.0f, ((float) message.getNoteNumber() - 60.0f) / effects::HarmonyModulation::pitchSpan);
+        }
+        else if (message.isPitchWheel())
+            harmonyModMidi.pitchWheel = juce::jlimit (-1.0f, 1.0f, (float) (message.getPitchWheelValue() - 8192) / 8192.0f);
+        else if (message.isControllerOfType (1))
+            harmonyModMidi.modWheel = (float) message.getControllerValue() / 127.0f;
+        else if (message.isChannelPressure())
+            harmonyModMidi.aftertouch = (float) message.getChannelPressureValue() / 127.0f;
+        else if (message.isAftertouch())
+            harmonyModMidi.aftertouch = (float) message.getAfterTouchValue() / 127.0f;
+    }
     harmonyMidi.read (midi);
     for (size_t key = 0; key < shownMidiKeys.size(); ++key)
         shownMidiKeys[key].store (harmonyMidi.velocity[key]);
@@ -756,6 +774,13 @@ void ParagonX1AudioProcessor::HarmonyModParameters::bind (juce::AudioProcessorVa
     ptSmooth = state.getRawParameterValue (ParamIDs::harmonyPtSmooth);
     ptOffset = state.getRawParameterValue (ParamIDs::harmonyPtOffset);
     ptLevel = state.getRawParameterValue (ParamIDs::harmonyPtLevel);
+    for (int e = 0; e < effects::HarmonyModulation::numEnvelopes; ++e)
+        for (int part = 0; part < ParamIDs::harmonyEnvelopeParts.size(); ++part)
+            envelopes[(size_t) e][(size_t) part] = state.getRawParameterValue (ParamIDs::harmonyEnvelope (e, ParamIDs::harmonyEnvelopeParts[part]));
+    spMode = state.getRawParameterValue (ParamIDs::harmonySpMode);
+    spTrigger = state.getRawParameterValue (ParamIDs::harmonySpTrigger);
+    spSpread = state.getRawParameterValue (ParamIDs::harmonySpSpread);
+    spLevel = state.getRawParameterValue (ParamIDs::harmonySpLevel);
 }
 
 void ParagonX1AudioProcessor::HarmonyModParameters::read (effects::HarmonyModulation::Settings& settings) const noexcept
@@ -780,6 +805,12 @@ void ParagonX1AudioProcessor::HarmonyModParameters::read (effects::HarmonyModula
     }
     settings.am = { amAttack->load(), amRelease->load(), amLevel->load() };
     settings.pt = { ptSmooth->load(), ptOffset->load(), ptLevel->load() };
+    for (size_t e = 0; e < envelopes.size(); ++e)
+    {
+        const auto& parts = envelopes[e];
+        settings.envelopes[e] = { parts[0]->load(), parts[1]->load(), parts[2]->load(), parts[3]->load(), parts[4]->load(), parts[5]->load(), parts[6]->load() };
+    }
+    settings.spreader = { juce::roundToInt (spMode->load()), juce::roundToInt (spTrigger->load()), spSpread->load(), spLevel->load() };
 }
 
 int ParagonX1AudioProcessor::harmonyModTarget (const juce::String& parameterId)
@@ -810,6 +841,27 @@ void ParagonX1AudioProcessor::setHarmonyModSlot (int target, int slot, Rig::Harm
 float ParagonX1AudioProcessor::getHarmonyModOffset (int target) const noexcept
 {
     return juce::isPositiveAndBelow (target, (int) harmonyModTargets.size()) ? harmonyModShown[(size_t) target].load() : 0.0f;
+}
+
+std::array<float, 32> ParagonX1AudioProcessor::getHarmonyModShape (int mod) const
+{
+    std::array<float, 32> points {};
+    if (juce::isPositiveAndBelow (mod, (int) harmonyModShapes.size()))
+        for (size_t i = 0; i < points.size(); ++i)
+            points[i] = harmonyModShapes[(size_t) mod][i].load();
+    return points;
+}
+
+void ParagonX1AudioProcessor::setHarmonyModShape (int mod, const std::array<float, 32>& points)
+{
+    if (! juce::isPositiveAndBelow (mod, (int) harmonyModShapes.size()))
+        return;
+    // Kept to 1/10000 (finer than any drawing), so a rig or project saves
+    // and reloads exactly the same points.
+    for (size_t i = 0; i < points.size(); ++i)
+        harmonyModShapes[(size_t) mod][i] = (float) (std::round ((double) juce::jlimit (-1.0f, 1.0f, points[i]) * 10000.0) / 10000.0);
+    rigModified = true;
+    requestCheckpoint();
 }
 
 Rig::HarmonyModSlots ParagonX1AudioProcessor::captureHarmonyModSlots() const
@@ -848,7 +900,7 @@ bool ParagonX1AudioProcessor::harmonyModInUse() const noexcept
     return false;
 }
 
-void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings& settings) noexcept
+void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings& settings, const effects::HarmonyModulation::Settings& modSettings) noexcept
 {
     // Each modulated control: its own setting moved by its slots' sources
     // times their depths (through its range; a pitch control in semitones).
@@ -865,10 +917,14 @@ void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings
     for (int t = 0; t < (int) ids.size(); ++t)
     {
         auto amount = 0.0f;
+        auto perNote = false;   // a note-by-note source (each note voice its own value, even when the one value is 0)
         for (const auto& slot : harmonyModSlots[(size_t) t])
-            if (const auto source = slot.source.load(); effects::HarmonyModulation::isBuilt (source))
+            if (const auto source = slot.source.load(); effects::HarmonyModulation::isBuilt (source) && std::abs (slot.depth.load()) > 1.0e-6f)
+            {
                 amount += harmonyModulation.getValue (source) * slot.depth.load();
-        if (std::abs (amount) < 1.0e-6f)
+                perNote = perNote || harmonyModulation.isPerNote (source, modSettings);
+            }
+        if (std::abs (amount) < 1.0e-6f && ! perNote)
         {
             harmonyModShown[(size_t) t] = 0.0f;
             continue;
@@ -876,18 +932,39 @@ void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings
         const auto& target = ids[(size_t) t];
         const auto base = target.value->load();
         const auto span = juce::jmax (1.0e-6f, target.range.end - target.range.start);
-        auto moved = base;
-        if (target.pitch)
+        const auto from = target.range.convertTo0to1 (juce::jlimit (target.range.start, target.range.end, base));
+        const auto moveBy = [&target, base, from] (float by)
         {
-            moved = base + amount * effects::HarmonyModulation::pitchSpan;
-            harmonyModShown[(size_t) t] = amount * effects::HarmonyModulation::pitchSpan / span;
-        }
-        else
+            return target.pitch ? base + by * effects::HarmonyModulation::pitchSpan
+                                : target.range.convertFrom0to1 (juce::jlimit (0.0f, 1.0f, from + by));
+        };
+        const auto moved = moveBy (amount);
+        harmonyModShown[(size_t) t] = target.pitch ? amount * effects::HarmonyModulation::pitchSpan / span
+                                                   : juce::jlimit (0.0f, 1.0f, from + amount) - from;
+
+        // Stage 10: a note-by-note source on the note voices' LEVEL, WIDTH,
+        // FORMANT (or GLOBAL PITCH / FORMANT, for them): each note voice its
+        // own offset from `moved`.
+        const auto voiceTarget = t - voiceTargets;
+        if (voiceTarget == 0 || voiceTarget == 1 || voiceTarget == 2 || voiceTarget == 10 || voiceTarget == 11)
         {
-            const auto from = target.range.convertTo0to1 (juce::jlimit (target.range.start, target.range.end, base));
-            const auto to = juce::jlimit (0.0f, 1.0f, from + amount);
-            moved = target.range.convertFrom0to1 (to);
-            harmonyModShown[(size_t) t] = to - from;
+            if (perNote)
+                for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+                {
+                    auto own = 0.0f;
+                    for (const auto& slot : harmonyModSlots[(size_t) t])
+                        if (const auto source = slot.source.load(); effects::HarmonyModulation::isBuilt (source))
+                            own += harmonyModulation.getVoiceValue (source, v) * slot.depth.load();
+                    const auto offset = moveBy (own) - moved;
+                    auto& voiceMod = settings.notes.voiceMods[(size_t) v];
+                    switch (voiceTarget)
+                    {
+                        case 0:  voiceMod.levelDb = offset; break;
+                        case 1:  voiceMod.width = offset; break;
+                        case 10: voiceMod.pitch = offset; break;
+                        default: voiceMod.formant += offset; break;
+                    }
+                }
         }
 
         if (t < voiceTargets)
@@ -940,6 +1017,9 @@ void ParagonX1AudioProcessor::processHarmony (juce::dsp::AudioBlock<float> block
 {
     effects::HarmonyModulation::Settings modSettings;
     harmonyModParameters.read (modSettings);
+    for (size_t m = 0; m < modSettings.mods.size(); ++m)
+        for (size_t point = 0; point < modSettings.mods[m].drawn.size(); ++point)
+            modSettings.mods[m].drawn[point] = harmonyModShapes[m][point].load();
     const auto numSamples = (int) block.getNumSamples();
     const auto inUse = harmonyModInUse();
 
@@ -960,6 +1040,9 @@ void ParagonX1AudioProcessor::processHarmony (juce::dsp::AudioBlock<float> block
         harmonyMidiNoteStarted = false;
         lastGeneratedNote = generated;
         context.sungNote = harmony.getSungNote();
+        context.midi = harmonyModMidi;
+        for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+            context.noteVoices[(size_t) v] = { harmony.getNoteVoiceTarget (v), harmony.getNoteVoiceVelocity (v) };
         harmonyModulation.advance (modSettings, context, clean + offset, length);
 
         if (! inUse)
@@ -970,7 +1053,7 @@ void ParagonX1AudioProcessor::processHarmony (juce::dsp::AudioBlock<float> block
             return;
         }
         auto settings = base;
-        applyHarmonyModulation (settings);
+        applyHarmonyModulation (settings, modSettings);
         harmony.process (block.getSubBlock ((size_t) offset, (size_t) length), clean + offset, settings);
     }
 }
@@ -1000,6 +1083,20 @@ void ParagonX1AudioProcessor::storeHarmonySnapshot (int slot)
     for (const auto& id : ParamIDs::harmonySnapshotIds())
         if (auto* parameter = parameters.getParameter (id))
             snapshot[id] = parameter->convertFrom0to1 (parameter->getValue());
+    // Stage 10: the modulator slots on the same controls, as the guide's
+    // snapshots store "Modulator assignments" (not the modulators' settings).
+    snapshot["mod:stored"] = 1.0f;
+    const auto ids = ParamIDs::harmonyModTargets();
+    const auto stored = ParamIDs::harmonySnapshotIds();
+    for (int target = 0; target < ids.size(); ++target)
+        if (stored.contains (ids[target]))
+            for (int s = 0; s < effects::HarmonyModulation::slotsPerTarget; ++s)
+                if (const auto found = getHarmonyModSlot (target, s); found.source != 0)
+                {
+                    const auto key = "mod:" + ids[target] + ":" + juce::String (s) + ":";
+                    snapshot[key + "source"] = (float) found.source;
+                    snapshot[key + "depth"] = found.depth;
+                }
     setHarmonySnapshot (slot, std::move (snapshot));
     // The one just stored is the one in use (without recalling it).
     appliedSnapshot = slot + 1;
@@ -1029,6 +1126,27 @@ void ParagonX1AudioProcessor::applyHarmonySnapshot (const Rig::HarmonySnapshot& 
         parameter->beginChangeGesture();
         parameter->setValueNotifyingHost (normalised);
         parameter->endChangeGesture();
+    }
+
+    // The modulator slots on those controls (a snapshot stored before stage
+    // 10 has none: the slots stay as they are).
+    if (snapshot.find ("mod:stored") == snapshot.end())
+        return;
+    const auto ids = ParamIDs::harmonyModTargets();
+    const auto stored = ParamIDs::harmonySnapshotIds();
+    for (int target = 0; target < ids.size(); ++target)
+    {
+        if (! stored.contains (ids[target]))
+            continue;
+        for (int s = 0; s < effects::HarmonyModulation::slotsPerTarget; ++s)
+        {
+            const auto key = "mod:" + ids[target] + ":" + juce::String (s) + ":";
+            const auto source = snapshot.find (key + "source"), depth = snapshot.find (key + "depth");
+            const Rig::HarmonyModSlot wanted { source != snapshot.end() ? juce::roundToInt (source->second) : 0,
+                                               depth != snapshot.end() ? depth->second : 0.0f };
+            if (! (getHarmonyModSlot (target, s) == wanted))
+                setHarmonyModSlot (target, s, wanted);
+        }
     }
 }
 
@@ -1169,6 +1287,8 @@ Rig ParagonX1AudioProcessor::captureRig() const
             if (! ParamIDs::notInRigs.contains (ranged->paramID))
                 rig.parameters[ranged->paramID] = ranged->convertFrom0to1 (ranged->getValue());
     rig.harmonyModSlots = captureHarmonyModSlots();
+    for (int m = 0; m < effects::HarmonyModulation::numMods; ++m)
+        rig.harmonyModShapes[(size_t) m] = getHarmonyModShape (m);
     const std::scoped_lock lock (harmonySnapshotsLock);
     rig.harmonySnapshots = harmonySnapshots;
     return rig;
@@ -1197,6 +1317,9 @@ void ParagonX1AudioProcessor::applyRig (const Rig& rig)
         harmonySnapshots = rig.harmonySnapshots;
     }
     restoreHarmonyModSlots (rig.harmonyModSlots);
+    for (size_t m = 0; m < harmonyModShapes.size(); ++m)
+        for (size_t i = 0; i < harmonyModShapes[m].size(); ++i)
+            harmonyModShapes[m][i] = rig.harmonyModShapes[m][i];
     appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 
     applyingRig = false;
@@ -1352,6 +1475,10 @@ void ParagonX1AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         // HARMONY's modulation slots, likewise.
         juce::XmlElement slots ("HarmonyModulation");
         Rig::writeModSlots (captureHarmonyModSlots(), slots);
+        Rig::HarmonyModShapes shapes {};
+        for (int m = 0; m < effects::HarmonyModulation::numMods; ++m)
+            shapes[(size_t) m] = getHarmonyModShape (m);
+        Rig::writeModShapes (shapes, slots);
         state.appendChild (juce::ValueTree::fromXml (slots), nullptr);
     }
 
@@ -1383,13 +1510,20 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     {
         auto saved = state.getChildWithName ("HarmonyModulation");
         Rig::HarmonyModSlots loaded;
+        Rig::HarmonyModShapes shapes {};
         if (saved.isValid())
         {
             if (auto slotsXml = saved.createXml())
+            {
                 loaded = Rig::readModSlots (*slotsXml);
+                shapes = Rig::readModShapes (*slotsXml);
+            }
             state.removeChild (saved, nullptr);
         }
         restoreHarmonyModSlots (loaded);
+        for (size_t m = 0; m < harmonyModShapes.size(); ++m)
+            for (size_t i = 0; i < harmonyModShapes[m].size(); ++i)
+                harmonyModShapes[m][i] = shapes[m][i];
     }
 
     // Parameters whose default changed: a project saved before they existed

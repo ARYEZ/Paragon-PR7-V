@@ -4742,3 +4742,285 @@ TEST_CASE ("HARMONY modulation slots are saved with the project and the rig, and
         CHECK (rig.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m2, 0.25f });
     }
 }
+
+//==============================================================================
+// HARMONY stage 10: A1-A2, the Spreader, MIDI sources, Poly, drawn shapes,
+// and modulator slots in snapshots.
+namespace
+{
+    // Runs the engine for `seconds` with `notes` (one per note voice, -1 for
+    // none) and returns `source`'s value for `voice` at the end.
+    float runVoices (HarmonyMod& engine, const HarmonyMod::Settings& settings, double seconds,
+                     std::initializer_list<int> notes, int source, int voice)
+    {
+        HarmonyMod::Context context;
+        auto v = 0;
+        for (const auto note : notes)
+            context.noteVoices[(size_t) v++] = { note, 1.0f };
+        const auto steps = juce::jmax (1, (int) std::lround (seconds * sampleRate / 32.0));
+        for (int i = 0; i < steps; ++i)
+            engine.advance (settings, context, nullptr, 32);
+        return engine.getVoiceValue (source, voice);
+    }
+
+    // The level of `hz` between two times (seconds).
+    float levelBetween (const std::vector<float>& samples, double hz, double from, double to)
+    {
+        const std::vector<float> part (samples.begin() + (long) (from * sampleRate),
+                                       samples.begin() + (long) std::min (samples.size(), (size_t) (to * sampleRate)));
+        return levelAt (part, hz, 0.0);
+    }
+}
+
+TEST_CASE ("HARMONY stage 10 sources: envelopes, the Spreader, Poly, drawn shapes, MIDI", "[effects][harmony][modulators]")
+{
+    HarmonyMod engine;
+    engine.prepare (sampleRate);
+    HarmonyMod::Settings settings;
+
+    SECTION ("An envelope rises over ATTACK, falls to SUSTAIN over DECAY, and dies over RELEASE")
+    {
+        HarmonyMod::Envelope envelope;   // 10 ms, 200 ms, 0.7, 300 ms
+        CHECK_THAT (HarmonyMod::envelopeHeld (envelope, 0.005), WithinAbs (0.5, 0.001));
+        CHECK_THAT (HarmonyMod::envelopeHeld (envelope, 0.010 + 0.1), WithinAbs (0.85, 0.001));
+        CHECK_THAT (HarmonyMod::envelopeHeld (envelope, 1.0), WithinAbs (0.7, 0.001));
+        CHECK_THAT (HarmonyMod::envelopeReleased (envelope, 0.7f, 0.15), WithinAbs (0.35, 0.001));
+        CHECK (HarmonyMod::envelopeReleased (envelope, 0.7f, 0.31) == 0.0f);
+        // CURVE above 1: fast then slow, so half way through the attack it's well past half.
+        envelope.attackCurve = 4.0f;
+        CHECK (HarmonyMod::envelopeHeld (envelope, 0.005) > 0.8f);
+        envelope.attackCurve = 0.25f;
+        CHECK (HarmonyMod::envelopeHeld (envelope, 0.005) < 0.1f);
+    }
+
+    SECTION ("A1 follows each note voice on its own; with no notes it stays at 0")
+    {
+        CHECK (runVoices (engine, settings, 0.5, {}, HarmonyMod::a1, 0) == 0.0f);
+        CHECK (engine.getValue (HarmonyMod::a1) == 0.0f);
+        // Voice 1 held half a second (sustain), then voice 2 joins: it starts its own attack.
+        runVoices (engine, settings, 0.5, { 60 }, HarmonyMod::a1, 0);
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::a1, 0), WithinAbs (0.7, 0.01));
+        runVoices (engine, settings, 0.005, { 60, 64 }, HarmonyMod::a1, 0);
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::a1, 0), WithinAbs (0.7, 0.01));
+        CHECK (engine.getVoiceValue (HarmonyMod::a1, 1) < 0.7f);
+        CHECK (engine.getVoiceValue (HarmonyMod::a1, 1) > 0.2f);
+        // Both let go: released, half way down after 150 ms (straight release from 0.7).
+        runVoices (engine, settings, 0.3, { 60, 64 }, HarmonyMod::a1, 0);
+        CHECK_THAT (runVoices (engine, settings, 0.15, { -1, -1 }, HarmonyMod::a1, 0), WithinAbs (0.35, 0.02));
+        CHECK (runVoices (engine, settings, 0.3, { -1, -1 }, HarmonyMod::a1, 0) == 0.0f);
+    }
+
+    SECTION ("SP Outward: lowest note -SPREAD, highest +SPREAD, between in step; Inward the other way")
+    {
+        settings.spreader.spread = 0.8f;
+        runVoices (engine, settings, 0.01, { 67, 60, 64 }, HarmonyMod::sp, 0);
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::sp, 0), WithinAbs (0.8, 1.0e-5));
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::sp, 1), WithinAbs (-0.8, 1.0e-5));
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::sp, 2), WithinAbs (0.0, 1.0e-5));
+
+        HarmonyMod inward;
+        inward.prepare (sampleRate);
+        settings.spreader.mode = 1;
+        runVoices (inward, settings, 0.01, { 67, 60, 64 }, HarmonyMod::sp, 0);
+        CHECK_THAT (inward.getVoiceValue (HarmonyMod::sp, 0), WithinAbs (-0.8, 1.0e-5));
+        CHECK_THAT (inward.getVoiceValue (HarmonyMod::sp, 1), WithinAbs (0.8, 1.0e-5));
+    }
+
+    SECTION ("SP Retrigger works every note out again when one starts; Poly keeps each note's value")
+    {
+        const auto afterThird = [&settings] (int trigger)
+        {
+            HarmonyMod spreader;
+            spreader.prepare (sampleRate);
+            settings.spreader.trigger = trigger;
+            runVoices (spreader, settings, 0.01, { 60, 64 }, HarmonyMod::sp, 0);   // -1, +1
+            runVoices (spreader, settings, 0.01, { 60, 64, 67 }, HarmonyMod::sp, 0);   // a G above both
+            return std::array<float, 3> { spreader.getVoiceValue (HarmonyMod::sp, 0), spreader.getVoiceValue (HarmonyMod::sp, 1),
+                                          spreader.getVoiceValue (HarmonyMod::sp, 2) };
+        };
+        const auto retrigger = afterThird (0), poly = afterThird (1);
+        CHECK_THAT (retrigger[1], WithinAbs (0.0, 1.0e-5));   // the E is in the middle now
+        CHECK_THAT (retrigger[2], WithinAbs (1.0, 1.0e-5));
+        CHECK_THAT (poly[0], WithinAbs (-1.0, 1.0e-5));
+        CHECK_THAT (poly[1], WithinAbs (1.0, 1.0e-5));         // the E keeps the top value it began with
+        CHECK_THAT (poly[2], WithinAbs (1.0, 1.0e-5));
+    }
+
+    SECTION ("TRIGGER Poly: each note voice its own cycle, from when its note began")
+    {
+        auto& m1 = settings.mods[0];
+        m1.shape = 2;   // Saw Up, 1 Hz
+        m1.trigger = HarmonyMod::poly;
+        runVoices (engine, settings, 0.5, { 60 }, HarmonyMod::m1, 0);
+        runVoices (engine, settings, 0.25, { 60, 64 }, HarmonyMod::m1, 0);
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::m1, 0), WithinAbs (0.5, 0.01));    // 0.75 s through
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::m1, 1), WithinAbs (-0.5, 0.01));   // 0.25 s through
+        CHECK (engine.isPerNote (HarmonyMod::m1, settings));
+        CHECK_FALSE (engine.isPerNote (HarmonyMod::m2, settings));
+        CHECK_FALSE (engine.isPerNote (HarmonyMod::am, settings));
+    }
+
+    SECTION ("SHAPE Drawn: the points joined by straight lines")
+    {
+        HarmonyMod::Mod drawn;
+        drawn.shape = HarmonyMod::drawnShape;
+        drawn.drawn[8] = 1.0f;
+        drawn.drawn[9] = -1.0f;
+        CHECK_THAT (HarmonyMod::modValue (drawn, 8.0f / 32.0f, 0, 1), WithinAbs (1.0, 1.0e-5));
+        CHECK_THAT (HarmonyMod::modValue (drawn, 8.25f / 32.0f, 0, 1), WithinAbs (0.5, 1.0e-5));
+        CHECK_THAT (HarmonyMod::modValue (drawn, 8.5f / 32.0f, 0, 1), WithinAbs (0.0, 1.0e-5));
+        CHECK_THAT (HarmonyMod::modValue (drawn, 20.0f / 32.0f, 0, 1), WithinAbs (0.0, 1.0e-5));
+    }
+
+    SECTION ("MIDI sources pass through; Velocity and Keyboard go note by note")
+    {
+        HarmonyMod::Context context;
+        context.midi = { 0.8f, 0.5f, -0.25f, 0.6f, 0.3f };
+        context.noteVoices[0] = { 72, 0.4f };
+        context.noteVoices[1] = { 48, 1.0f };
+        engine.advance (settings, context, nullptr, 32);
+        CHECK (engine.getValue (HarmonyMod::velocity) == 0.8f);
+        CHECK (engine.getValue (HarmonyMod::pitchWheel) == -0.25f);
+        CHECK (engine.getValue (HarmonyMod::modWheel) == 0.6f);
+        CHECK (engine.getValue (HarmonyMod::aftertouch) == 0.3f);
+        CHECK (engine.getVoiceValue (HarmonyMod::velocity, 0) == 0.4f);
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::keyboard, 0), WithinAbs (0.5, 1.0e-5));
+        CHECK_THAT (engine.getVoiceValue (HarmonyMod::keyboard, 1), WithinAbs (-0.5, 1.0e-5));
+        CHECK (engine.getVoiceValue (HarmonyMod::modWheel, 1) == 0.6f);   // not note by note: the same for all
+    }
+}
+
+TEST_CASE ("HARMONY stage 10 moves each note voice on its own", "[effects][harmony][modulators][midi]")
+{
+    const auto A3 = 220.0;
+    const auto hz = [] (double note) { return 440.0 * std::pow (2.0, (note - 69.0) / 12.0); };
+    const auto targetOf = [] (const char* id) { return ParagonX1AudioProcessor::harmonyModTarget (id); };
+
+    SECTION ("SP on GLOBAL PITCH at 1/24: C4 and G4 held, the low one a semitone down, the high one up")
+    {
+        const auto sung = sungVowel (A3, 1.0);
+        MidiRig rig;
+        rig.processor.setHarmonyModSlot (targetOf (ParamIDs::harmonyGlobalPitch), 0, { HarmonyMod::sp, 1.0f / 24.0f });
+        const auto out = runWithMidi (rig, sung, { { 0.0, keyDown (60) }, { 0.0, keyDown (67) } });
+        const auto sungLevel = levelAt (sung, A3, 0.5);
+        CAPTURE (levelAt (out, hz (59), 0.5), levelAt (out, hz (68), 0.5), levelAt (out, hz (60), 0.5), levelAt (out, hz (67), 0.5));
+        CHECK (levelAt (out, hz (59), 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, hz (68), 0.5) > 0.5f * sungLevel);
+        CHECK (levelAt (out, hz (60), 0.5) < 0.2f * sungLevel);
+        CHECK (levelAt (out, hz (67), 0.5) < 0.2f * sungLevel);
+    }
+
+    SECTION ("A1 on NOTES LEVEL turned down: each key ducks from its own start, then comes back")
+    {
+        // SUSTAIN 0, so a key is quiet as it starts and back at full once the
+        // envelope has decayed: a second key, half a second later, is quiet
+        // while the first is already back.
+        const auto sung = sungVowel (A3, 1.4);
+        MidiRig rig;
+        rig.set (ParamIDs::harmonyEnvelope (0, "Attack").toRawUTF8(), 1.0f);
+        rig.set (ParamIDs::harmonyEnvelope (0, "Decay").toRawUTF8(), 300.0f);
+        rig.set (ParamIDs::harmonyEnvelope (0, "Sustain").toRawUTF8(), 0.0f);
+        rig.processor.setHarmonyModSlot (targetOf (ParamIDs::harmonyNoteLevel), 0, { HarmonyMod::a1, -1.0f });
+        const auto out = runWithMidi (rig, sung, { { 0.1, keyDown (60) }, { 0.7, keyDown (67) } });
+        const auto c4Settled = levelBetween (out, hz (60), 0.75, 0.85);
+        const auto g4Starting = levelBetween (out, hz (67), 0.71, 0.81);
+        const auto g4Settled = levelBetween (out, hz (67), 1.2, 1.35);
+        CAPTURE (c4Settled, g4Starting, g4Settled);
+        CHECK (c4Settled > 0.3f * levelAt (sung, A3, 0.5));
+        CHECK (g4Starting < 0.5f * g4Settled);
+    }
+
+    SECTION ("Velocity on NOTES WIDTH: a soft key sits nearer the middle than a hard one")
+    {
+        const auto sung = sungVowel (A3, 1.0);
+        MidiRig rig;
+        rig.set (ParamIDs::harmonyNoteWidth, 0.0f);
+        rig.processor.setHarmonyModSlot (targetOf (ParamIDs::harmonyNoteWidth), 0, { HarmonyMod::velocity, 1.0f });
+        runWithMidi (rig, sung, { { 0.0, keyDown (60, 0.2f) }, { 0.0, keyDown (67, 1.0f) } });
+        auto& harmony = rig.processor.getHarmony();
+        std::map<int, float> pans;
+        for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+            if (harmony.getNoteVoiceNote (v) >= 0)
+                pans[harmony.getNoteVoiceNote (v)] = harmony.getNoteVoicePan (v);
+        CAPTURE (pans[60], pans[67]);
+        REQUIRE (pans.size() == 2);
+        CHECK_THAT (pans[60], WithinAbs (-0.2, 0.03));
+        CHECK_THAT (pans[67], WithinAbs (1.0, 0.03));
+    }
+}
+
+TEST_CASE ("HARMONY snapshots keep the modulators on their controls; drawn shapes are saved", "[effects][harmony][modulators]")
+{
+    HarmonyRig rig (7.0f);
+    const auto pitch = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (0, "Pitch"));
+    const auto spread = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread);   // not in a snapshot (the mix)
+
+    SECTION ("Store, change, recall: the slots on a voice come back; others stay")
+    {
+        rig.processor.setHarmonyModSlot (pitch, 0, { HarmonyMod::m1, 0.5f });
+        rig.processor.setHarmonyModSlot (spread, 0, { HarmonyMod::am, 1.0f });
+        rig.processor.storeHarmonySnapshot (0);
+        rig.processor.setHarmonyModSlot (pitch, 0, { HarmonyMod::m2, -0.25f });
+        rig.processor.setHarmonyModSlot (pitch, 1, { HarmonyMod::a1, 1.0f });
+        rig.processor.setHarmonyModSlot (spread, 0, { HarmonyMod::pt, 0.5f });
+        rig.processor.recallHarmonySnapshot (0);
+        CHECK (rig.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m1, 0.5f });
+        CHECK (rig.processor.getHarmonyModSlot (pitch, 1).source == 0);
+        CHECK (rig.processor.getHarmonyModSlot (spread, 0) == Rig::HarmonyModSlot { HarmonyMod::pt, 0.5f });
+
+        // Through a rig file too.
+        const auto loaded = Rig::fromXml (*rig.processor.captureRig().toXml());
+        REQUIRE (loaded.has_value());
+        CHECK (loaded->harmonySnapshots[0] == rig.processor.getHarmonySnapshot (0));
+    }
+
+    SECTION ("A snapshot from before stage 10 (no slots in it) leaves the slots alone")
+    {
+        rig.processor.storeHarmonySnapshot (0);
+        auto old = *rig.processor.getHarmonySnapshot (0);
+        for (auto it = old.begin(); it != old.end();)
+            it = it->first.startsWith ("mod:") ? old.erase (it) : std::next (it);
+        rig.processor.setHarmonySnapshot (0, old);
+        rig.processor.setHarmonyModSlot (pitch, 0, { HarmonyMod::m3, 0.5f });
+        rig.processor.recallHarmonySnapshot (0);
+        CHECK (rig.processor.getHarmonyModSlot (pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m3, 0.5f });
+    }
+
+    SECTION ("A drawn shape goes with the project, the rig, and undo")
+    {
+        std::array<float, 32> shape {};
+        for (size_t i = 0; i < shape.size(); ++i)
+            shape[i] = (float) i / 31.0f * 2.0f - 1.0f;
+        rig.processor.setHarmonyModShape (2, shape);
+        CHECK_THAT (rig.processor.getHarmonyModShape (2)[1], WithinAbs (shape[1], 1.0e-4));   // kept to 1/10000
+        shape = rig.processor.getHarmonyModShape (2);
+        juce::MemoryBlock state;
+        rig.processor.getStateInformation (state);
+        HarmonyRig other (0.0f);
+        other.processor.setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (other.processor.getHarmonyModShape (2) == shape);
+        CHECK (other.processor.getHarmonyModShape (0) == std::array<float, 32> {});
+
+        const auto loaded = Rig::fromXml (*rig.processor.captureRig().toXml());
+        REQUIRE (loaded.has_value());
+        CHECK (loaded->harmonyModShapes[2] == shape);
+
+        rig.processor.flushUndoStep();
+        rig.processor.setHarmonyModShape (2, {});
+        rig.processor.flushUndoStep();
+        rig.processor.undo();
+        CHECK (rig.processor.getHarmonyModShape (2) == shape);
+    }
+
+    SECTION ("A drawn M1 on a voice's PITCH moves it as drawn")
+    {
+        std::array<float, 32> shape;
+        shape.fill (0.5f);   // a flat line at half: +12 st at 100%
+        rig.processor.setHarmonyModShape (0, shape);
+        rig.set (ParamIDs::harmonyMod (0, "Shape").toRawUTF8(), (float) HarmonyMod::drawnShape);
+        rig.setVoice ("Correct", 0.0f);
+        modulate (rig, ParamIDs::harmonyVoice (0, "Pitch"), HarmonyMod::m1, 1.0f / 6.0f);   // +2 st
+        rig.runMono (sungVowel (220.0, 1.0));
+        CHECK_THAT (voiceShift (rig), WithinAbs (9.0, 0.2));
+    }
+}

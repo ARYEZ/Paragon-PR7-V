@@ -361,28 +361,33 @@ namespace effects
             best->velocity = playing[(size_t) i].second;
             placed[(size_t) i] = true;
         }
-        // Panned across WIDTH, low notes left, high right.
-        for (auto& voice : noteVoices)
+        // Panned across WIDTH (each note voice's own, when it's modulated
+        // note by note), low notes left, high right.
+        for (size_t v = 0; v < noteVoices.size(); ++v)
         {
+            auto& voice = noteVoices[v];
             if (voice.note < 0)
                 continue;
             auto rank = 0;
             for (int i = 0; i < count; ++i)
                 rank += playing[(size_t) i].first < voice.note ? 1 : 0;
-            voice.panTarget = count > 1 ? notes.width * (-1.0f + 2.0f * (float) rank / (float) (count - 1)) : 0.0f;
+            const auto width = juce::jlimit (0.0f, 1.0f, notes.width + notes.voiceMods[v].width);
+            voice.panTarget = count > 1 ? width * (-1.0f + 2.0f * (float) rank / (float) (count - 1)) : 0.0f;
         }
 
         // Each note voice plays its note exactly, gliding when it changes
         // (its own 30 ms, or GLIDE's if that's slower), then GLOBAL PITCH.
         const auto glideSeconds = 0.001 * (double) juce::jmax (noteGlideMs, settings.glideMs / 3.0f);
         const auto glide = 1.0 - std::exp (-(double) hop / (glideSeconds * sampleRate));
-        for (auto& voice : noteVoices)
+        for (size_t v = 0; v < noteVoices.size(); ++v)
         {
+            auto& voice = noteVoices[v];
+            const auto& own = notes.voiceMods[v];
             if (voice.note >= 0)
                 voice.glided = voice.envelope < 1.0e-3f ? (double) voice.note : voice.glided + glide * ((double) voice.note - voice.glided);
-            const auto shift = voiced ? voice.glided + (double) settings.pitch - sung : 0.0;
+            const auto shift = voiced ? voice.glided + (double) settings.pitch + (double) own.pitch - sung : 0.0;
             voice.state.ratio = (float) juce::jlimit (0.25, 4.0, std::pow (2.0, shift / 12.0));
-            const auto formantSemitones = notes.formant + settings.formant + (1.0f - settings.correctFormant) * (float) shift;
+            const auto formantSemitones = notes.formant + settings.formant + own.formant + (1.0f - settings.correctFormant) * (float) shift;
             voice.state.formantRatio = juce::jlimit (0.5f, 2.0f, std::pow (2.0f, formantSemitones / 12.0f));
         }
     }
@@ -641,6 +646,10 @@ namespace effects
             }
             // The note voices' fades, and their level.
             const auto noteGain = gainFor (settings.notes.levelDb) * harmonyGain;
+            // Each note voice's own LEVEL offset (modulated note by note).
+            std::array<float, numNoteVoices> noteVoiceGains {};
+            for (size_t nv = 0; nv < noteVoiceGains.size(); ++nv)
+                noteVoiceGains[nv] = juce::Decibels::decibelsToGain (settings.notes.voiceMods[nv].levelDb);
             const auto attack = (float) (1.0 - std::exp (-1.0 / (juce::jmax (1.0f, settings.notes.attackMs) * 0.001 * sampleRate)));
             const auto release = (float) (1.0 - std::exp (-1.0 / (juce::jmax (1.0f, settings.notes.releaseMs) * 0.001 * sampleRate)));
             const auto panGlide = (float) (1.0 - std::exp (-1.0 / (0.02 * sampleRate)));
@@ -683,8 +692,9 @@ namespace effects
                     outRight += (state.rightGain + (targetRight - state.rightGain) * through) * sample;
                 }
 
-                for (auto& noteVoice : noteVoices)
+                for (size_t nv = 0; nv < noteVoices.size(); ++nv)
                 {
+                    auto& noteVoice = noteVoices[nv];
                     const auto gate = voicesOn && noteVoice.note >= 0;
                     const auto echoing = noteVoice.state.fx.ringing > 0;
                     if (! noteVoice.state.running && ! gate && ! echoing)
@@ -695,7 +705,7 @@ namespace effects
                     const auto made = noteVoice.state.running || gate
                                           ? nextFrom (noteVoice.state, latency) * noteVoice.envelope * (0.3f + 0.7f * noteVoice.velocity)
                                           : 0.0f;
-                    const auto sample = noteVoice.state.fx.process (made) * noteGain;
+                    const auto sample = noteVoice.state.fx.process (made) * noteGain * noteVoiceGains[nv];
                     outLeft += sample * juce::jmin (1.0f, 1.0f - noteVoice.pan);
                     outRight += sample * juce::jmin (1.0f, 1.0f + noteVoice.pan);
                     if (noteVoice.state.running && ! gate && noteVoice.envelope < 1.0e-4f)

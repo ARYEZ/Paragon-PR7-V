@@ -38,7 +38,7 @@ descriptions below still talk about guitar.
 | V10 | Harmony stage 7: GLOBAL glide, pitch and formant | ✅ Done (0.26.0) |
 | V11 | Harmony stage 8: SNAPSHOTS (32 slots, SNAPSHOT parameter) | ✅ Done (0.27.0) |
 | V12 | Harmony stage 9: MODULATORS (M1-M4 LFO/SEQ, AM, PT; right-click a knob) | ✅ Done (0.33.0) |
-| V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, drawn shapes | Next |
+| V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, Poly, drawn shapes | ✅ Done (0.34.0) |
 
 ## Using it
 

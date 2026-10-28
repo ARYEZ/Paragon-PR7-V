@@ -1282,6 +1282,41 @@ TEST_CASE ("HARMONY's modulators: a knob's menu puts one on it, the MODS page sh
     const auto area = page.stepArea();
     page.setStepAt ({ area.getX() + area.getWidth() * 0.6f, area.getY() + area.getHeight() * 0.25f });   // step 3, half way up
     CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyModStep (0, 2))->load() == 12.0f);
+
+    // Stage 10. SHAPE Drawn: drawing on the display sets the points under the drag, with no gaps.
+    set (processor, ParamIDs::harmonyMod (0, "Type").toRawUTF8(), 0.0f);
+    set (processor, ParamIDs::harmonyMod (0, "Shape").toRawUTF8(), (float) HarmonyMod::drawnShape);
+    page.resized();
+    REQUIRE (page.isDrawing());
+    const auto inner = page.stepArea().reduced (6.0f, 6.0f);
+    const auto at = [&inner] (float place, float height) { return juce::Point<float> (inner.getX() + inner.getWidth() * place, inner.getCentreY() - height * inner.getHeight() * 0.5f); };
+    page.drawAt (at (0.1f, 0.5f));
+    page.drawAt (at (0.5f, 0.5f), at (0.1f, 0.5f));
+    const auto drawn = processor.getHarmonyModShape (0);
+    for (size_t i = 4; i <= 15; ++i)
+        CHECK_THAT (drawn[i], Catch::Matchers::WithinAbs (0.5, 0.01));
+    CHECK (drawn[20] == 0.0f);
+
+    // A1: its own knobs, bound to A1's parameters; A2's are A2's.
+    page.showTab (HarmonyModsView::a2Tab);
+    set (processor, ParamIDs::harmonyEnvelope (1, "Attack").toRawUTF8(), 250.0f);
+    auto* attackKnob = [&page]() -> juce::Slider*
+    {
+        for (auto* child : page.getChildren())
+            if (auto* slider = dynamic_cast<juce::Slider*> (child); slider != nullptr && slider->isVisible())
+                return slider;   // the first one showing: ATTACK
+        return nullptr;
+    }();
+    REQUIRE (attackKnob != nullptr);
+    CHECK_THAT (attackKnob->getValue(), Catch::Matchers::WithinAbs (250.0, 0.5));
+    page.showTab (HarmonyModsView::a1Tab);
+    CHECK_THAT (attackKnob->getValue(), Catch::Matchers::WithinAbs (10.0, 0.5));
+    CHECK (HarmonyModsView::sourceOf (HarmonyModsView::spTab) == HarmonyMod::sp);
+
+    // MIDI's sources are in a group of their own in the knob's menu, and on the MIDI tab.
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::pitchWheel);
+    page.showTab (HarmonyModsView::midiTab);
+    CHECK (page.assignmentsText().contains ("PITCH WHEEL > VOICE 2 PITCH"));
     panel.closeMods();
     CHECK_FALSE (panel.isShowingMods());
     CHECK (pitchKnob->isVisible());
