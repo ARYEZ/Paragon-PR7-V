@@ -205,6 +205,8 @@ public:
     const effects::Vocoder& getVocoder() const noexcept { return vocoder; }
     // How far the de-esser is turning the esses down (dB, 0 or less), for its meter.
     float getDeEsserReductionDb() const noexcept { return deEsser.getReductionDb(); }
+    // MOD's rotary speaker, for the faceplate: where Cyclone's rotors are.
+    const effects::Cyclone& getCyclone() const noexcept { return modulation.getCyclone(); }
     LevelMeterSource& getOutputMeter() noexcept { return outputMeter; }
     // How far the master LIMITER is turning the sound down (dB, 0 or less), for its light.
     float getLimiterReductionDb() const noexcept { return limiter.getReductionDb(); }

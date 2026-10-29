@@ -98,7 +98,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 36);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 37);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")

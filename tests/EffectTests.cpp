@@ -1245,7 +1245,7 @@ TEST_CASE ("Projects saved with MODULATION on Doubler (before 0.3.0) load with t
     rig.processor.getStateInformation (current);
     auto currentXml = juce::AudioProcessor::getXmlFromBinary (current.getData(), (int) current.getSize());
     REQUIRE (currentXml != nullptr);
-    CHECK (currentXml->getIntAttribute ("parameterVersion") == 36);
+    CHECK (currentXml->getIntAttribute ("parameterVersion") == 37);
 }
 
 TEST_CASE ("LO-FI: telephone, radio, megaphone, cassette and bitcrusher", "[effects][lofi]")

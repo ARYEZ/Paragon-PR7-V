@@ -793,6 +793,28 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeSwitch (ParamIDs::formantOn, "Formant On", v49, false));
     layout.add (makeFloat (ParamIDs::formantShift, "Formant Shift", { -12.0f, 12.0f, 0.1f }, 0.0f, v49,
                            [] (float st, int) { return (st > 0.04f ? "+" : "") + juce::String (st, 1) + " st"; }));
+
+    // Added in plugin version 50: CYCLONE, the MOD block's rotary speaker
+    // (inspired by the Neo Ventilator II, as on PR7-G 0.55.0). Its defaults
+    // are the manual's starting points: the speeds of an average 122,
+    // ACCELERATION at 1 o'clock, the MIX / DIST knobs at 2 o'clock. MODE
+    // starts on KEY, the 122's own speakers: the manual's choice when
+    // nothing follows but a mixer (GIT 1 and 2 are for a guitar amp after it).
+    constexpr int v50 = 50;
+    using effects::Cyclone;
+    layout.add (makeSwitch (ParamIDs::modCycFast, "Cyclone Fast", v50, false));
+    layout.add (makeSwitch (ParamIDs::modCycStop, "Cyclone Stop", v50, false));
+    layout.add (makeFloat (ParamIDs::modCycFastSpeed, "Cyclone Fast Speed", skewed (Cyclone::fastMinHz, Cyclone::fastMaxHz, Cyclone::fastDefaultHz, 0.01f),
+                           Cyclone::fastDefaultHz, v50, asHz));
+    layout.add (makeFloat (ParamIDs::modCycSlowSpeed, "Cyclone Slow Speed", skewed (Cyclone::slowMinHz, Cyclone::slowMaxHz, Cyclone::slowDefaultHz, 0.01f),
+                           Cyclone::slowDefaultHz, v50, asHz));
+    layout.add (makeFloat (ParamIDs::modCycAccel, "Cyclone Acceleration", { 0.0f, 10.0f, 0.1f }, 6.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycBalance, "Cyclone Balance", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycDrive, "Cyclone Drive", { 0.0f, 10.0f, 0.1f }, 0.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycLow, "Cyclone Mix / Dist Lo", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycHigh, "Cyclone Mix / Dist Hi", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
+    layout.add (makeChoice (ParamIDs::modCycMode, "Cyclone Mode", v50, Cyclone::modeNames, (int) Cyclone::Mode::keys));
+    layout.add (makeFloat (ParamIDs::modCycLevel, "Cyclone Level", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
     return layout;
 }
 
@@ -987,3 +1009,18 @@ void convertOldDrive (const std::function<std::optional<float> (const juce::Stri
     band (0, "Level", bandLevel);
 }
 
+void convertOldRotary (const std::function<std::optional<float> (const juce::String&)>& get,
+                       const std::function<void (const juce::String&, float)>& set)
+{
+    const auto type = get (ParamIDs::modType);
+    if (! type.has_value() || juce::roundToInt (*type) != (int) effects::Modulation::Type::rotary || get (ParamIDs::modCycFast).has_value())
+        return;
+    const auto cyclone = effects::Cyclone::fromOldRotary (get (ParamIDs::modRate).value_or (0.8f), get (ParamIDs::modDepth).value_or (0.5f),
+                                                          get (ParamIDs::modMix).value_or (0.5f));
+    set (ParamIDs::modCycFast, cyclone.fast ? 1.0f : 0.0f);
+    set (ParamIDs::modCycFastSpeed, cyclone.fastHz);
+    set (ParamIDs::modCycSlowSpeed, cyclone.slowHz);
+    set (ParamIDs::modCycLow, cyclone.mixDist);
+    set (ParamIDs::modCycHigh, cyclone.mixDist);
+    set (ParamIDs::modCycMode, (float) cyclone.mode);
+}

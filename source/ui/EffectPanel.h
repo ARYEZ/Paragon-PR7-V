@@ -62,6 +62,8 @@ public:
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
+    // Opened: shows the controls for the TYPE chosen now, not after the next tick.
+    void visibilityChanged() override;
 
 private:
     void timerCallback() override;

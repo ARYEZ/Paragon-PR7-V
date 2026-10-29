@@ -13,7 +13,8 @@ namespace
     // 15: the reverb's TYPE, defaulting to HALL.
     // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
     // 30: the four-voice DOUBLER, replacing its RATE, DEPTH and MIX.
-    constexpr int parameterVersion = 36;
+    // 37: CYCLONE, replacing MODULATION's original rotary speaker.
+    constexpr int parameterVersion = 37;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
@@ -210,6 +211,9 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
         for (const auto* gone : { ParamIDs::driveModel, ParamIDs::driveGain, ParamIDs::driveTone, ParamIDs::driveLevel })
             rig.parameters.erase (gone);
     }
+    // Saved with the original rotary speaker: now CYCLONE, set to match.
+    if (savedWith < 37)
+        convertOldRotary (get, set);
 
     return rig;
 }

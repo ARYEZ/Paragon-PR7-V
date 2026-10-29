@@ -100,6 +100,7 @@ private:
     void paintReverb (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintHarmony (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintModulation (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintCyclone (juce::Graphics&, juce::Rectangle<float> body, juce::Rectangle<float> settings, bool on);
     void paintFilterPitch (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintDeEsser (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintGlitch (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);

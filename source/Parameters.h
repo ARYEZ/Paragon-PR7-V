@@ -246,6 +246,20 @@ namespace ParamIDs
     inline constexpr auto formantOn    = "formantOn";
     inline constexpr auto formantShift = "formantShift";   // semitones, -12 to +12
 
+    // Version 50: CYCLONE's controls (the MOD block's rotary speaker,
+    // inspired by the Neo Ventilator II).
+    inline constexpr auto modCycFast      = "modCycFast";        // SLOW / FAST: on is fast
+    inline constexpr auto modCycStop      = "modCycStop";        // STOP: the rotors brake to a stop, facing forward
+    inline constexpr auto modCycFastSpeed = "modCycFastSpeed";   // FAST SPEED: the horn's, Hz
+    inline constexpr auto modCycSlowSpeed = "modCycSlowSpeed";   // SLOW SPEED: the horn's, Hz
+    inline constexpr auto modCycAccel     = "modCycAccel";       // ACCELERATION, 0 to 10
+    inline constexpr auto modCycBalance   = "modCycBalance";     // BALANCE, 0 to 10, 5 even
+    inline constexpr auto modCycDrive     = "modCycDrive";       // DRIVE, 0 to 10
+    inline constexpr auto modCycLow       = "modCycLow";         // MIX / DIST LO, 0 to 10
+    inline constexpr auto modCycHigh      = "modCycHigh";        // MIX / DIST HI, 0 to 10
+    inline constexpr auto modCycMode      = "modCycMode";        // MODE: GIT 1, GIT 2, KEY
+    inline constexpr auto modCycLevel     = "modCycLevel";       // LEVEL, 0 to 10, 5 about the bypassed level
+
     // Version 48: the VOCODER (effects::Vocoder, inspired by VocalSynth 2's).
     inline constexpr auto vocoderOn            = "vocOn";
     inline constexpr auto vocoderMode          = "vocMode";           // Vocoder::modeNames
@@ -387,8 +401,9 @@ namespace ParamIDs
 namespace ExpressionTargets
 {
     // Saved by number: only ever add to the end.
-    enum { off, volume, wah, morph, pitch, loFi, whammyWah, glitch, talkBox };
-    inline const juce::StringArray names { "Off", "Volume", "Wah / Filter", "Morph FX", "Pitch / Whammy", "Lo-Fi", "Whammy-Wah", "Glitch", "Talk Box" };
+    enum { off, volume, wah, morph, pitch, loFi, whammyWah, glitch, talkBox, cycloneSpeed };
+    inline const juce::StringArray names { "Off", "Volume", "Wah / Filter", "Morph FX", "Pitch / Whammy", "Lo-Fi", "Whammy-Wah", "Glitch", "Talk Box",
+                                           "Cyclone Speed" };
 }
 
 namespace ParamRanges
@@ -426,3 +441,10 @@ void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::S
 
 void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
                         const std::function<void (const juce::String&, float)>& set);
+
+// Settings saved before 0.40.0 with MODULATION on the original rotary
+// speaker: CYCLONE (which took its place) set as close to it as it goes,
+// RATE picking SLOW or FAST at that speed, MIX then DEPTH setting the MIX /
+// DIST knobs (see effects::Cyclone::fromOldRotary). Close, not identical.
+void convertOldRotary (const std::function<std::optional<float> (const juce::String&)>& get,
+                       const std::function<void (const juce::String&, float)>& set);

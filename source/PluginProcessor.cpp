@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 36;
+    constexpr int parameterVersion = 37;   // 37: CYCLONE replaced the original rotary (convertOldRotary)
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -668,10 +668,18 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (const auto sync = (int) param (ParamIDs::modSync); sync > 0 && sync < (int) std::size (effects::Delay::syncBeats))
         modRate = juce::jlimit (0.02f, 20.0f, (float) (getTempoBpm() / 60.0) / effects::Delay::syncBeats[sync]);
 
-    modulation.process (stereoBlock, { isOn (ParamIDs::modOn), modType, modRate,
-                                       param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
-                                       param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph),
-                                       param (ParamIDs::modManual), param (ParamIDs::modRes) });
+    effects::Modulation::Settings modSettings { isOn (ParamIDs::modOn), modType, modRate,
+                                                param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
+                                                param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph),
+                                                param (ParamIDs::modManual), param (ParamIDs::modRes) };
+    // CYCLONE: its own controls. MORPH FX fades it in over the dry sound;
+    // the pedal on CYCLONE SPEED sets the rotors' speed.
+    modSettings.cyclone = { param (ParamIDs::modCycFast) > 0.5f, param (ParamIDs::modCycStop) > 0.5f,
+                            param (ParamIDs::modCycFastSpeed), param (ParamIDs::modCycSlowSpeed), param (ParamIDs::modCycAccel),
+                            param (ParamIDs::modCycBalance), param (ParamIDs::modCycDrive), param (ParamIDs::modCycLow), param (ParamIDs::modCycHigh),
+                            (effects::Cyclone::Mode) (int) param (ParamIDs::modCycMode), param (ParamIDs::modCycLevel),
+                            expressionTarget == ExpressionTargets::cycloneSpeed ? pedal : -1.0f, morph };
+    modulation.process (stereoBlock, modSettings);
     effects::Delay::Settings delaySettings;
     delaySettings.on = isOn (ParamIDs::delayOn);
     delaySettings.timeMs = param (ParamIDs::delayTime);
@@ -1639,6 +1647,9 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     // Saved with a pedal drive model: now MARS, set up to sound close to it.
     if (savedWith < 36)
         convertOldDrive (get, set);
+    // Saved with the original rotary speaker: now CYCLONE, set to match.
+    if (savedWith < 37)
+        convertOldRotary (get, set);
     parameters.replaceState (state);
     appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 

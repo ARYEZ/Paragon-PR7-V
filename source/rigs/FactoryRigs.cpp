@@ -380,7 +380,8 @@ std::vector<Rig> makeFactoryRigs()
         make ("Rotary Voice", E, 5, "Modulation,Vintage,Psychedelic", {
             { rigLevel, 5 },   // even with the other rigs
             { compOn, 1 }, { compType, revival }, { revivalCompression, -14 },
-            { modOn, 1 }, { modType, rotary }, { modRate, 1.2f }, { modDepth, 0.6f }, { modMix, 0.6f },
+            // Cyclone slow, well in the sound, through the cabinet's own speakers (KEY).
+            { modOn, 1 }, { modType, rotary }, { modCycFast, 0 }, { modCycSlowSpeed, 1.2f }, { modCycLow, 4 }, { modCycHigh, 4 },
             { reverbOn, 1 }, { reverbType, spring }, { reverbMix, 0.2f } }),
 
         // A slow phaser sweep and a soft echo.

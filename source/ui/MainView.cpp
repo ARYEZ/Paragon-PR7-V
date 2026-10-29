@@ -385,10 +385,32 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
             parts.add ("Formant " + valueText (ParamIDs::formantShift));
         return parts.joinIntoString ("  ");
     }, { ParamIDs::harmonyOn });
-    addStomp (5, "MODULATION", { ParamIDs::modOn }, modBlock, [this]
+    const auto isCyclone = [this] { return juce::roundToInt (rawValue (ParamIDs::modType)) == (int) effects::Modulation::Type::rotary; };
+    addStomp (5, "MODULATION", { ParamIDs::modOn }, modBlock, [this, isCyclone]
     {
+        // Cyclone's rotors: STOP, FAST or SLOW (PEDAL while the expression pedal sets the speed).
+        if (isCyclone())
+        {
+            const auto state = juce::roundToInt (rawValue (ParamIDs::expressionTarget)) == ExpressionTargets::cycloneSpeed ? "PEDAL"
+                             : rawValue (ParamIDs::modCycStop) > 0.5f ? "STOP" : rawValue (ParamIDs::modCycFast) > 0.5f ? "FAST" : "SLOW";
+            return valueText (ParamIDs::modType) + "  " + state + "  (hold: slow / fast)";
+        }
         return valueText (ParamIDs::modType) + "  " + valueText (rawValue (ParamIDs::modSync) > 0.5f ? ParamIDs::modSync : ParamIDs::modRate);
     });
+    // Holding the MODULATION stomp switches Cyclone between SLOW and FAST, as
+    // the pedal's own SLOW / FAST switch; a tap still switches the block.
+    footswitches[4]->onHold = [this, isCyclone]
+    {
+        if (! isCyclone())
+            return false;
+        if (auto* parameter = audioProcessor.getParameters().getParameter (ParamIDs::modCycFast))
+        {
+            parameter->beginChangeGesture();
+            parameter->setValueNotifyingHost (rawValue (ParamIDs::modCycFast) > 0.5f ? 0.0f : 1.0f);
+            parameter->endChangeGesture();
+        }
+        return true;
+    };
     addStomp (6, "DELAY", { ParamIDs::delayOn }, delayBlock, [this]
     {
         return valueText (ParamIDs::delayType) + "  " + valueText (rawValue (ParamIDs::delaySync) > 0.5f ? ParamIDs::delaySync : ParamIDs::delayTime);
@@ -467,14 +489,31 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     // SATURATION has MARS's own panel (panels[driveBlock] stays empty).
     // AEON (the flanger) adds its pedal's MANUAL and RES.
     const auto isAeon = [this] { return juce::roundToInt (rawValue (ParamIDs::modType)) == (int) effects::Modulation::Type::flanger; };
+    // CYCLONE (the rotary speaker) has its own speeds instead of RATE, SYNC
+    // and DEPTH, and its tone controls on a second page.
+    const auto notCyclone = [isCyclone] { return ! isCyclone(); };
     panels[modBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC" },
+        { "MODULATION", { { ParamIDs::modOn, "ON" }, { ParamIDs::modType, "TYPE" }, { ParamIDs::modSync, "SYNC", notCyclone, true },
                           { ParamIDs::modManual, "MANUAL", isAeon, true },
-                          { ParamIDs::modRate, "RATE", [this] { return rawValue (ParamIDs::modSync) < 0.5f; } },
-                          { ParamIDs::modDepth, "DEPTH" },
+                          // (These three leave the face when they don't apply, as on PR7-G's rack, so Cyclone's own fit.)
+                          { ParamIDs::modRate, "RATE", [this, isCyclone] { return ! isCyclone() && rawValue (ParamIDs::modSync) < 0.5f; }, true },
+                          { ParamIDs::modDepth, "DEPTH", notCyclone, true },
                           { ParamIDs::modRes, "RES", isAeon, true },
                           { ParamIDs::modMix, "MIX", [this] {
-                              return effects::Modulation::usesMix ((effects::Modulation::Type) juce::roundToInt (rawValue (ParamIDs::modType))); } } } } });
+                              return effects::Modulation::usesMix ((effects::Modulation::Type) juce::roundToInt (rawValue (ParamIDs::modType))); }, true },
+                          // CYCLONE's rotors.
+                          { ParamIDs::modCycFast, "FAST", isCyclone, true },
+                          { ParamIDs::modCycStop, "STOP", isCyclone, true },
+                          { ParamIDs::modCycFastSpeed, "FAST SPEED", isCyclone, true },
+                          { ParamIDs::modCycSlowSpeed, "SLOW SPEED", isCyclone, true },
+                          { ParamIDs::modCycAccel, "ACCEL", isCyclone, true } } },
+        { "MODULATION", { { ParamIDs::modCycBalance, "BALANCE", isCyclone, true },
+                          { ParamIDs::modCycDrive, "DRIVE", isCyclone, true },
+                          { ParamIDs::modCycLow, "MIX/DIST LO", isCyclone, true },
+                          { ParamIDs::modCycHigh, "MIX/DIST HI", isCyclone, true },
+                          { ParamIDs::modCycMode, "MODE", isCyclone, true },
+                          { ParamIDs::modCycLevel, "LEVEL", isCyclone, true } }, 1 } });
+    panels[modBlock]->setPages ({ "ROTORS", "TONE" });
     // DELAY's three pages (since 0.10.0, with the controls inspired by
     // H-Delay): MAIN as it always was; STEREO (DUAL's right-hand time, the
     // ping-pong's START, each side's PHASE); COLOUR (the filters, MOD,

@@ -74,7 +74,7 @@ class ExpressionAssign final : public juce::Component,
                                private juce::Timer
 {
 public:
-    static constexpr int numTargets = 8;    // what the pedal can control: everything but "Off"
+    static constexpr int numTargets = 9;    // what the pedal can control: everything but "Off"
     static constexpr int visibleRows = 6;   // the screen's lines; the list scrolls
 
     explicit ExpressionAssign (juce::AudioProcessorValueTreeState&);

@@ -219,6 +219,12 @@ void EffectPanel::timerCallback()
     }
 }
 
+void EffectPanel::visibilityChanged()
+{
+    if (isVisible())
+        timerCallback();
+}
+
 void EffectPanel::setPages (const juce::StringArray& names)
 {
     pageButtons.clear();
@@ -393,13 +399,41 @@ void EffectPanel::resized()
         meterArea = area.withHeight (24).withTrimmedLeft (26 + 8 + titleWidth + 28).withWidth (92 + 12 * 14 + 46);
     }
 
-    // The page buttons, in the header after the block's name.
+    // The page buttons, in the header after the block's name: only for
+    // pages with something on them for the type chosen (MOD's second page
+    // is Cyclone's alone), and none when only one page has.
     if (! pageButtons.empty())
     {
+        const auto hasControls = [this] (int page)
+        {
+            for (const auto& group : groups)
+                if (group.page == page)
+                    for (const auto* control : group.controls)
+                        if (control->shown)
+                            return true;
+            return false;
+        };
+        if (! hasControls (currentPage))
+            for (int page = 0; page < (int) pageButtons.size(); ++page)
+                if (hasControls (page))
+                {
+                    currentPage = page;
+                    pageButtons[(size_t) page]->setToggleState (true, juce::dontSendNotification);
+                    updateVisibility();
+                    break;
+                }
+        int pagesUsed = 0;
+        for (int page = 0; page < (int) pageButtons.size(); ++page)
+            pagesUsed += hasControls (page) ? 1 : 0;
+
         const auto titleWidth = juce::GlyphArrangement::getStringWidthInt (juce::FontOptions (14.0f, juce::Font::bold), headerTitle);
         auto row = rack ? area.withHeight (24) : area.withHeight (24).withTrimmedLeft (26 + 8 + titleWidth + 24);
-        for (auto& button : pageButtons)
+        for (int page = 0; page < (int) pageButtons.size(); ++page)
         {
+            auto& button = pageButtons[(size_t) page];
+            button->setVisible (pagesUsed > 1 && hasControls (page));
+            if (! button->isVisible())
+                continue;
             button->setBounds (row.removeFromLeft (76).reduced (0, 1));
             row.removeFromLeft (4);
         }
