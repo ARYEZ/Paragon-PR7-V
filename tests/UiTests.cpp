@@ -1268,6 +1268,7 @@ TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meter
     // DYNAMICS (stomp 1's name): the faceplate follows its TYPE.
     footswitches[0]->onSelect();
     for (auto [type, look] : { std::pair { 0, Faceplate::Look::classic }, std::pair { 1, Faceplate::Look::daybreak },
+                               std::pair { 3, Faceplate::Look::snap }, std::pair { 4, Faceplate::Look::glow },
                                std::pair { 2, Faceplate::Look::revival } })
     {
         set (processor, ParamIDs::compType, (float) type);

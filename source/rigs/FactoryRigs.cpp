@@ -53,7 +53,8 @@ namespace
     constexpr float threePartStack = 9, gospelStack = 17;                                // more CHORD maps
 
     // Choices, by their index in each list (see the effects' typeNames).
-    constexpr float classicComp = 0, daybreakComp = 1, revival = 2;                     // DYNAMICS' TYPE
+    constexpr float classicComp = 0, daybreakComp = 1, revival = 2, snapComp = 3, glowComp = 4;   // DYNAMICS' TYPE
+    constexpr float snapEight = 1, snapAll = 4;                                         // SNAP's RATIO
     constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
                     harmonicTremolo = 8, autoPan = 9;                                    // MODULATION's TYPE
     constexpr float digitalDelay = 0, analogDelay = 1, tapeDelay = 2, reverseDelay = 4, shimmer = 6;   // DELAY's TYPE
@@ -161,6 +162,14 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.16f } }),
 
+        // A smooth, even lead on GLOW, the optical leveller (0.41.0): it rides
+        // the voice gently, a little more on the bright esses (EMPHASIS).
+        make ("Silky Lead", A, 9, "Pop,Ballad,Studio,Glow", {
+            { compOn, 1 }, { compType, glowComp }, { glowPeakReduction, 55 }, { glowGain, 16 }, { glowEmphasis, 0.3f },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { eqOn, 1 }, { "eq250", -1.5f }, { "eq4k", 1 }, { "eq16k", 2 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f }, { reverbPreDelay, 40 } }),
+
         // ---- B: rock and grit ----------------------------------------------
         // A rock lead: a little Screamer edge, a tape slap and a plate.
         make ("Rock Lead", B, 1, "Rock,Drive,Delay", {
@@ -222,6 +231,25 @@ std::vector<Rig> makeFactoryRigs()
             { "mb2Style", britishAmpStyle }, { "mb2Drive", 0.55f }, { "mb2Dynamics", 0.3f },
             { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
+
+        // Upfront rock on SNAP, the FET compressor (0.41.0): 8:1, a quick
+        // attack and release, so every word punches through the band.
+        make ("Punch Lead", B, 7, "Rock,Snap,Studio", {
+            { compOn, 1 }, { compType, snapComp }, { snapInput, 24 }, { snapOutput, -10 }, { snapAttack, 5 }, { snapRelease, 6 },
+            { snapRatio, snapEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq125", -2 }, { "eq2k", 1.5f }, { "eq4k", 2 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // SNAP with every RATIO button in (ALL): the loudest words pushed
+        // back and roughed up, the classic aggressive shout.
+        make ("All-In Shout", B, 8, "Rock,Rap,Snap,Aggressive", {
+            { compOn, 1 }, { compType, snapComp }, { snapInput, 26 }, { snapOutput, -6 }, { snapAttack, 6 }, { snapRelease, 6 },
+            { snapRatio, snapAll },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq125", -3 }, { "eq1k", 1 }, { "eq4k", 2 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),
 
         // ---- C: delays and throws ------------------------------------------
         // The 50s slap: one quick tape repeat.

@@ -315,6 +315,17 @@ namespace ParamIDs
     inline constexpr auto revivalGate        = "revivalGate";
     inline constexpr auto revivalCompression = "revivalCompression";
     inline constexpr auto revivalGain        = "revivalGain";
+    // Version 51: the compressor's SNAP (FET, 1176-style) and GLOW (optical,
+    // LA-2A-style) TYPEs.
+    inline constexpr auto snapInput          = "snapInput";          // dB, 0 to 40
+    inline constexpr auto snapOutput         = "snapOutput";         // dB
+    inline constexpr auto snapAttack         = "snapAttack";         // 1 (slow) to 7 (fast)
+    inline constexpr auto snapRelease        = "snapRelease";        // 1 (slow) to 7 (fast)
+    inline constexpr auto snapRatio          = "snapRatio";          // CompGate::snapRatioNames
+    inline constexpr auto glowPeakReduction  = "glowPeakReduction";  // 0 to 100
+    inline constexpr auto glowGain           = "glowGain";           // dB
+    inline constexpr auto glowMode           = "glowMode";           // CompGate::glowModeNames
+    inline constexpr auto glowEmphasis       = "glowEmphasis";       // 0 to 1
     // Version 33: the delay's controls inspired by Waves H-Delay.
     inline constexpr auto delayDual       = "delayDual";
     inline constexpr auto delayTimeRight  = "delayTimeRight";

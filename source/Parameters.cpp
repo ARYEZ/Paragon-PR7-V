@@ -815,6 +815,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::modCycHigh, "Cyclone Mix / Dist Hi", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
     layout.add (makeChoice (ParamIDs::modCycMode, "Cyclone Mode", v50, Cyclone::modeNames, (int) Cyclone::Mode::keys));
     layout.add (makeFloat (ParamIDs::modCycLevel, "Cyclone Level", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
+
+    // Added in plugin version 51: the compressor's SNAP and GLOW TYPEs. Each
+    // starts where a voice at an ordinary level comes out about as loud as
+    // it went in, with a moderate squeeze.
+    constexpr int v51 = 51;
+    {
+        using effects::CompGate;
+        const CompGate::Settings defaults;
+        const ToText asSignedDb51 = [] (float db, int) { return (db > 0.04f ? "+" : "") + juce::String (db, 1) + " dB"; };
+        const ToText asSnapAttack = [] (float knob, int)
+        {
+            const auto us = CompGate::snapAttackSeconds (knob) * 1.0e6f;
+            return juce::String (juce::roundToInt (us)) + " us";   // the time: the knob's 1-7 is its position
+        };
+        const ToText asSnapRelease = [] (float knob, int)
+        {
+            const auto ms = CompGate::snapReleaseSeconds (knob) * 1000.0f;
+            return ms < 1000.0f ? juce::String (juce::roundToInt (ms)) + " ms" : juce::String (ms / 1000.0f, 2) + " s";
+        };
+        layout.add (makeFloat (ParamIDs::snapInput, "Snap Input", { 0.0f, 40.0f, 0.1f }, defaults.snapInputDb, v51, asDb));
+        layout.add (makeFloat (ParamIDs::snapOutput, "Snap Output", { -30.0f, 10.0f, 0.1f }, defaults.snapOutputDb, v51, asSignedDb51));
+        layout.add (makeFloat (ParamIDs::snapAttack, "Snap Attack", { 1.0f, 7.0f, 0.1f }, defaults.snapAttack, v51, asSnapAttack));
+        layout.add (makeFloat (ParamIDs::snapRelease, "Snap Release", { 1.0f, 7.0f, 0.1f }, defaults.snapRelease, v51, asSnapRelease));
+        layout.add (makeChoice (ParamIDs::snapRatio, "Snap Ratio", v51, CompGate::snapRatioNames, defaults.snapRatio));
+        layout.add (makeFloat (ParamIDs::glowPeakReduction, "Glow Peak Reduction", { 0.0f, 100.0f, 1.0f }, defaults.glowPeakReduction, v51,
+                               [] (float value, int) { return juce::String (juce::roundToInt (value)); }));
+        layout.add (makeFloat (ParamIDs::glowGain, "Glow Gain", { -10.0f, 30.0f, 0.1f }, defaults.glowGainDb, v51, asSignedDb51));
+        layout.add (makeChoice (ParamIDs::glowMode, "Glow Mode", v51, CompGate::glowModeNames, defaults.glowMode));
+        layout.add (makeFloat (ParamIDs::glowEmphasis, "Glow Emphasis", { 0.0f, 1.0f, 0.01f }, defaults.glowEmphasis, v51, asPercent));
+    }
     return layout;
 }
 

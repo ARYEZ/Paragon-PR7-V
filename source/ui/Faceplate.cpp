@@ -198,6 +198,8 @@ Faceplate::Look Faceplate::getLook() const
             switch ((effects::CompGate::Type) juce::roundToInt (raw (ParamIDs::compType)))
             {
                 case effects::CompGate::Type::daybreak: return Look::daybreak;
+                case effects::CompGate::Type::snap:     return Look::snap;
+                case effects::CompGate::Type::glow:     return Look::glow;
                 case effects::CompGate::Type::revival:  return Look::revival;
                 case effects::CompGate::Type::classic:  break;
             }
@@ -365,6 +367,10 @@ void Faceplate::paint (juce::Graphics& g)
     switch (getLook())
     {
         case Look::classic:  paintClassic (g, header, content); break;
+        case Look::snap:     paintClassic (g, header, content, "SNAP", "FET COMPRESSOR",
+                                           { { ParamIDs::snapInput, "INPUT" }, { ParamIDs::snapRatio, "RATIO" }, { ParamIDs::snapOutput, "OUTPUT" } }); break;
+        case Look::glow:     paintClassic (g, header, content, "GLOW", "OPTICAL LEVELLER",
+                                           { { ParamIDs::glowPeakReduction, "PEAK RED." }, { ParamIDs::glowMode, "MODE" }, { ParamIDs::glowGain, "GAIN" } }); break;
         case Look::daybreak: paintDaybreak (g, header, content); break;
         case Look::revival:  paintRevival (g, header, content); break;
         case Look::mars:     paintMars (g, header, content); break;
@@ -401,10 +407,15 @@ void Faceplate::paintGeneric (juce::Graphics& g, juce::Rectangle<float> header, 
     finish (g, glass);
 }
 
-void Faceplate::paintClassic (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)
+void Faceplate::paintClassic (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body,
+                              const juce::String& name, const juce::String& line,
+                              std::vector<std::pair<juce::String, juce::String>> readouts)
 {
-    // A studio compressor: a gain-reduction needle on a screen, and its settings.
-    nameplate (g, header, "CLASSIC", "STUDIO COMPRESSOR");
+    // A studio compressor: a gain-reduction needle on a screen, and its
+    // settings (Classic's, or SNAP's and GLOW's: the same needle suits them).
+    nameplate (g, header, name, line);
+    if (readouts.empty())
+        readouts = { { ParamIDs::compThreshold, "THRESHOLD" }, { ParamIDs::compRatio, "RATIO" }, { ParamIDs::compLevel, "LEVEL" } };
     const auto on = isOn();
 
     auto settings = isRack() ? juce::Rectangle<float>() : settingsColumn (body, 0.46f);
@@ -442,10 +453,9 @@ void Faceplate::paintClassic (juce::Graphics& g, juce::Rectangle<float> header, 
     // THRESHOLD, RATIO and LEVEL, each on its own small screen.
     if (isRack())
         return;
-    const auto row = settings.getHeight() / 3.0f;
-    for (auto [id, name] : { std::pair { ParamIDs::compThreshold, "THRESHOLD" }, std::pair { ParamIDs::compRatio, "RATIO" },
-                             std::pair { ParamIDs::compLevel, "LEVEL" } })
-        readout (g, settings.removeFromTop (row).reduced (0.0f, 3.0f), name, text (id));
+    const auto row = settings.getHeight() / (float) juce::jmax<size_t> (1, readouts.size());
+    for (const auto& [id, label] : readouts)
+        readout (g, settings.removeFromTop (row).reduced (0.0f, 3.0f), label, text (id));
 }
 
 void Faceplate::paintDaybreak (juce::Graphics& g, juce::Rectangle<float> header, juce::Rectangle<float> body)

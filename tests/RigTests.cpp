@@ -297,7 +297,7 @@ TEST_CASE ("Rigs are sorted by bank and number, and < > wrap round", "[rigs]")
     CHECK (library.step (&entries.front(), -1) == &entries.back());
     CHECK (library.step (nullptr, 1) == &entries.front());
 
-    CHECK (library.nextFreeNumber (0) == 9);   // factory rigs fill A01-A08
+    CHECK (library.nextFreeNumber (0) == 10);   // factory rigs fill A01-A09
 }
 
 TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs", "[rigs]")
