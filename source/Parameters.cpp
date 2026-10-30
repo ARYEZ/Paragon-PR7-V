@@ -208,7 +208,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeChoice (ParamIDs::fpXpProgram, "Whammy-Wah Program", 21, effects::FilterPitch::xpProgramNames(), 1));
 
     constexpr int v22 = 22;
-    layout.add (makeChoice (ParamIDs::compType, "Comp Type", v22, effects::CompGate::typeNames, 0));
+    // Revival to start since 0.41.0 (Classic left the menu; older rigs and
+    // projects that relied on Classic as the default are kept on it).
+    layout.add (makeChoice (ParamIDs::compType, "Comp Type", v22, effects::CompGate::typeNames, (int) effects::CompGate::Type::revival));
     layout.add (makeFloat (ParamIDs::compAmount, "Comp Amount", { 0.0f, 10.0f, 0.1f }, 5.0f, v22, asKnob));
     layout.add (makeFloat (ParamIDs::compDetail, "Comp Detail", { 0.0f, 10.0f, 0.1f }, 5.0f, v22, asKnob));
     layout.add (makeFloat (ParamIDs::compMix, "Comp Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v22, asPercent));
@@ -815,6 +817,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeFloat (ParamIDs::modCycHigh, "Cyclone Mix / Dist Hi", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
     layout.add (makeChoice (ParamIDs::modCycMode, "Cyclone Mode", v50, Cyclone::modeNames, (int) Cyclone::Mode::keys));
     layout.add (makeFloat (ParamIDs::modCycLevel, "Cyclone Level", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
+
+    // Added in plugin version 51: the compressor's PHOTON and ABYSS TYPEs. Each
+    // starts where a voice at an ordinary level comes out about as loud as
+    // it went in, with a moderate squeeze.
+    constexpr int v51 = 51;
+    {
+        using effects::CompGate;
+        const CompGate::Settings defaults;
+        const ToText asSignedDb51 = [] (float db, int) { return (db > 0.04f ? "+" : "") + juce::String (db, 1) + " dB"; };
+        const ToText asPhotonAttack = [] (float knob, int)
+        {
+            const auto us = CompGate::photonAttackSeconds (knob) * 1.0e6f;
+            return juce::String (juce::roundToInt (us)) + " us";   // the time: the knob's 1-7 is its position
+        };
+        const ToText asPhotonRelease = [] (float knob, int)
+        {
+            const auto ms = CompGate::photonReleaseSeconds (knob) * 1000.0f;
+            return ms < 1000.0f ? juce::String (juce::roundToInt (ms)) + " ms" : juce::String (ms / 1000.0f, 2) + " s";
+        };
+        layout.add (makeFloat (ParamIDs::photonInput, "Photon Input", { 0.0f, 40.0f, 0.1f }, defaults.photonInputDb, v51, asDb));
+        layout.add (makeFloat (ParamIDs::photonOutput, "Photon Output", { -30.0f, 10.0f, 0.1f }, defaults.photonOutputDb, v51, asSignedDb51));
+        layout.add (makeFloat (ParamIDs::photonAttack, "Photon Attack", { 1.0f, 7.0f, 0.1f }, defaults.photonAttack, v51, asPhotonAttack));
+        layout.add (makeFloat (ParamIDs::photonRelease, "Photon Release", { 1.0f, 7.0f, 0.1f }, defaults.photonRelease, v51, asPhotonRelease));
+        layout.add (makeChoice (ParamIDs::photonRatio, "Photon Ratio", v51, CompGate::photonRatioNames, defaults.photonRatio));
+        layout.add (makeFloat (ParamIDs::abyssPeakReduction, "Abyss Peak Reduction", { 0.0f, 100.0f, 1.0f }, defaults.abyssPeakReduction, v51,
+                               [] (float value, int) { return juce::String (juce::roundToInt (value)); }));
+        layout.add (makeFloat (ParamIDs::abyssGain, "Abyss Gain", { -10.0f, 30.0f, 0.1f }, defaults.abyssGainDb, v51, asSignedDb51));
+        layout.add (makeChoice (ParamIDs::abyssMode, "Abyss Mode", v51, CompGate::abyssModeNames, defaults.abyssMode));
+        layout.add (makeFloat (ParamIDs::abyssEmphasis, "Abyss Emphasis", { 0.0f, 1.0f, 0.01f }, defaults.abyssEmphasis, v51, asPercent));
+    }
     return layout;
 }
 

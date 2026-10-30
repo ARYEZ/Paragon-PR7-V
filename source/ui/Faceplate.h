@@ -13,7 +13,8 @@
 // ink or printed in red. It follows the block's TYPE and shows what the
 // block is doing, live, on its screens:
 //
-//   DYNAMICS    Classic: a gain-reduction needle, THRESHOLD/RATIO/LEVEL.
+//   DYNAMICS    Classic: a gain-reduction needle, THRESHOLD/RATIO/LEVEL;
+//               Photon and Abyss (0.41.0): the same needle, their own settings.
 //               Daybreak: COMP/DETAIL/MIX knobs, INTENSITY key, a meter.
 //               Revival: GATE/COMPRESSION/GAIN as one curve, faders, a meter.
 //   SATURATION  MARS: a tube per band, glowing as hard as it's driven.
@@ -48,7 +49,7 @@ public:
     // Which kind of block: the ones with their own faceplates, or any other.
     enum class Unit { dynamics, saturation, delay, reverb, pitch, modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder, other };
     // What's drawn now (for tests).
-    enum class Look { generic, classic, daybreak, revival, mars, delay, reverb, harmony,
+    enum class Look { generic, classic, daybreak, revival, photon, abyss, mars, delay, reverb, harmony,
                       modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder };
 
     // `onIds`: the block's on switches (comma separated); `typeId`: its TYPE
@@ -92,7 +93,9 @@ private:
 
     // Each draws its name in `header` and the rest in `body`.
     void paintGeneric (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
-    void paintClassic (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
+    void paintClassic (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body,
+                       const juce::String& name = "CLASSIC", const juce::String& line = "STUDIO COMPRESSOR",
+                       std::vector<std::pair<juce::String, juce::String>> readouts = {});
     void paintDaybreak (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintRevival (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
     void paintMars (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);

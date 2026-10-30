@@ -161,6 +161,7 @@ TEST_CASE ("Compressor turns loud playing down and leaves quiet playing alone", 
     // should come out 3 dB over: turned down by about 9 dB.
     EffectRig rig;
     rig.set (ParamIDs::compOn, 1.0f);
+    rig.set (ParamIDs::compType, 0.0f);   // Classic: out of the menu since 0.41.0, still playing for old songs
     rig.set (ParamIDs::compThreshold, -18.0f);
     rig.set (ParamIDs::compRatio, 4.0f);
 
@@ -696,6 +697,7 @@ TEST_CASE ("Noise gate silences signal below its threshold", "[effects][comp]")
 {
     EffectRig rig;
     rig.set (ParamIDs::compOn, 1.0f);
+    rig.set (ParamIDs::compType, 0.0f);        // Classic (the gate is the PR7's own, on every TYPE but Revival)
     rig.set (ParamIDs::compThreshold, 0.0f);   // compressor out of the way
     rig.set (ParamIDs::gateThreshold, -50.0f);
 
@@ -5499,4 +5501,198 @@ TEST_CASE ("HARMONY: a voice's FORMANT an octave up keeps the voice on its note 
     const auto out = rig.runMono (sungVowel (220.0, 1.2, 700.0));
     CAPTURE (pitchOf (out));
     CHECK (std::abs (cents (pitchOf (out), 329.628)) < 10.0);
+}
+
+//==============================================================================
+// DYNAMICS' PHOTON (FET, 1176-style) and ABYSS (optical, LA-2A-style), 0.41.0.
+namespace
+{
+    using Comp = effects::CompGate;
+
+    std::vector<float> runComp (const Comp::Settings& settings, const std::vector<float>& input)
+    {
+        Comp comp;
+        comp.prepare (sampleRate, blockSize);
+        std::vector<float> out (input);
+        for (size_t start = 0; start + blockSize <= out.size(); start += blockSize)
+        {
+            float* channels[] = { out.data() + start };
+            comp.process (juce::dsp::AudioBlock<float> (channels, 1, (size_t) blockSize), settings);
+        }
+        return out;
+    }
+
+    // A tone: `level` (peak) for `seconds`, then `after` for `afterSeconds`.
+    std::vector<float> toneSteps (double hz, float level, double seconds, float after, double afterSeconds)
+    {
+        std::vector<float> out ((size_t) ((seconds + afterSeconds) * sampleRate));
+        for (size_t i = 0; i < out.size(); ++i)
+        {
+            const auto amp = (double) i < seconds * sampleRate ? level : after;
+            out[i] = amp * (float) std::sin (juce::MathConstants<double>::twoPi * hz * (double) i / sampleRate);
+        }
+        return out;
+    }
+
+    float rmsBetween (const std::vector<float>& x, double from, double to)
+    {
+        return rms (std::vector<float> (x.begin() + (long) (from * sampleRate), x.begin() + (long) std::min ((double) x.size(), to * sampleRate)));
+    }
+
+    Comp::Settings photonSettings()
+    {
+        Comp::Settings s;
+        s.on = true;
+        s.type = Comp::Type::photon;
+        return s;
+    }
+
+    Comp::Settings abyssSettings()
+    {
+        Comp::Settings s;
+        s.on = true;
+        s.type = Comp::Type::abyss;
+        return s;
+    }
+}
+
+TEST_CASE ("PHOTON: the FET compressor's ratios, ALL, attack, release and grit", "[effects][comp][photon]")
+{
+    SECTION ("RATIO: 10 dB over the threshold comes out 2.5 dB over at 4:1, 0.5 dB at 20:1")
+    {
+        CHECK_THAT (10.0f + Comp::photonCurveDb (10.0f, 0), WithinAbs (2.5, 0.2));
+        CHECK_THAT (10.0f + Comp::photonCurveDb (10.0f, 3), WithinAbs (0.5, 0.2));
+        CHECK (Comp::photonCurveDb (-10.0f, 0) == 0.0f);   // under the threshold: untouched
+    }
+
+    SECTION ("ALL: past its turn, louder in comes out quieter (the loudest peaks below quieter ones)")
+    {
+        const auto out = [] (float in) { return in + Comp::photonCurveDb (in, 4); };
+        CHECK (out (24.0f) < out (12.0f));   // past the turn (10 dB over its threshold, 4 dB lower than the others)
+        CHECK (out (4.0f) > out (-2.0f));    // before it, it still rises (gently)
+    }
+
+    SECTION ("The knobs as on the original: 7 is the fastest attack and release, 1 the slowest")
+    {
+        CHECK_THAT (Comp::photonAttackSeconds (7.0f), Catch::Matchers::WithinRel (20.0e-6, 0.01));
+        CHECK_THAT (Comp::photonAttackSeconds (1.0f), Catch::Matchers::WithinRel (800.0e-6, 0.01));
+        CHECK_THAT (Comp::photonReleaseSeconds (7.0f), Catch::Matchers::WithinRel (0.05, 0.01));
+        CHECK_THAT (Comp::photonReleaseSeconds (1.0f), Catch::Matchers::WithinRel (1.1, 0.01));
+    }
+
+    SECTION ("More INPUT, more compression; OUTPUT sets the level back")
+    {
+        const auto loud = toneSteps (440.0, 0.3f, 1.0, 0.0f, 0.0);
+        auto gentle = photonSettings();
+        gentle.photonInputDb = 6.0f;
+        gentle.photonOutputDb = -6.0f;
+        auto hard = photonSettings();
+        hard.photonInputDb = 30.0f;
+        hard.photonOutputDb = -6.0f;
+        const auto a = rmsBetween (runComp (gentle, loud), 0.5, 1.0), b = rmsBetween (runComp (hard, loud), 0.5, 1.0);
+        CAPTURE (dB (a / rms (loud)), dB (b / rms (loud)));
+        CHECK (dB (b / a) < 24.0f - 12.0f);   // 24 dB more INPUT comes out far less than 24 dB louder
+        auto louder = hard;
+        louder.photonOutputDb = 0.0f;
+        CHECK_THAT (dB (rmsBetween (runComp (louder, loud), 0.5, 1.0) / b), WithinAbs (6.0, 0.3));
+    }
+
+    SECTION ("RELEASE 7 recovers within a quarter of a second; RELEASE 1 still holds the voice down")
+    {
+        // Loud for a second, then 20 dB quieter: how much is it still turned down?
+        const auto input = toneSteps (440.0, 0.5f, 1.0, 0.05f, 1.0);
+        auto fast = photonSettings(), slow = photonSettings();
+        fast.photonRelease = 7.0f;
+        slow.photonRelease = 1.0f;
+        const auto settled = [&] (const Comp::Settings& s) { return rmsBetween (runComp (s, toneSteps (440.0, 0.05f, 2.0, 0.0f, 0.0)), 1.5, 2.0); };
+        const auto fastAfter = rmsBetween (runComp (fast, input), 1.25, 1.35), slowAfter = rmsBetween (runComp (slow, input), 1.25, 1.35);
+        CAPTURE (dB (fastAfter / settled (fast)), dB (slowAfter / settled (slow)));
+        CHECK (dB (fastAfter / settled (fast)) > -1.0f);
+        CHECK (dB (slowAfter / settled (slow)) < -3.0f);
+    }
+
+    SECTION ("ATTACK 1 lets the start of a note through; ATTACK 7 clamps it")
+    {
+        const auto input = toneSteps (2000.0, 0.0f, 0.2, 0.6f, 0.3);   // a bright note starting at 0.2 s (its first peak 0.125 ms in)
+        auto fast = photonSettings(), slow = photonSettings();
+        fast.photonAttack = 7.0f;
+        slow.photonAttack = 1.0f;
+        const auto peakFirstMs = [&] (const Comp::Settings& s)
+        {
+            const auto out = runComp (s, input);
+            auto peak = 0.0f;
+            for (auto i = (size_t) (0.2 * sampleRate); i < (size_t) (0.2006 * sampleRate); ++i)
+                peak = std::max (peak, std::abs (out[i]));
+            return peak / rmsBetween (out, 0.4, 0.5);
+        };
+        CAPTURE (peakFirstMs (fast), peakFirstMs (slow));
+        CHECK (peakFirstMs (slow) > 1.4f * peakFirstMs (fast));
+    }
+
+    SECTION ("Its grit grows with the squeeze; ALL is the grittiest")
+    {
+        const auto thirdHarmonic = [] (Comp::Settings s, float inputDb)
+        {
+            s.photonInputDb = inputDb;
+            s.photonRelease = 1.0f;   // slow, so the gain doesn't wobble with the wave
+            const auto out = runComp (s, toneSteps (300.0, 0.3f, 1.0, 0.0f, 0.0));
+            return dB (levelAt (out, 900.0, 0.5) / levelAt (out, 300.0, 0.5));
+        };
+        auto all = photonSettings();
+        all.photonRatio = 4;
+        CAPTURE (thirdHarmonic (photonSettings(), 6.0f), thirdHarmonic (photonSettings(), 30.0f), thirdHarmonic (all, 30.0f));
+        CHECK (thirdHarmonic (photonSettings(), 30.0f) > thirdHarmonic (photonSettings(), 6.0f) + 6.0f);
+        CHECK (thirdHarmonic (all, 30.0f) > thirdHarmonic (photonSettings(), 30.0f) + 3.0f);
+    }
+}
+
+TEST_CASE ("ABYSS: the optical leveller's gentle grab, two-stage release and memory", "[effects][comp][abyss]")
+{
+    SECTION ("More PEAK REDUCTION, more reduction; LIMIT holds firmer than COMPRESS")
+    {
+        CHECK (Comp::abyssCurveDb (-6.0f, 80.0f, 0) < Comp::abyssCurveDb (-6.0f, 20.0f, 0) - 10.0f);
+        CHECK (Comp::abyssCurveDb (0.0f, 50.0f, 1) < Comp::abyssCurveDb (0.0f, 50.0f, 0) - 5.0f);
+        CHECK (Comp::abyssCurveDb (-60.0f, 100.0f, 0) == 0.0f);
+    }
+
+    SECTION ("It lets go half way quickly, then slowly: still holding down half a second later")
+    {
+        // Loud for a second, then 20 dB quieter.
+        const auto input = toneSteps (440.0, 0.5f, 1.0, 0.05f, 2.0);
+        const auto out = runComp (abyssSettings(), input);
+        const auto settled = rmsBetween (runComp (abyssSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
+        const auto at = [&] (double t) { return dB (rmsBetween (out, t, t + 0.05) / settled); };
+        const auto justAfter = at (1.0), quarter = at (1.25), later = at (1.5), muchLater = at (2.9);
+        CAPTURE (justAfter, quarter, later, muchLater);
+        CHECK (quarter > justAfter + 3.0f);   // a quick first half
+        CHECK (later < -1.5f);                // then slow: still down after half a second
+        CHECK (muchLater > later + 1.0f);     // and still recovering
+    }
+
+    SECTION ("Its memory: after working hard for longer, it lets go more slowly")
+    {
+        const auto stillDown = [] (double loudSeconds)
+        {
+            const auto input = toneSteps (440.0, 0.5f, loudSeconds, 0.05f, 1.5);
+            const auto out = runComp (abyssSettings(), input);
+            const auto settled = rmsBetween (runComp (abyssSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
+            return dB (rmsBetween (out, loudSeconds + 1.0, loudSeconds + 1.1) / settled);
+        };
+        CAPTURE (stillDown (0.3), stillDown (6.0));
+        CHECK (stillDown (6.0) < stillDown (0.3) - 1.0f);
+    }
+
+    SECTION ("EMPHASIS: it reacts more to bright sounds (6 kHz), not to low ones (300 Hz)")
+    {
+        const auto reduction = [] (double hz, float emphasis)
+        {
+            auto s = abyssSettings();
+            s.abyssEmphasis = emphasis;
+            const auto input = toneSteps (hz, 0.2f, 1.0, 0.0f, 0.0);
+            return dB (rmsBetween (runComp (s, input), 0.6, 1.0) / rmsBetween (input, 0.6, 1.0));
+        };
+        CAPTURE (reduction (6000.0, 0.0f), reduction (6000.0, 1.0f), reduction (300.0, 0.0f), reduction (300.0, 1.0f));
+        CHECK (reduction (6000.0, 1.0f) < reduction (6000.0, 0.0f) - 3.0f);
+        CHECK_THAT (reduction (300.0, 1.0f) - reduction (300.0, 0.0f), WithinAbs (0.0, 1.0));
+    }
 }

@@ -42,7 +42,8 @@ descriptions below still talk about guitar.
 | V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
 | V15 | LO-FI voices: Cell Phone, Walkie-Talkie, Gramophone | ✅ Done (0.36.0) |
 | V16 | FORMANT: chipmunk to giant, the pitch kept | ✅ Done (0.37.0) |
-| V17 | Vocoder SIDECHAIN carrier | Next |
+| V17 | DYNAMICS: Photon (1176-style FET) and Abyss (LA-2A-style optical); Classic retired | ✅ Done (0.41.0) |
+| V18 | Vocoder SIDECHAIN carrier | Next |
 
 ## Using it
 
@@ -55,11 +56,11 @@ descriptions below still talk about guitar.
   HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
   what was on (TUNE VOICE in the mode it had).
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
-    **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
     **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
     **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
-    it). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
+    it); **Photon**, a fast FET compressor inspired by the 1176 (INPUT, OUTPUT, ATTACK and RELEASE 1-7, RATIO 4/8/12/20 or
+    All); and **Abyss**, a smooth optical leveller inspired by the LA-2A (PEAK REDUCTION, GAIN, Compress or Limit,
+    EMPHASIS). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
     what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
@@ -181,7 +182,7 @@ descriptions below still talk about guitar.
   screens, knobs, keys and lights, in your finish), for the block you pick (click a signal-chain block or a
   footswitch name); **GRAPHIC EQ** goes back to the EQ.
   - **On the left, its display**, following its TYPE, with live readings: DYNAMICS with a gain-reduction needle
-    (Classic), a meter (Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
+    (Photon, Abyss, and the retired Classic), a meter (the retired Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
     DELAY with its repeats and TIME; REVERB with its shape and DECAY; PITCH with the note you sing and the harmony
     voices; MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...
   - **In the middle, its controls**, the real ones: the unit's big knobs with their values on small screens, menus

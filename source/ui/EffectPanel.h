@@ -25,6 +25,10 @@ public:
         // ...or hidden, the other cards closing up, when it belongs to
         // another type (the Classic compressor's knobs while it's Daybreak).
         bool hideWhenInactive = false;
+        // A list's choices no longer offered (by index; still saved by it):
+        // left out of the menu, but shown "(old)" while a rig or project
+        // loaded with one is on it (the compressor's Classic, since 0.41.0).
+        std::vector<int> retiredChoices {};
     };
 
     struct Group

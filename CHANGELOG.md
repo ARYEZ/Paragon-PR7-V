@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.42.0
+
+- **DAYBREAK has left DYNAMICS' TYPE menu too** (your call). The menu is now **Revival, Photon and Abyss**.
+  - **Your songs and rigs are safe**, as with Classic: one that uses Daybreak still loads and sounds exactly as it did, its TYPE showing "Daybreak (old)", until you pick another type.
+  - **Seven factory rigs used Daybreak and now use Photon:** B02 Grit Shout, B03 Garage Megaphone, F05 Metalcore Scream, F08 Prog Scream, F10 Grunge Double, F12 Nu-Metal Shout and F13 Deathcore Growl. Their COMP setting became Photon's INPUT (more COMP, more INPUT), with a medium ATTACK and RELEASE and 8:1 where they squeezed hardest; their levels were rebalanced to sit with the other rigs. They are punchier and a little grittier than before; if one of them no longer suits you, tell me which and how.
+- **Can't be checked here by ear:** the tests check that those rigs still compress and stay level with the rest, but whether Photon suits each style is for you to judge.
+
+## 0.41.0
+
+- **Two classic studio compressors join DYNAMICS' TYPE list: PHOTON and ABYSS.** You asked for them by their originals; the names are yours. Both follow the originals' published specifications, with our own design where those don't say (marked below).
+  - **PHOTON, a FET compressor inspired by the 1176:** fast, bright and in your face, the classic for rock and rap vocals.
+    - **INPUT** drives your voice into a fixed threshold (more INPUT, more compression); **OUTPUT** sets the level back.
+    - **ATTACK** and **RELEASE** run 1 to 7, as on the original (7 fastest): attack 800 to 20 microseconds, release 1.1 seconds to 50 ms. The screen shows the time.
+    - **RATIO** 4:1, 8:1, 12:1, 20:1 and **All**, the "all buttons in" trick: the loudest words get pushed below quieter ones, quicker and grittier.
+    - **Our design:** the FET's grit, which grows with how hard it's compressing (barely any at a light squeeze, the most on All), and the exact shape of All.
+  - **ABYSS, an optical leveller inspired by the LA-2A:** smooth and gentle, the classic for even pop and ballad vocals.
+    - **PEAK REDUCTION** (how much) and **GAIN**; **MODE** Compress (gentle) or Limit (firmer).
+    - **EMPHASIS** makes it react more to bright sounds and esses, like the original's rear trim.
+    - **The light cell's feel:** it grabs in about 10 ms, lets go half way in about 60 ms, then the rest over 1 to 5 seconds, more slowly the harder and longer it's been working.
+    - **Our guesses:** the ratios, that "memory", and a touch of valve warmth. The real cell isn't specified that precisely.
+  - Both keep the PR7's NOISE GATE. On the rack they show a gain-reduction needle.
+- **CLASSIC, the generic compressor, has left the TYPE menu** (your call: Revival, Photon and Abyss cover it). New rigs start on **Revival**.
+  - **Your songs and rigs are safe.** One that used Classic still loads and sounds exactly as it did, its TYPE showing "Classic (old)", until you pick another type. That includes rigs saved before this version that never set a TYPE and so relied on Classic being the default.
+  - The factory rig **A04 Intimate** used Classic; it now uses Abyss.
+- **Three new rigs:** **A09 Silky Lead** (Abyss), **B07 Punch Lead** (Photon 8:1), **B08 All-In Shout** (Photon on All).
+- **Can't be checked here by ear:** the tests check the sound (each RATIO's curve, All pushing the loudest peaks down, slow ATTACK letting a note's start through, fast RELEASE recovering in a quarter of a second, the grit growing with the squeeze, Abyss's quick-then-slow release and its memory, Limit firmer than Compress, EMPHASIS reacting to highs and not lows), but how they feel on your voice is yours to judge. If you can find the originals' manuals, I can check my numbers against them.
+
 ## 0.40.0
 
 - **CYCLONE: a new rotary speaker, replacing MODULATION's old Rotary type** (as on PR7-G 0.55.0). It's our own design, inspired by the Neo Instruments Ventilator II, which simulates a model 122 rotary speaker cabinet.

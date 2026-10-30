@@ -458,14 +458,22 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     const auto classic = compIs (effects::CompGate::Type::classic), daybreak = compIs (effects::CompGate::Type::daybreak);
     const auto revival = compIs (effects::CompGate::Type::revival);
     const auto notRevival = [revival] { return ! revival(); };
+    const auto photon = compIs (effects::CompGate::Type::photon), abyss = compIs (effects::CompGate::Type::abyss);
+    const auto hasLevel = [classic, daybreak] { return classic() || daybreak(); };   // Photon and Abyss have their own OUTPUT / GAIN
     panels[compBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
-        { "COMPRESSOR", { { ParamIDs::compOn, "ON" }, { ParamIDs::compType, "TYPE" },
+        { "COMPRESSOR", { { ParamIDs::compOn, "ON" },
+                          { ParamIDs::compType, "TYPE", nullptr, false, { (int) effects::CompGate::Type::classic, (int) effects::CompGate::Type::daybreak } },   // out of the menu: Classic since 0.41.0, Daybreak since 0.42.0
                           { ParamIDs::compThreshold, "THRESHOLD", classic, true }, { ParamIDs::compRatio, "RATIO", classic, true },
                           { ParamIDs::compAmount, "COMP", daybreak, true }, { ParamIDs::compDetail, "DETAIL", daybreak, true },
                           { ParamIDs::compMix, "MIX", daybreak, true }, { ParamIDs::compIntensity, "INTENSITY", daybreak, true },
                           { ParamIDs::revivalCompression, "COMPRESSION", revival, true },
                           { ParamIDs::revivalGain, "GAIN", revival, true },
-                          { ParamIDs::compLevel, "LEVEL", notRevival, true } } },
+                          { ParamIDs::photonInput, "INPUT", photon, true }, { ParamIDs::photonOutput, "OUTPUT", photon, true },
+                          { ParamIDs::photonAttack, "ATTACK", photon, true }, { ParamIDs::photonRelease, "RELEASE", photon, true },
+                          { ParamIDs::photonRatio, "RATIO", photon, true },
+                          { ParamIDs::abyssPeakReduction, "PEAK RED.", abyss, true }, { ParamIDs::abyssGain, "GAIN", abyss, true },
+                          { ParamIDs::abyssMode, "MODE", abyss, true }, { ParamIDs::abyssEmphasis, "EMPHASIS", abyss, true },
+                          { ParamIDs::compLevel, "LEVEL", hasLevel, true } } },
         { "NOISE GATE", { { ParamIDs::gateThreshold, "THRESHOLD", notRevival, true },
                           { ParamIDs::revivalGate, "GATE", revival, true } } } });
     panels[compBlock]->setMeter ([this] { return audioProcessor.getCompGainReductionDb(); });

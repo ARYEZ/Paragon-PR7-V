@@ -53,7 +53,8 @@ namespace
     constexpr float threePartStack = 9, gospelStack = 17;                                // more CHORD maps
 
     // Choices, by their index in each list (see the effects' typeNames).
-    constexpr float classicComp = 0, daybreakComp = 1, revival = 2;                     // DYNAMICS' TYPE
+    constexpr float classicComp = 0, daybreakComp = 1, revival = 2, photonComp = 3, abyssComp = 4;   // DYNAMICS' TYPE
+    constexpr float photonEight = 1, photonAll = 4;                                         // PHOTON's RATIO
     constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
                     harmonicTremolo = 8, autoPan = 9;                                    // MODULATION's TYPE
     constexpr float digitalDelay = 0, analogDelay = 1, tapeDelay = 2, reverseDelay = 4, shimmer = 6;   // DELAY's TYPE
@@ -122,7 +123,7 @@ std::vector<Rig> makeFactoryRigs()
         // Close and warm, for ballads: gentle compression, a small chamber.
         make ("Intimate", A, 4, "Ballad,Clean,Reverb", {
             { rigLevel, 4 },   // even with the other rigs
-            { compOn, 1 }, { compType, classicComp }, { compThreshold, -22 }, { compRatio, 2.5f }, { compLevel, 4 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 8 },   // Classic until 0.41.0
             { deessOn, 1 }, { deessAmount, 5 },
             { eqOn, 1 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq16k", 2 },
             { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.3f }, { reverbMix, 0.15f }, { reverbPreDelay, 10 } }),
@@ -161,6 +162,14 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.16f } }),
 
+        // A smooth, even lead on ABYSS, the optical leveller (0.41.0): it rides
+        // the voice gently, a little more on the bright esses (EMPHASIS).
+        make ("Silky Lead", A, 9, "Pop,Ballad,Studio,Abyss", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 55 }, { abyssGain, 16 }, { abyssEmphasis, 0.3f },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { eqOn, 1 }, { "eq250", -1.5f }, { "eq4k", 1 }, { "eq16k", 2 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f }, { reverbPreDelay, 40 } }),
+
         // ---- B: rock and grit ----------------------------------------------
         // A rock lead: a little Screamer edge, a tape slap and a plate.
         make ("Rock Lead", B, 1, "Rock,Drive,Delay", {
@@ -177,14 +186,16 @@ std::vector<Rig> makeFactoryRigs()
 
         // Shouted and driven, mids pushed forward, a tight room.
         make ("Grit Shout", B, 2, "Rock,Drive", {
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 7 }, { compDetail, 4 },
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -17 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", britishAmpStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 2 }, { "mb1Mix", 0.85f },
             { eqOn, 1 }, { "eq125", -4 }, { "eq1k", 3 }, { "eq2k", 2 }, { "eq8k", -2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.12f } }),
 
         // A bullhorn with a dirty slap: garage, punk and breakdowns.
         make ("Garage Megaphone", B, 3, "Rock,Lo-Fi,Drive", {
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 },
+            { rigLevel, -3 },   // even with the other rigs
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -16 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.5f },
             { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 2 },
             { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.2f },
@@ -222,6 +233,25 @@ std::vector<Rig> makeFactoryRigs()
             { "mb2Style", britishAmpStyle }, { "mb2Drive", 0.55f }, { "mb2Dynamics", 0.3f },
             { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
+
+        // Upfront rock on PHOTON, the FET compressor (0.41.0): 8:1, a quick
+        // attack and release, so every word punches through the band.
+        make ("Punch Lead", B, 7, "Rock,Photon,Studio", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 },
+            { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq125", -2 }, { "eq2k", 1.5f }, { "eq4k", 2 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // PHOTON with every RATIO button in (ALL): the loudest words pushed
+        // back and roughed up, the classic aggressive shout.
+        make ("All-In Shout", B, 8, "Rock,Rap,Photon,Aggressive", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -6 }, { photonAttack, 6 }, { photonRelease, 6 },
+            { photonRatio, photonAll },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq125", -3 }, { "eq1k", 1 }, { "eq4k", 2 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),
 
         // ---- C: delays and throws ------------------------------------------
         // The 50s slap: one quick tape repeat.
@@ -688,7 +718,7 @@ std::vector<Rig> makeFactoryRigs()
         // follower on DRIVE), doubled and kept dry.
         make ("Metalcore Scream", F, 5, "Metal,Metalcore,Scream,Saturation,Mars,Modulation", {
             { rigLevel, -6 },   // even with the other rigs
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },   // Daybreak until 0.42.0
             { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 350 },
             { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
             { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.45f }, { "mb2Presence", 2 },
@@ -725,7 +755,7 @@ std::vector<Rig> makeFactoryRigs()
         // an octave-down take underneath for weight, a short slap.
         make ("Prog Scream", F, 8, "Metal,Prog,Scream,Saturation,Mars", {
             { rigLevel, -6 },   // even with the other rigs
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.55f }, { "mb1Mid", 2 }, { "mb1Presence", 2 },
             { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", -2 },
             { doublerOn, 1 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -12 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
@@ -749,7 +779,7 @@ std::vector<Rig> makeFactoryRigs()
         // 90s grunge: a doubled, mid-heavy, slightly dirty voice with a
         // touch of chorus, in a dark plate.
         make ("Grunge Double", F, 10, "Grunge,Rock,Doubler,Saturation", {
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.4f }, { "mb1Treble", -2 },
             { eqOn, 1 }, { "eq63", -4 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq8k", -2 }, { "eq16k", -3 },
             { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
@@ -772,7 +802,7 @@ std::vector<Rig> makeFactoryRigs()
         // doubled for the hooks, with a driven edge.
         make ("Nu-Metal Shout", F, 12, "Nu-Metal,Rap,Rock,Saturation,Doubler", {
             { rigLevel, -3 },   // even with the other rigs
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 8 }, { compDetail, 5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.45f }, { "mb1Mix", 0.8f },
             { eqOn, 1 }, { "eq63", -4 }, { "eq250", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 3 }, { "eq8k", 2 },
             { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Detune", 4 }, { "dv2Detune", -4 },
@@ -781,8 +811,8 @@ std::vector<Rig> makeFactoryRigs()
         // Deathcore lows: a growl with a full octave-down take at its own
         // level beneath it, torn up by MARS, very dry.
         make ("Deathcore Growl", F, 13, "Metal,Deathcore,Scream,Pitch,Saturation", {
-            { rigLevel, -6 },   // even with the other rigs
-            { compOn, 1 }, { compType, daybreakComp }, { compAmount, 9 }, { compDetail, 5 },
+            { rigLevel, -8 },   // even with the other rigs
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 28 }, { photonOutput, -17 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },   // Daybreak until 0.42.0
             { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Bass", 2 }, { "mb1Treble", -3 },
             { eqOn, 1 }, { "eq63", -2 }, { "eq125", 2 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq8k", -4 }, { "eq16k", -6 },
             { doublerOn, 1 }, { "dv1On", 0 }, { "dv2On", 0 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -3 },

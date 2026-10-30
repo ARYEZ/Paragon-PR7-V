@@ -16,7 +16,8 @@ namespace
 // One control: a label plus whichever widget suits the parameter's type.
 struct EffectPanel::Control
 {
-    Control (juce::AudioProcessorValueTreeState& state, const juce::String& id, const juce::String& labelText)
+    Control (juce::AudioProcessorValueTreeState& state, const juce::String& id, const juce::String& labelText,
+             const std::vector<int>& retiredChoices = {})
     {
         auto* parameter = state.getParameter (id);
         jassert (parameter != nullptr);   // a typo in a panel's parameter list
@@ -30,14 +31,41 @@ struct EffectPanel::Control
         if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (parameter))
         {
             auto box = std::make_unique<juce::ComboBox>();
-            box->addItemList (choice->choices, 1);
+            // Each choice keeps its id (index + 1), so the attachment still
+            // finds them; a retired one is left out, and shown "(old)" when on.
+            for (int i = 0; i < choice->choices.size(); ++i)
+                if (std::find (retiredChoices.begin(), retiredChoices.end(), i) == retiredChoices.end())
+                    box->addItem (choice->choices[i], i + 1);
             for (const auto& item : choice->choices)
                 longestChoice = juce::jmax (longestChoice, item.length());
             box->setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
             box->setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
             box->setColour (juce::ComboBox::textColourId, ParagonColours::accent);
             box->setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
-            comboAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, id, *box);
+            if (retiredChoices.empty())
+            {
+                comboAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, id, *box);
+            }
+            else
+            {
+                // JUCE's attachment matches the parameter to the menu by
+                // position, which a left-out choice would shift: this one
+                // matches them by item (each choice's index + 1).
+                auto* combo = box.get();
+                choiceLink = std::make_unique<juce::ParameterAttachment> (*choice, [combo, names = choice->choices] (float index)
+                {
+                    // On a retired choice nothing in the menu is picked: say which, "(old)".
+                    const auto picked = juce::jlimit (0, names.size() - 1, juce::roundToInt (index));
+                    combo->setTextWhenNothingSelected (names[picked] + " (old)");
+                    combo->setSelectedId (picked + 1, juce::dontSendNotification);
+                });
+                combo->onChange = [this, combo]
+                {
+                    if (const auto picked = combo->getSelectedId(); picked > 0)
+                        choiceLink->setValueAsCompleteGesture ((float) (picked - 1));
+                };
+                choiceLink->sendInitialUpdate();
+            }
             widget = std::move (box);
         }
         else if (dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr)
@@ -124,6 +152,7 @@ struct EffectPanel::Control
     int longestChoice = 0;   // a list's longest entry, in characters
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> comboAttachment;
+    std::unique_ptr<juce::ParameterAttachment> choiceLink;   // a list with retired choices (by item, not position)
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> buttonAttachment;
 };
 
@@ -134,7 +163,7 @@ EffectPanel::EffectPanel (juce::AudioProcessorValueTreeState& parameters, std::v
         GroupLayout layout { group.title, {}, {}, group.page };
         for (const auto& item : group.items)
         {
-            controls.push_back (std::make_unique<Control> (parameters, item.parameterId, item.label));
+            controls.push_back (std::make_unique<Control> (parameters, item.parameterId, item.label, item.retiredChoices));
             auto* control = controls.back().get();
             control->isActive = item.isActive;
             control->hideWhenInactive = item.hideWhenInactive;

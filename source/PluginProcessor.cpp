@@ -451,11 +451,21 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     const auto pedal = expressionAmount();
     wah.process (monoBlock, expressionTarget == ExpressionTargets::wah, pedal);
 
-    compGate.process (monoBlock, { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
-                                   param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
-                                   (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
-                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
-                                   param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) });
+    effects::CompGate::Settings compSettings { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
+                                               param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
+                                               (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
+                                               param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
+                                               param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) };
+    compSettings.photonInputDb = param (ParamIDs::photonInput);
+    compSettings.photonOutputDb = param (ParamIDs::photonOutput);
+    compSettings.photonAttack = param (ParamIDs::photonAttack);
+    compSettings.photonRelease = param (ParamIDs::photonRelease);
+    compSettings.photonRatio = juce::roundToInt (param (ParamIDs::photonRatio));
+    compSettings.abyssPeakReduction = param (ParamIDs::abyssPeakReduction);
+    compSettings.abyssGainDb = param (ParamIDs::abyssGain);
+    compSettings.abyssMode = juce::roundToInt (param (ParamIDs::abyssMode));
+    compSettings.abyssEmphasis = param (ParamIDs::abyssEmphasis);
+    compGate.process (monoBlock, compSettings);
     // The de-esser after the compressor, whose make-up gain brings esses up.
     deEsser.process (monoBlock, { isOn (ParamIDs::deessOn), param (ParamIDs::deessFreq), param (ParamIDs::deessAmount),
                                   isOn (ParamIDs::deessListen) });
@@ -1617,6 +1627,7 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     };
     addIfMissing (ParamIDs::driveModel, 0);   // before the drive had a MODEL: the original (Classic), for convertOldDrive
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
+    addIfMissing (ParamIDs::compType, (int) effects::CompGate::Type::classic);    // before 0.41.0 the compressor started on Classic
 
     const auto get = [&state] (const juce::String& id) -> std::optional<float>
     {
