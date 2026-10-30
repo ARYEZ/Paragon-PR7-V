@@ -34,12 +34,8 @@ struct EffectPanel::Control
             // Each choice keeps its id (index + 1), so the attachment still
             // finds them; a retired one is left out, and shown "(old)" when on.
             for (int i = 0; i < choice->choices.size(); ++i)
-            {
                 if (std::find (retiredChoices.begin(), retiredChoices.end(), i) == retiredChoices.end())
                     box->addItem (choice->choices[i], i + 1);
-                else
-                    box->setTextWhenNothingSelected (choice->choices[i] + " (old)");
-            }
             for (const auto& item : choice->choices)
                 longestChoice = juce::jmax (longestChoice, item.length());
             box->setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
@@ -56,9 +52,12 @@ struct EffectPanel::Control
                 // position, which a left-out choice would shift: this one
                 // matches them by item (each choice's index + 1).
                 auto* combo = box.get();
-                choiceLink = std::make_unique<juce::ParameterAttachment> (*choice, [combo] (float index)
+                choiceLink = std::make_unique<juce::ParameterAttachment> (*choice, [combo, names = choice->choices] (float index)
                 {
-                    combo->setSelectedId (juce::roundToInt (index) + 1, juce::dontSendNotification);
+                    // On a retired choice nothing in the menu is picked: say which, "(old)".
+                    const auto picked = juce::jlimit (0, names.size() - 1, juce::roundToInt (index));
+                    combo->setTextWhenNothingSelected (names[picked] + " (old)");
+                    combo->setSelectedId (picked + 1, juce::dontSendNotification);
                 });
                 combo->onChange = [this, combo]
                 {

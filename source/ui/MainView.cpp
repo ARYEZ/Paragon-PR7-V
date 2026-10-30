@@ -462,7 +462,7 @@ MainView::MainView (ParagonX1AudioProcessor& processorToShow)
     const auto hasLevel = [classic, daybreak] { return classic() || daybreak(); };   // Photon and Abyss have their own OUTPUT / GAIN
     panels[compBlock] = std::make_unique<EffectPanel> (state, std::vector<Group> {
         { "COMPRESSOR", { { ParamIDs::compOn, "ON" },
-                          { ParamIDs::compType, "TYPE", nullptr, false, { (int) effects::CompGate::Type::classic } },   // Classic: out of the menu since 0.41.0
+                          { ParamIDs::compType, "TYPE", nullptr, false, { (int) effects::CompGate::Type::classic, (int) effects::CompGate::Type::daybreak } },   // out of the menu: Classic since 0.41.0, Daybreak since 0.42.0
                           { ParamIDs::compThreshold, "THRESHOLD", classic, true }, { ParamIDs::compRatio, "RATIO", classic, true },
                           { ParamIDs::compAmount, "COMP", daybreak, true }, { ParamIDs::compDetail, "DETAIL", daybreak, true },
                           { ParamIDs::compMix, "MIX", daybreak, true }, { ParamIDs::compIntensity, "INTENSITY", daybreak, true },

@@ -55,9 +55,7 @@ descriptions below still talk about guitar.
   delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.) The **PITCH** stomp switches
   HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
   what was on (TUNE VOICE in the mode it had).
-  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has four TYPEs:
-    **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL;
+  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
     **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
     **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
     it); **Photon**, a fast FET compressor inspired by the 1176 (INPUT, OUTPUT, ATTACK and RELEASE 1-7, RATIO 4/8/12/20 or
@@ -184,7 +182,7 @@ descriptions below still talk about guitar.
   screens, knobs, keys and lights, in your finish), for the block you pick (click a signal-chain block or a
   footswitch name); **GRAPHIC EQ** goes back to the EQ.
   - **On the left, its display**, following its TYPE, with live readings: DYNAMICS with a gain-reduction needle
-    (Classic), a meter (Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
+    (Photon, Abyss, and the retired Classic), a meter (the retired Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
     DELAY with its repeats and TIME; REVERB with its shape and DECAY; PITCH with the note you sing and the harmony
     voices; MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...
   - **In the middle, its controls**, the real ones: the unit's big knobs with their values on small screens, menus

@@ -2,6 +2,13 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.42.0
+
+- **DAYBREAK has left DYNAMICS' TYPE menu too** (your call). The menu is now **Revival, Photon and Abyss**.
+  - **Your songs and rigs are safe**, as with Classic: one that uses Daybreak still loads and sounds exactly as it did, its TYPE showing "Daybreak (old)", until you pick another type.
+  - **Seven factory rigs used Daybreak and now use Photon:** B02 Grit Shout, B03 Garage Megaphone, F05 Metalcore Scream, F08 Prog Scream, F10 Grunge Double, F12 Nu-Metal Shout and F13 Deathcore Growl. Their COMP setting became Photon's INPUT (more COMP, more INPUT), with a medium ATTACK and RELEASE and 8:1 where they squeezed hardest; their levels were rebalanced to sit with the other rigs. They are punchier and a little grittier than before; if one of them no longer suits you, tell me which and how.
+- **Can't be checked here by ear:** the tests check that those rigs still compress and stay level with the rest, but whether Photon suits each style is for you to judge.
+
 ## 0.41.0
 
 - **Two classic studio compressors join DYNAMICS' TYPE list: PHOTON and ABYSS.** You asked for them by their originals; the names are yours. Both follow the originals' published specifications, with our own design where those don't say (marked below).

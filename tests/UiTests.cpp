@@ -1569,7 +1569,7 @@ TEST_CASE ("The VOCODER's band display: on the rack's display, drawn with the mo
     CHECK_FALSE (view.isVisible());
 }
 
-TEST_CASE ("The compressor's TYPE menu leaves Classic out, and says (old) when a song is on it", "[ui]")
+TEST_CASE ("The compressor's TYPE menu leaves Classic and Daybreak out, and says (old) when a song is on one", "[ui]")
 {
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
@@ -1580,7 +1580,9 @@ TEST_CASE ("The compressor's TYPE menu leaves Classic out, and says (old) when a
         if (box->indexOfItemId (3) >= 0 && box->getItemText (box->indexOfItemId (3)) == "Revival")
             type = box;
     REQUIRE (type != nullptr);
-    CHECK (type->indexOfItemId (1) < 0);   // no Classic to pick
+    CHECK (type->indexOfItemId (1) < 0);   // no Classic to pick (0.41.0)...
+    CHECK (type->indexOfItemId (2) < 0);   // ...nor Daybreak (0.42.0)
+    CHECK (type->getNumItems() == 3);      // Revival, Photon, Abyss
     CHECK (type->getItemText (type->indexOfItemId (4)) == "Photon");
     CHECK (type->getItemText (type->indexOfItemId (5)) == "Abyss");
     // Picking from the menu sets the right TYPE (by item, not position: Classic's gap mustn't shift them).
@@ -1588,8 +1590,9 @@ TEST_CASE ("The compressor's TYPE menu leaves Classic out, and says (old) when a
     CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 2);   // Revival
     type->setSelectedId (5, juce::sendNotificationSync);
     CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 4);   // Abyss
-    set (processor, ParamIDs::compType, 1.0f);
-    CHECK (type->getSelectedId() == 2);   // Daybreak shows as Daybreak
+    set (processor, ParamIDs::compType, 1.0f);   // a song on Daybreak
+    CHECK (type->getSelectedId() == 0);
+    CHECK (type->getTextWhenNothingSelected() == "Daybreak (old)");
     // A song on Classic: nothing picked in the menu, "Classic (old)" shown.
     set (processor, ParamIDs::compType, 0.0f);
     CHECK (type->getTextWhenNothingSelected() == "Classic (old)");

@@ -53,8 +53,9 @@ namespace effects
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        // Classic (0) is out of the TYPE menu since 0.41.0 (EffectPanel's
-        // hidden choices): it still plays for rigs and projects that use it.
+        // Classic (0, since 0.41.0) and Daybreak (1, since 0.42.0) are out of
+        // the TYPE menu (EffectPanel's retired choices): they still play for
+        // rigs and projects that use them.
         enum class Type { classic, daybreak, revival, photon, abyss };
         static inline const juce::StringArray typeNames { "Classic", "Daybreak", "Revival", "Photon", "Abyss" };
         static inline const juce::StringArray photonRatioNames { "4:1", "8:1", "12:1", "20:1", "All" };
