@@ -14,7 +14,7 @@
 // block is doing, live, on its screens:
 //
 //   DYNAMICS    Classic: a gain-reduction needle, THRESHOLD/RATIO/LEVEL;
-//               Snap and Glow (0.41.0): the same needle, their own settings.
+//               Photon and Abyss (0.41.0): the same needle, their own settings.
 //               Daybreak: COMP/DETAIL/MIX knobs, INTENSITY key, a meter.
 //               Revival: GATE/COMPRESSION/GAIN as one curve, faders, a meter.
 //   SATURATION  MARS: a tube per band, glowing as hard as it's driven.
@@ -49,7 +49,7 @@ public:
     // Which kind of block: the ones with their own faceplates, or any other.
     enum class Unit { dynamics, saturation, delay, reverb, pitch, modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder, other };
     // What's drawn now (for tests).
-    enum class Look { generic, classic, daybreak, revival, snap, glow, mars, delay, reverb, harmony,
+    enum class Look { generic, classic, daybreak, revival, photon, abyss, mars, delay, reverb, harmony,
                       modulation, filterPitch, deEsser, glitch, doubler, eq, loFi, vocoder };
 
     // `onIds`: the block's on switches (comma separated); `typeId`: its TYPE

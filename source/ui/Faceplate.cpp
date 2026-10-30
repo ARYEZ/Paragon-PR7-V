@@ -198,8 +198,8 @@ Faceplate::Look Faceplate::getLook() const
             switch ((effects::CompGate::Type) juce::roundToInt (raw (ParamIDs::compType)))
             {
                 case effects::CompGate::Type::daybreak: return Look::daybreak;
-                case effects::CompGate::Type::snap:     return Look::snap;
-                case effects::CompGate::Type::glow:     return Look::glow;
+                case effects::CompGate::Type::photon:     return Look::photon;
+                case effects::CompGate::Type::abyss:     return Look::abyss;
                 case effects::CompGate::Type::revival:  return Look::revival;
                 case effects::CompGate::Type::classic:  break;
             }
@@ -367,10 +367,10 @@ void Faceplate::paint (juce::Graphics& g)
     switch (getLook())
     {
         case Look::classic:  paintClassic (g, header, content); break;
-        case Look::snap:     paintClassic (g, header, content, "SNAP", "FET COMPRESSOR",
-                                           { { ParamIDs::snapInput, "INPUT" }, { ParamIDs::snapRatio, "RATIO" }, { ParamIDs::snapOutput, "OUTPUT" } }); break;
-        case Look::glow:     paintClassic (g, header, content, "GLOW", "OPTICAL LEVELLER",
-                                           { { ParamIDs::glowPeakReduction, "PEAK RED." }, { ParamIDs::glowMode, "MODE" }, { ParamIDs::glowGain, "GAIN" } }); break;
+        case Look::photon:     paintClassic (g, header, content, "PHOTON", "FET COMPRESSOR",
+                                           { { ParamIDs::photonInput, "INPUT" }, { ParamIDs::photonRatio, "RATIO" }, { ParamIDs::photonOutput, "OUTPUT" } }); break;
+        case Look::abyss:     paintClassic (g, header, content, "ABYSS", "OPTICAL LEVELLER",
+                                           { { ParamIDs::abyssPeakReduction, "PEAK RED." }, { ParamIDs::abyssMode, "MODE" }, { ParamIDs::abyssGain, "GAIN" } }); break;
         case Look::daybreak: paintDaybreak (g, header, content); break;
         case Look::revival:  paintRevival (g, header, content); break;
         case Look::mars:     paintMars (g, header, content); break;
@@ -412,7 +412,7 @@ void Faceplate::paintClassic (juce::Graphics& g, juce::Rectangle<float> header, 
                               std::vector<std::pair<juce::String, juce::String>> readouts)
 {
     // A studio compressor: a gain-reduction needle on a screen, and its
-    // settings (Classic's, or SNAP's and GLOW's: the same needle suits them).
+    // settings (Classic's, or PHOTON's and ABYSS's: the same needle suits them).
     nameplate (g, header, name, line);
     if (readouts.empty())
         readouts = { { ParamIDs::compThreshold, "THRESHOLD" }, { ParamIDs::compRatio, "RATIO" }, { ParamIDs::compLevel, "LEVEL" } };
@@ -453,7 +453,7 @@ void Faceplate::paintClassic (juce::Graphics& g, juce::Rectangle<float> header, 
     // THRESHOLD, RATIO and LEVEL, each on its own small screen.
     if (isRack())
         return;
-    const auto row = settings.getHeight() / (float) juce::jmax<size_t> (1, readouts.size());
+    const auto row = settings.getHeight() / (float) std::max<size_t> (1, readouts.size());
     for (const auto& [id, label] : readouts)
         readout (g, settings.removeFromTop (row).reduced (0.0f, 3.0f), label, text (id));
 }

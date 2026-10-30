@@ -98,7 +98,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 37);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 38);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -598,4 +598,27 @@ TEST_CASE ("Bank G's modulators change each rig's sound", "[rigs][harmony][modul
         CHECK (db > -20.0);   // the modulators' part is clearly there, not a rounding error
     }
     CHECK (count == 9);
+}
+
+TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Revival, old ones keep Classic", "[rigs]")
+{
+    ParagonX1AudioProcessor processor;
+    CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 2);   // Revival
+
+    // A rig saved before 0.41.0 that never mentioned the TYPE relied on Classic being the default.
+    juce::XmlElement old ("ParagonRig");
+    old.setAttribute ("version", 1);
+    old.setAttribute ("parameterVersion", 37);
+    old.setAttribute ("name", "Old Squeeze");
+    auto* on = old.createNewChildElement ("Param");
+    on->setAttribute ("id", ParamIDs::compOn);
+    on->setAttribute ("value", 1.0);
+    const auto loaded = Rig::fromXml (old);
+    REQUIRE (loaded.has_value());
+    CHECK (loaded->parameters.at (ParamIDs::compType) == 0.0f);
+
+    // Saved now, a rig without a TYPE is on the new default.
+    juce::XmlElement fresh (old);
+    fresh.setAttribute ("parameterVersion", 38);
+    CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }

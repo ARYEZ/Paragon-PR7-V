@@ -1,6 +1,7 @@
 #include "Rig.h"
 
 #include "Parameters.h"
+#include "dsp/effects/CompGate.h"
 
 namespace
 {
@@ -14,7 +15,8 @@ namespace
     // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
     // 30: the four-voice DOUBLER, replacing its RATE, DEPTH and MIX.
     // 37: CYCLONE, replacing MODULATION's original rotary speaker.
-    constexpr int parameterVersion = 37;
+    // 38: the compressor's TYPE defaulting to Revival (Classic left the menu, 0.41.0).
+    constexpr int parameterVersion = 38;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
@@ -214,6 +216,10 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     // Saved with the original rotary speaker: now CYCLONE, set to match.
     if (savedWith < 37)
         convertOldRotary (get, set);
+    // Saved while the compressor started on Classic (and not mentioning its
+    // TYPE): it was Classic, and still is, sounding as it did.
+    if (savedWith < 38 && rig.parameters.count (ParamIDs::compType) == 0)
+        rig.parameters[ParamIDs::compType] = (float) effects::CompGate::Type::classic;
 
     return rig;
 }

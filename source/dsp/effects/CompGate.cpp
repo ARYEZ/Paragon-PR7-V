@@ -68,31 +68,31 @@ namespace effects
 
     namespace
     {
-        // Snap: a fixed threshold at 0 dB after INPUT; each RATIO button with
+        // Photon: a fixed threshold at 0 dB after INPUT; each RATIO button with
         // a knee that tightens as the ratio rises (our values).
-        Curve snapButton (int ratio) noexcept
+        Curve photonButton (int ratio) noexcept
         {
             constexpr float ratios[] = { 4.0f, 8.0f, 12.0f, 20.0f };
             constexpr float knees[] = { 8.0f, 6.0f, 4.0f, 3.0f };
             const auto index = juce::jlimit (0, 3, ratio);
             return { 0.0f, ratios[index], knees[index] };
         }
-        constexpr int snapAll = 4;
+        constexpr int photonAll = 4;
         // ALL: grabs 4 dB earlier at about 12:1, and from 10 dB over the
         // output falls as the input rises (the famous "negative ratio"):
         // the loudest peaks come out below quieter ones. Our curve.
         constexpr float allThresholdDb = -4.0f, allRatio = 12.0f, allTurnDb = 10.0f, allFall = 0.25f;
 
-        // Glow: PEAK REDUCTION lowers the threshold (0: -6 dB, 100: -48 dB).
+        // Abyss: PEAK REDUCTION lowers the threshold (0: -6 dB, 100: -48 dB).
         // COMPRESS about 3:1 with a wide knee; LIMIT about 10:1, narrower.
-        Curve glowCurve (float peakReduction, int mode) noexcept
+        Curve abyssCurve (float peakReduction, int mode) noexcept
         {
             const auto threshold = -6.0f - 0.42f * juce::jlimit (0.0f, 100.0f, peakReduction);
             return mode == 1 ? Curve { threshold, 10.0f, 6.0f } : Curve { threshold, 3.0f, 12.0f };
         }
     }
 
-    float CompGate::snapAttackSeconds (float knob) noexcept
+    float CompGate::photonAttackSeconds (float knob) noexcept
     {
         // 1 to 7 from 800 us to 20 us, evenly in ratio (as the original's
         // pot sweeps it).
@@ -100,16 +100,16 @@ namespace effects
         return 0.0008f * std::pow (0.02f / 0.8f, t);
     }
 
-    float CompGate::snapReleaseSeconds (float knob) noexcept
+    float CompGate::photonReleaseSeconds (float knob) noexcept
     {
         const auto t = (juce::jlimit (1.0f, 7.0f, knob) - 1.0f) / 6.0f;
         return 1.1f * std::pow (0.05f / 1.1f, t);
     }
 
-    float CompGate::snapCurveDb (float drivenDb, int ratio) noexcept
+    float CompGate::photonCurveDb (float drivenDb, int ratio) noexcept
     {
-        if (ratio < snapAll)
-            return gainFor (drivenDb, snapButton (ratio));
+        if (ratio < photonAll)
+            return gainFor (drivenDb, photonButton (ratio));
         const auto over = drivenDb - allThresholdDb;
         if (over <= 0.0f)
             return gainFor (drivenDb, { allThresholdDb, allRatio, 2.0f });
@@ -121,9 +121,9 @@ namespace effects
         return outDb - drivenDb;
     }
 
-    float CompGate::glowCurveDb (float inputDb, float peakReduction, int mode) noexcept
+    float CompGate::abyssCurveDb (float inputDb, float peakReduction, int mode) noexcept
     {
-        return gainFor (inputDb, glowCurve (peakReduction, mode));
+        return gainFor (inputDb, abyssCurve (peakReduction, mode));
     }
 
     float CompGate::revivalCurveDb (float inputDb, float compressionDb) noexcept
@@ -163,15 +163,15 @@ namespace effects
         revivalCeiling.reset (sampleRate, 0.05);
         revivalThreshold.setCurrentAndTargetValue (-12.0f);
         revivalCeiling.setCurrentAndTargetValue (1.0f);
-        snapLevelDb = -120.0f;
-        snapColourPeak = 0.0f;
-        snapIn.reset (sampleRate, 0.03);
-        snapOut.reset (sampleRate, 0.03);
-        glowGain.reset (sampleRate, 0.03);
-        snapIn.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (18.0f));
-        snapOut.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (-8.0f));
-        glowGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (6.0f));
-        glowFastDb = glowSlowDb = glowMemory = glowPeak = emphasisState = 0.0f;
+        photonLevelDb = -120.0f;
+        photonColourPeak = 0.0f;
+        photonIn.reset (sampleRate, 0.03);
+        photonOut.reset (sampleRate, 0.03);
+        abyssGain.reset (sampleRate, 0.03);
+        photonIn.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (18.0f));
+        photonOut.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (-8.0f));
+        abyssGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (6.0f));
+        abyssFastDb = abyssSlowDb = abyssMemory = abyssPeak = emphasisState = 0.0f;
         bypass.prepare (sampleRate, maxBlockSize);
     }
 
@@ -197,13 +197,13 @@ namespace effects
                 gate.process (context);
             }
 
-            // Snap and Glow: after the noise gate, with their own OUTPUT / GAIN (no LEVEL).
-            if (settings.type == Type::snap || settings.type == Type::glow)
+            // Photon and Abyss: after the noise gate, with their own OUTPUT / GAIN (no LEVEL).
+            if (settings.type == Type::photon || settings.type == Type::abyss)
             {
-                if (settings.type == Type::snap)
-                    processSnap (block, settings);
+                if (settings.type == Type::photon)
+                    processPhoton (block, settings);
                 else
-                    processGlow (block, settings);
+                    processAbyss (block, settings);
                 return;
             }
 
@@ -339,16 +339,16 @@ namespace effects
         gainReductionDb.store (mostReduction);
     }
 
-    void CompGate::processSnap (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    void CompGate::processPhoton (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
     {
         // The FET: INPUT into a fixed threshold, a fast peak detector at
         // ATTACK and RELEASE, the gain change by RATIO, the FET's colour,
         // then OUTPUT.
-        const auto all = settings.snapRatio >= snapAll;
-        const auto attack = coefficientFor (sampleRate, snapAttackSeconds (settings.snapAttack) * (all ? 0.7f : 1.0f));
-        const auto release = coefficientFor (sampleRate, snapReleaseSeconds (settings.snapRelease) * (all ? 0.7f : 1.0f));
-        snapIn.setTargetValue (juce::Decibels::decibelsToGain (juce::jlimit (0.0f, 40.0f, settings.snapInputDb)));
-        snapOut.setTargetValue (juce::Decibels::decibelsToGain (settings.snapOutputDb));
+        const auto all = settings.photonRatio >= photonAll;
+        const auto attack = coefficientFor (sampleRate, photonAttackSeconds (settings.photonAttack) * (all ? 0.7f : 1.0f));
+        const auto release = coefficientFor (sampleRate, photonReleaseSeconds (settings.photonRelease) * (all ? 0.7f : 1.0f));
+        photonIn.setTargetValue (juce::Decibels::decibelsToGain (juce::jlimit (0.0f, 40.0f, settings.photonInputDb)));
+        photonOut.setTargetValue (juce::Decibels::decibelsToGain (settings.photonOutputDb));
         // The colour: drive that grows with the gain reduction (ALL: three
         // times as much). Our curve: gentle until it's working hard.
         const auto colourPerDb = all ? 0.05f : 0.02f;
@@ -358,10 +358,10 @@ namespace effects
         auto mostReduction = 0.0f;
         for (size_t i = 0; i < block.getNumSamples(); ++i)
         {
-            const auto driven = samples[i] * snapIn.getNextValue();
+            const auto driven = samples[i] * photonIn.getNextValue();
             const auto inDb = juce::Decibels::gainToDecibels (std::abs (driven), -120.0f);
-            snapLevelDb += (inDb - snapLevelDb) * (inDb > snapLevelDb ? attack : release);
-            const auto reductionDb = snapCurveDb (snapLevelDb, settings.snapRatio);
+            photonLevelDb += (inDb - photonLevelDb) * (inDb > photonLevelDb ? attack : release);
+            const auto reductionDb = photonCurveDb (photonLevelDb, settings.photonRatio);
             mostReduction = juce::jmin (mostReduction, reductionDb);
             auto y = driven * juce::Decibels::decibelsToGain (reductionDb);
             // The colour: the wave measured against its own peak level (held
@@ -369,28 +369,28 @@ namespace effects
             // isn't over-scaled), shaped by an amount that grows only with
             // the gain reduction, then put back at its level. Loud or quiet,
             // the grit follows the squeeze.
-            snapColourPeak = juce::jmax (std::abs (y), snapColourPeak * colourPeakHold);
-            const auto peak = juce::jmax (1.0e-6f, snapColourPeak);
+            photonColourPeak = juce::jmax (std::abs (y), photonColourPeak * colourPeakHold);
+            const auto peak = juce::jmax (1.0e-6f, photonColourPeak);
             const auto drive = 0.05f + colourPerDb * -reductionDb;
             y = peak * std::tanh (drive * y / peak) / drive;
-            samples[i] = y * snapOut.getNextValue();
+            samples[i] = y * photonOut.getNextValue();
         }
         gainReductionDb.store (mostReduction);
     }
 
-    void CompGate::processGlow (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    void CompGate::processAbyss (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
     {
         // The optical cell: the voice (brighter with EMPHASIS) lights a lamp;
         // the cell darkens in about 10 ms and lets go in two parts, half
         // quickly (60 ms) and half slowly (1 s, up to 5 s after working hard).
-        const auto curve = glowCurve (settings.glowPeakReduction, settings.glowMode);
+        const auto curve = abyssCurve (settings.abyssPeakReduction, settings.abyssMode);
         const auto attack = coefficientFor (sampleRate, 0.01f);
         const auto fastRelease = coefficientFor (sampleRate, 0.06f);
         const auto peakRelease = std::exp (-1.0f / (0.002f * (float) sampleRate));
         const auto memoryRise = coefficientFor (sampleRate, 3.0f), memoryFall = coefficientFor (sampleRate, 10.0f);
         const auto emphasisFilter = coefficientFor (sampleRate, 1.0f / (juce::MathConstants<float>::twoPi * 2000.0f));
-        const auto emphasis = 3.0f * juce::jlimit (0.0f, 1.0f, settings.glowEmphasis);   // up to +12 dB above 2 kHz in the detector
-        glowGain.setTargetValue (juce::Decibels::decibelsToGain (settings.glowGainDb));
+        const auto emphasis = 3.0f * juce::jlimit (0.0f, 1.0f, settings.abyssEmphasis);   // up to +12 dB above 2 kHz in the detector
+        abyssGain.setTargetValue (juce::Decibels::decibelsToGain (settings.abyssGainDb));
 
         auto* samples = block.getChannelPointer (0);
         auto mostReduction = 0.0f;
@@ -399,19 +399,19 @@ namespace effects
             const auto x = samples[i];
             emphasisState += (x - emphasisState) * emphasisFilter;
             const auto heard = x + emphasis * (x - emphasisState);   // the highs, louder to the detector
-            glowPeak = juce::jmax (std::abs (heard), glowPeak * peakRelease);
-            const auto wantedDb = gainFor (juce::Decibels::gainToDecibels (glowPeak, -120.0f), curve);
+            abyssPeak = juce::jmax (std::abs (heard), abyssPeak * peakRelease);
+            const auto wantedDb = gainFor (juce::Decibels::gainToDecibels (abyssPeak, -120.0f), curve);
 
-            const auto slowRelease = coefficientFor (sampleRate, 1.0f + 4.0f * glowMemory);
-            glowFastDb += (wantedDb - glowFastDb) * (wantedDb < glowFastDb ? attack : fastRelease);
-            glowSlowDb += (wantedDb - glowSlowDb) * (wantedDb < glowSlowDb ? attack : slowRelease);
-            const auto reductionDb = 0.5f * (glowFastDb + glowSlowDb);
+            const auto slowRelease = coefficientFor (sampleRate, 1.0f + 4.0f * abyssMemory);
+            abyssFastDb += (wantedDb - abyssFastDb) * (wantedDb < abyssFastDb ? attack : fastRelease);
+            abyssSlowDb += (wantedDb - abyssSlowDb) * (wantedDb < abyssSlowDb ? attack : slowRelease);
+            const auto reductionDb = 0.5f * (abyssFastDb + abyssSlowDb);
             const auto working = juce::jlimit (0.0f, 1.0f, -reductionDb / 10.0f);
-            glowMemory += (working - glowMemory) * (working > glowMemory ? memoryRise : memoryFall);
+            abyssMemory += (working - abyssMemory) * (working > abyssMemory ? memoryRise : memoryFall);
             mostReduction = juce::jmin (mostReduction, reductionDb);
 
             // The valve output stage: a touch of warmth (our amount).
-            auto y = x * juce::Decibels::decibelsToGain (reductionDb) * glowGain.getNextValue();
+            auto y = x * juce::Decibels::decibelsToGain (reductionDb) * abyssGain.getNextValue();
             y = std::tanh (1.2f * y) / 1.2f;
             samples[i] = y;
         }

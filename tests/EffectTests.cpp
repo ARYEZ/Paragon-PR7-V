@@ -161,6 +161,7 @@ TEST_CASE ("Compressor turns loud playing down and leaves quiet playing alone", 
     // should come out 3 dB over: turned down by about 9 dB.
     EffectRig rig;
     rig.set (ParamIDs::compOn, 1.0f);
+    rig.set (ParamIDs::compType, 0.0f);   // Classic: out of the menu since 0.41.0, still playing for old songs
     rig.set (ParamIDs::compThreshold, -18.0f);
     rig.set (ParamIDs::compRatio, 4.0f);
 
@@ -696,6 +697,7 @@ TEST_CASE ("Noise gate silences signal below its threshold", "[effects][comp]")
 {
     EffectRig rig;
     rig.set (ParamIDs::compOn, 1.0f);
+    rig.set (ParamIDs::compType, 0.0f);        // Classic (the gate is the PR7's own, on every TYPE but Revival)
     rig.set (ParamIDs::compThreshold, 0.0f);   // compressor out of the way
     rig.set (ParamIDs::gateThreshold, -50.0f);
 
@@ -5502,7 +5504,7 @@ TEST_CASE ("HARMONY: a voice's FORMANT an octave up keeps the voice on its note 
 }
 
 //==============================================================================
-// DYNAMICS' SNAP (FET, 1176-style) and GLOW (optical, LA-2A-style), 0.41.0.
+// DYNAMICS' PHOTON (FET, 1176-style) and ABYSS (optical, LA-2A-style), 0.41.0.
 namespace
 {
     using Comp = effects::CompGate;
@@ -5537,61 +5539,61 @@ namespace
         return rms (std::vector<float> (x.begin() + (long) (from * sampleRate), x.begin() + (long) std::min ((double) x.size(), to * sampleRate)));
     }
 
-    Comp::Settings snapSettings()
+    Comp::Settings photonSettings()
     {
         Comp::Settings s;
         s.on = true;
-        s.type = Comp::Type::snap;
+        s.type = Comp::Type::photon;
         return s;
     }
 
-    Comp::Settings glowSettings()
+    Comp::Settings abyssSettings()
     {
         Comp::Settings s;
         s.on = true;
-        s.type = Comp::Type::glow;
+        s.type = Comp::Type::abyss;
         return s;
     }
 }
 
-TEST_CASE ("SNAP: the FET compressor's ratios, ALL, attack, release and grit", "[effects][comp][snap]")
+TEST_CASE ("PHOTON: the FET compressor's ratios, ALL, attack, release and grit", "[effects][comp][photon]")
 {
     SECTION ("RATIO: 10 dB over the threshold comes out 2.5 dB over at 4:1, 0.5 dB at 20:1")
     {
-        CHECK_THAT (10.0f + Comp::snapCurveDb (10.0f, 0), WithinAbs (2.5, 0.2));
-        CHECK_THAT (10.0f + Comp::snapCurveDb (10.0f, 3), WithinAbs (0.5, 0.2));
-        CHECK (Comp::snapCurveDb (-10.0f, 0) == 0.0f);   // under the threshold: untouched
+        CHECK_THAT (10.0f + Comp::photonCurveDb (10.0f, 0), WithinAbs (2.5, 0.2));
+        CHECK_THAT (10.0f + Comp::photonCurveDb (10.0f, 3), WithinAbs (0.5, 0.2));
+        CHECK (Comp::photonCurveDb (-10.0f, 0) == 0.0f);   // under the threshold: untouched
     }
 
     SECTION ("ALL: past its turn, louder in comes out quieter (the loudest peaks below quieter ones)")
     {
-        const auto out = [] (float in) { return in + Comp::snapCurveDb (in, 4); };
+        const auto out = [] (float in) { return in + Comp::photonCurveDb (in, 4); };
         CHECK (out (24.0f) < out (12.0f));   // past the turn (10 dB over its threshold, 4 dB lower than the others)
         CHECK (out (4.0f) > out (-2.0f));    // before it, it still rises (gently)
     }
 
     SECTION ("The knobs as on the original: 7 is the fastest attack and release, 1 the slowest")
     {
-        CHECK_THAT (Comp::snapAttackSeconds (7.0f), Catch::Matchers::WithinRel (20.0e-6, 0.01));
-        CHECK_THAT (Comp::snapAttackSeconds (1.0f), Catch::Matchers::WithinRel (800.0e-6, 0.01));
-        CHECK_THAT (Comp::snapReleaseSeconds (7.0f), Catch::Matchers::WithinRel (0.05, 0.01));
-        CHECK_THAT (Comp::snapReleaseSeconds (1.0f), Catch::Matchers::WithinRel (1.1, 0.01));
+        CHECK_THAT (Comp::photonAttackSeconds (7.0f), Catch::Matchers::WithinRel (20.0e-6, 0.01));
+        CHECK_THAT (Comp::photonAttackSeconds (1.0f), Catch::Matchers::WithinRel (800.0e-6, 0.01));
+        CHECK_THAT (Comp::photonReleaseSeconds (7.0f), Catch::Matchers::WithinRel (0.05, 0.01));
+        CHECK_THAT (Comp::photonReleaseSeconds (1.0f), Catch::Matchers::WithinRel (1.1, 0.01));
     }
 
     SECTION ("More INPUT, more compression; OUTPUT sets the level back")
     {
         const auto loud = toneSteps (440.0, 0.3f, 1.0, 0.0f, 0.0);
-        auto gentle = snapSettings();
-        gentle.snapInputDb = 6.0f;
-        gentle.snapOutputDb = -6.0f;
-        auto hard = snapSettings();
-        hard.snapInputDb = 30.0f;
-        hard.snapOutputDb = -6.0f;
+        auto gentle = photonSettings();
+        gentle.photonInputDb = 6.0f;
+        gentle.photonOutputDb = -6.0f;
+        auto hard = photonSettings();
+        hard.photonInputDb = 30.0f;
+        hard.photonOutputDb = -6.0f;
         const auto a = rmsBetween (runComp (gentle, loud), 0.5, 1.0), b = rmsBetween (runComp (hard, loud), 0.5, 1.0);
         CAPTURE (dB (a / rms (loud)), dB (b / rms (loud)));
         CHECK (dB (b / a) < 24.0f - 12.0f);   // 24 dB more INPUT comes out far less than 24 dB louder
         auto louder = hard;
-        louder.snapOutputDb = 0.0f;
+        louder.photonOutputDb = 0.0f;
         CHECK_THAT (dB (rmsBetween (runComp (louder, loud), 0.5, 1.0) / b), WithinAbs (6.0, 0.3));
     }
 
@@ -5599,9 +5601,9 @@ TEST_CASE ("SNAP: the FET compressor's ratios, ALL, attack, release and grit", "
     {
         // Loud for a second, then 20 dB quieter: how much is it still turned down?
         const auto input = toneSteps (440.0, 0.5f, 1.0, 0.05f, 1.0);
-        auto fast = snapSettings(), slow = snapSettings();
-        fast.snapRelease = 7.0f;
-        slow.snapRelease = 1.0f;
+        auto fast = photonSettings(), slow = photonSettings();
+        fast.photonRelease = 7.0f;
+        slow.photonRelease = 1.0f;
         const auto settled = [&] (const Comp::Settings& s) { return rmsBetween (runComp (s, toneSteps (440.0, 0.05f, 2.0, 0.0f, 0.0)), 1.5, 2.0); };
         const auto fastAfter = rmsBetween (runComp (fast, input), 1.25, 1.35), slowAfter = rmsBetween (runComp (slow, input), 1.25, 1.35);
         CAPTURE (dB (fastAfter / settled (fast)), dB (slowAfter / settled (slow)));
@@ -5612,9 +5614,9 @@ TEST_CASE ("SNAP: the FET compressor's ratios, ALL, attack, release and grit", "
     SECTION ("ATTACK 1 lets the start of a note through; ATTACK 7 clamps it")
     {
         const auto input = toneSteps (2000.0, 0.0f, 0.2, 0.6f, 0.3);   // a bright note starting at 0.2 s (its first peak 0.125 ms in)
-        auto fast = snapSettings(), slow = snapSettings();
-        fast.snapAttack = 7.0f;
-        slow.snapAttack = 1.0f;
+        auto fast = photonSettings(), slow = photonSettings();
+        fast.photonAttack = 7.0f;
+        slow.photonAttack = 1.0f;
         const auto peakFirstMs = [&] (const Comp::Settings& s)
         {
             const auto out = runComp (s, input);
@@ -5631,34 +5633,34 @@ TEST_CASE ("SNAP: the FET compressor's ratios, ALL, attack, release and grit", "
     {
         const auto thirdHarmonic = [] (Comp::Settings s, float inputDb)
         {
-            s.snapInputDb = inputDb;
-            s.snapRelease = 1.0f;   // slow, so the gain doesn't wobble with the wave
+            s.photonInputDb = inputDb;
+            s.photonRelease = 1.0f;   // slow, so the gain doesn't wobble with the wave
             const auto out = runComp (s, toneSteps (300.0, 0.3f, 1.0, 0.0f, 0.0));
             return dB (levelAt (out, 900.0, 0.5) / levelAt (out, 300.0, 0.5));
         };
-        auto all = snapSettings();
-        all.snapRatio = 4;
-        CAPTURE (thirdHarmonic (snapSettings(), 6.0f), thirdHarmonic (snapSettings(), 30.0f), thirdHarmonic (all, 30.0f));
-        CHECK (thirdHarmonic (snapSettings(), 30.0f) > thirdHarmonic (snapSettings(), 6.0f) + 6.0f);
-        CHECK (thirdHarmonic (all, 30.0f) > thirdHarmonic (snapSettings(), 30.0f) + 3.0f);
+        auto all = photonSettings();
+        all.photonRatio = 4;
+        CAPTURE (thirdHarmonic (photonSettings(), 6.0f), thirdHarmonic (photonSettings(), 30.0f), thirdHarmonic (all, 30.0f));
+        CHECK (thirdHarmonic (photonSettings(), 30.0f) > thirdHarmonic (photonSettings(), 6.0f) + 6.0f);
+        CHECK (thirdHarmonic (all, 30.0f) > thirdHarmonic (photonSettings(), 30.0f) + 3.0f);
     }
 }
 
-TEST_CASE ("GLOW: the optical leveller's gentle grab, two-stage release and memory", "[effects][comp][glow]")
+TEST_CASE ("ABYSS: the optical leveller's gentle grab, two-stage release and memory", "[effects][comp][abyss]")
 {
     SECTION ("More PEAK REDUCTION, more reduction; LIMIT holds firmer than COMPRESS")
     {
-        CHECK (Comp::glowCurveDb (-6.0f, 80.0f, 0) < Comp::glowCurveDb (-6.0f, 20.0f, 0) - 10.0f);
-        CHECK (Comp::glowCurveDb (0.0f, 50.0f, 1) < Comp::glowCurveDb (0.0f, 50.0f, 0) - 5.0f);
-        CHECK (Comp::glowCurveDb (-60.0f, 100.0f, 0) == 0.0f);
+        CHECK (Comp::abyssCurveDb (-6.0f, 80.0f, 0) < Comp::abyssCurveDb (-6.0f, 20.0f, 0) - 10.0f);
+        CHECK (Comp::abyssCurveDb (0.0f, 50.0f, 1) < Comp::abyssCurveDb (0.0f, 50.0f, 0) - 5.0f);
+        CHECK (Comp::abyssCurveDb (-60.0f, 100.0f, 0) == 0.0f);
     }
 
     SECTION ("It lets go half way quickly, then slowly: still holding down half a second later")
     {
         // Loud for a second, then 20 dB quieter.
         const auto input = toneSteps (440.0, 0.5f, 1.0, 0.05f, 2.0);
-        const auto out = runComp (glowSettings(), input);
-        const auto settled = rmsBetween (runComp (glowSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
+        const auto out = runComp (abyssSettings(), input);
+        const auto settled = rmsBetween (runComp (abyssSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
         const auto at = [&] (double t) { return dB (rmsBetween (out, t, t + 0.05) / settled); };
         const auto justAfter = at (1.0), quarter = at (1.25), later = at (1.5), muchLater = at (2.9);
         CAPTURE (justAfter, quarter, later, muchLater);
@@ -5672,8 +5674,8 @@ TEST_CASE ("GLOW: the optical leveller's gentle grab, two-stage release and memo
         const auto stillDown = [] (double loudSeconds)
         {
             const auto input = toneSteps (440.0, 0.5f, loudSeconds, 0.05f, 1.5);
-            const auto out = runComp (glowSettings(), input);
-            const auto settled = rmsBetween (runComp (glowSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
+            const auto out = runComp (abyssSettings(), input);
+            const auto settled = rmsBetween (runComp (abyssSettings(), toneSteps (440.0, 0.05f, 3.0, 0.0f, 0.0)), 2.5, 3.0);
             return dB (rmsBetween (out, loudSeconds + 1.0, loudSeconds + 1.1) / settled);
         };
         CAPTURE (stillDown (0.3), stillDown (6.0));
@@ -5684,8 +5686,8 @@ TEST_CASE ("GLOW: the optical leveller's gentle grab, two-stage release and memo
     {
         const auto reduction = [] (double hz, float emphasis)
         {
-            auto s = glowSettings();
-            s.glowEmphasis = emphasis;
+            auto s = abyssSettings();
+            s.abyssEmphasis = emphasis;
             const auto input = toneSteps (hz, 0.2f, 1.0, 0.0f, 0.0);
             return dB (rmsBetween (runComp (s, input), 0.6, 1.0) / rmsBetween (input, 0.6, 1.0));
         };

@@ -53,8 +53,8 @@ namespace
     constexpr float threePartStack = 9, gospelStack = 17;                                // more CHORD maps
 
     // Choices, by their index in each list (see the effects' typeNames).
-    constexpr float classicComp = 0, daybreakComp = 1, revival = 2, snapComp = 3, glowComp = 4;   // DYNAMICS' TYPE
-    constexpr float snapEight = 1, snapAll = 4;                                         // SNAP's RATIO
+    constexpr float classicComp = 0, daybreakComp = 1, revival = 2, photonComp = 3, abyssComp = 4;   // DYNAMICS' TYPE
+    constexpr float photonEight = 1, photonAll = 4;                                         // PHOTON's RATIO
     constexpr float chorus = 0, flanger = 1, phaser = 2, dimension = 4, rotary = 6,
                     harmonicTremolo = 8, autoPan = 9;                                    // MODULATION's TYPE
     constexpr float digitalDelay = 0, analogDelay = 1, tapeDelay = 2, reverseDelay = 4, shimmer = 6;   // DELAY's TYPE
@@ -123,7 +123,7 @@ std::vector<Rig> makeFactoryRigs()
         // Close and warm, for ballads: gentle compression, a small chamber.
         make ("Intimate", A, 4, "Ballad,Clean,Reverb", {
             { rigLevel, 4 },   // even with the other rigs
-            { compOn, 1 }, { compType, classicComp }, { compThreshold, -22 }, { compRatio, 2.5f }, { compLevel, 4 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 8 },   // Classic until 0.41.0
             { deessOn, 1 }, { deessAmount, 5 },
             { eqOn, 1 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq16k", 2 },
             { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.3f }, { reverbMix, 0.15f }, { reverbPreDelay, 10 } }),
@@ -162,10 +162,10 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.16f } }),
 
-        // A smooth, even lead on GLOW, the optical leveller (0.41.0): it rides
+        // A smooth, even lead on ABYSS, the optical leveller (0.41.0): it rides
         // the voice gently, a little more on the bright esses (EMPHASIS).
-        make ("Silky Lead", A, 9, "Pop,Ballad,Studio,Glow", {
-            { compOn, 1 }, { compType, glowComp }, { glowPeakReduction, 55 }, { glowGain, 16 }, { glowEmphasis, 0.3f },
+        make ("Silky Lead", A, 9, "Pop,Ballad,Studio,Abyss", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 55 }, { abyssGain, 16 }, { abyssEmphasis, 0.3f },
             { deessOn, 1 }, { deessAmount, 5 },
             { eqOn, 1 }, { "eq250", -1.5f }, { "eq4k", 1 }, { "eq16k", 2 },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f }, { reverbPreDelay, 40 } }),
@@ -232,21 +232,21 @@ std::vector<Rig> makeFactoryRigs()
             { "mb3Style", warmTapeStyle }, { "mb3Drive", 0.35f }, { "mb3Level", -2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.12f } }),
 
-        // Upfront rock on SNAP, the FET compressor (0.41.0): 8:1, a quick
+        // Upfront rock on PHOTON, the FET compressor (0.41.0): 8:1, a quick
         // attack and release, so every word punches through the band.
-        make ("Punch Lead", B, 7, "Rock,Snap,Studio", {
-            { compOn, 1 }, { compType, snapComp }, { snapInput, 24 }, { snapOutput, -10 }, { snapAttack, 5 }, { snapRelease, 6 },
-            { snapRatio, snapEight },
+        make ("Punch Lead", B, 7, "Rock,Photon,Studio", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 },
+            { photonRatio, photonEight },
             { deessOn, 1 }, { deessAmount, 6 },
             { eqOn, 1 }, { "eq125", -2 }, { "eq2k", 1.5f }, { "eq4k", 2 },
             { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
 
-        // SNAP with every RATIO button in (ALL): the loudest words pushed
+        // PHOTON with every RATIO button in (ALL): the loudest words pushed
         // back and roughed up, the classic aggressive shout.
-        make ("All-In Shout", B, 8, "Rock,Rap,Snap,Aggressive", {
-            { compOn, 1 }, { compType, snapComp }, { snapInput, 26 }, { snapOutput, -6 }, { snapAttack, 6 }, { snapRelease, 6 },
-            { snapRatio, snapAll },
+        make ("All-In Shout", B, 8, "Rock,Rap,Photon,Aggressive", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -6 }, { photonAttack, 6 }, { photonRelease, 6 },
+            { photonRatio, photonAll },
             { deessOn, 1 }, { deessAmount, 6 },
             { eqOn, 1 }, { "eq125", -3 }, { "eq1k", 1 }, { "eq4k", 2 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f } }),

@@ -4,20 +4,23 @@ Each version's notes appear on its GitHub Release page.
 
 ## 0.41.0
 
-- **Two classic studio compressors join DYNAMICS' TYPE list: SNAP and GLOW.** You asked for them by their originals; they're named our own way, from the originals' published specifications, with our own design where those don't say (marked below). Your saved rigs keep their sound: the two are added after Revival.
-  - **SNAP, a FET compressor inspired by the 1176:** fast, bright and in your face, the classic for rock and rap vocals.
+- **Two classic studio compressors join DYNAMICS' TYPE list: PHOTON and ABYSS.** You asked for them by their originals; the names are yours. Both follow the originals' published specifications, with our own design where those don't say (marked below).
+  - **PHOTON, a FET compressor inspired by the 1176:** fast, bright and in your face, the classic for rock and rap vocals.
     - **INPUT** drives your voice into a fixed threshold (more INPUT, more compression); **OUTPUT** sets the level back.
     - **ATTACK** and **RELEASE** run 1 to 7, as on the original (7 fastest): attack 800 to 20 microseconds, release 1.1 seconds to 50 ms. The screen shows the time.
     - **RATIO** 4:1, 8:1, 12:1, 20:1 and **All**, the "all buttons in" trick: the loudest words get pushed below quieter ones, quicker and grittier.
     - **Our design:** the FET's grit, which grows with how hard it's compressing (barely any at a light squeeze, the most on All), and the exact shape of All.
-  - **GLOW, an optical leveller inspired by the LA-2A:** smooth and gentle, the classic for even pop and ballad vocals.
+  - **ABYSS, an optical leveller inspired by the LA-2A:** smooth and gentle, the classic for even pop and ballad vocals.
     - **PEAK REDUCTION** (how much) and **GAIN**; **MODE** Compress (gentle) or Limit (firmer).
     - **EMPHASIS** makes it react more to bright sounds and esses, like the original's rear trim.
     - **The light cell's feel:** it grabs in about 10 ms, lets go half way in about 60 ms, then the rest over 1 to 5 seconds, more slowly the harder and longer it's been working.
     - **Our guesses:** the ratios, that "memory", and a touch of valve warmth. The real cell isn't specified that precisely.
-  - Both keep the PR7's NOISE GATE. On the rack they show a gain-reduction needle, like Classic.
-- **Three new rigs:** **A09 Silky Lead** (Glow), **B07 Punch Lead** (Snap 8:1), **B08 All-In Shout** (Snap on All).
-- **Can't be checked here by ear:** the tests check the sound (each RATIO's curve, All pushing the loudest peaks down, slow ATTACK letting a note's start through, fast RELEASE recovering in a quarter of a second, the grit growing with the squeeze, Glow's quick-then-slow release and its memory, Limit firmer than Compress, EMPHASIS reacting to highs and not lows), but how they feel on your voice is yours to judge. If you can find the originals' manuals, I can check my numbers against them.
+  - Both keep the PR7's NOISE GATE. On the rack they show a gain-reduction needle.
+- **CLASSIC, the generic compressor, has left the TYPE menu** (your call: Revival, Photon and Abyss cover it). New rigs start on **Revival**.
+  - **Your songs and rigs are safe.** One that used Classic still loads and sounds exactly as it did, its TYPE showing "Classic (old)", until you pick another type. That includes rigs saved before this version that never set a TYPE and so relied on Classic being the default.
+  - The factory rig **A04 Intimate** used Classic; it now uses Abyss.
+- **Three new rigs:** **A09 Silky Lead** (Abyss), **B07 Punch Lead** (Photon 8:1), **B08 All-In Shout** (Photon on All).
+- **Can't be checked here by ear:** the tests check the sound (each RATIO's curve, All pushing the loudest peaks down, slow ATTACK letting a note's start through, fast RELEASE recovering in a quarter of a second, the grit growing with the squeeze, Abyss's quick-then-slow release and its memory, Limit firmer than Compress, EMPHASIS reacting to highs and not lows), but how they feel on your voice is yours to judge. If you can find the originals' manuals, I can check my numbers against them.
 
 ## 0.40.0
 

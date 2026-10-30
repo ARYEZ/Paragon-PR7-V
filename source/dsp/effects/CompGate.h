@@ -32,7 +32,7 @@ namespace effects
     // asked for them by their originals; named our own way), from the
     // originals' published specifications, our design where they don't say:
     //
-    //   snap      inspired by the 1176 FET limiting amplifier. INPUT drives
+    //   photon      inspired by the 1176 FET limiting amplifier. INPUT drives
     //             the voice into a fixed threshold (more INPUT, more
     //             compression), OUTPUT sets the level back. ATTACK 1-7 (7
     //             fastest, 20 us; 1 slowest, 800 us) and RELEASE 1-7 (7
@@ -41,7 +41,7 @@ namespace effects
     //             loudest peaks pushed below quieter ones, quicker, grittier).
     //             The FET's colour, a little distortion growing with the gain
     //             reduction, is our own curve.
-    //   glow      inspired by the LA-2A optical leveller. PEAK REDUCTION (how
+    //   abyss      inspired by the LA-2A optical leveller. PEAK REDUCTION (how
     //             much) and GAIN; COMPRESS (gentle) or LIMIT (firmer);
     //             EMPHASIS (the original's rear trim: it reacts more to bright
     //             sounds). The light cell's feel: about 10 ms to grab; lets go
@@ -53,10 +53,12 @@ namespace effects
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Type { classic, daybreak, revival, snap, glow };
-        static inline const juce::StringArray typeNames { "Classic", "Daybreak", "Revival", "Snap", "Glow" };
-        static inline const juce::StringArray snapRatioNames { "4:1", "8:1", "12:1", "20:1", "All" };
-        static inline const juce::StringArray glowModeNames { "Compress", "Limit" };
+        // Classic (0) is out of the TYPE menu since 0.41.0 (EffectPanel's
+        // hidden choices): it still plays for rigs and projects that use it.
+        enum class Type { classic, daybreak, revival, photon, abyss };
+        static inline const juce::StringArray typeNames { "Classic", "Daybreak", "Revival", "Photon", "Abyss" };
+        static inline const juce::StringArray photonRatioNames { "4:1", "8:1", "12:1", "20:1", "All" };
+        static inline const juce::StringArray abyssModeNames { "Compress", "Limit" };
 
         struct Settings
         {
@@ -73,25 +75,25 @@ namespace effects
             float revivalGateDb = revivalGateOffDb;   // revival: GATE
             float revivalCompDb = -12.0f;              // revival: COMPRESSION, 0 (none) to -36
             float revivalGainDb = 0.0f;                // revival: GAIN, the limiter's ceiling
-            float snapInputDb = 18.0f;                 // snap: INPUT, 0 to 40
-            float snapOutputDb = -8.0f;                // snap: OUTPUT
-            float snapAttack = 4.0f;                   // snap: ATTACK 1 (slow) to 7 (fast)
-            float snapRelease = 5.0f;                  // snap: RELEASE 1 (slow) to 7 (fast)
-            int snapRatio = 0;                         // snap: snapRatioNames
-            float glowPeakReduction = 40.0f;           // glow: PEAK REDUCTION, 0 to 100
-            float glowGainDb = 6.0f;                   // glow: GAIN
-            int glowMode = 0;                          // glow: glowModeNames
-            float glowEmphasis = 0.0f;                 // glow: EMPHASIS, 0 to 1
+            float photonInputDb = 18.0f;                 // photon: INPUT, 0 to 40
+            float photonOutputDb = -8.0f;                // photon: OUTPUT
+            float photonAttack = 4.0f;                   // photon: ATTACK 1 (slow) to 7 (fast)
+            float photonRelease = 5.0f;                  // photon: RELEASE 1 (slow) to 7 (fast)
+            int photonRatio = 0;                         // photon: photonRatioNames
+            float abyssPeakReduction = 40.0f;           // abyss: PEAK REDUCTION, 0 to 100
+            float abyssGainDb = 6.0f;                   // abyss: GAIN
+            int abyssMode = 0;                          // abyss: abyssModeNames
+            float abyssEmphasis = 0.0f;                 // abyss: EMPHASIS, 0 to 1
         };
 
-        // Snap's attack and release (seconds) for its 1-7 knobs: 7 fastest.
-        static float snapAttackSeconds (float knob) noexcept;
-        static float snapReleaseSeconds (float knob) noexcept;
-        // Snap's and Glow's gain change at a steady level, in dB (0 or less),
-        // before OUTPUT / GAIN: for tests and the curves' shape. Snap's input
+        // Photon's attack and release (seconds) for its 1-7 knobs: 7 fastest.
+        static float photonAttackSeconds (float knob) noexcept;
+        static float photonReleaseSeconds (float knob) noexcept;
+        // Photon's and Abyss's gain change at a steady level, in dB (0 or less),
+        // before OUTPUT / GAIN: for tests and the curves' shape. Photon's input
         // is the level after INPUT.
-        static float snapCurveDb (float drivenDb, int ratio) noexcept;
-        static float glowCurveDb (float inputDb, float peakReduction, int mode) noexcept;
+        static float photonCurveDb (float drivenDb, int ratio) noexcept;
+        static float abyssCurveDb (float inputDb, float peakReduction, int mode) noexcept;
 
         // Revival's GATE at (or below) this is off.
         static constexpr float revivalGateOffDb = -80.0f;
@@ -120,8 +122,8 @@ namespace effects
     private:
         void processDaybreak (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processRevival (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
-        void processSnap (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
-        void processGlow (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processPhoton (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processAbyss (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
 
         double sampleRate = 48000.0;
         juce::dsp::NoiseGate<float> gate;
@@ -141,12 +143,12 @@ namespace effects
         float limiterEnvelope = 0.0f;
         juce::SmoothedValue<float> revivalThreshold, revivalCeiling;
 
-        // Snap: the FET's detector (dB), and its input and output gains.
-        float snapLevelDb = -120.0f, snapColourPeak = 0.0f;
-        juce::SmoothedValue<float> snapIn, snapOut;
-        // Glow: the cell's fast and slow parts (dB of reduction, 0 or less),
+        // Photon: the FET's detector (dB), and its input and output gains.
+        float photonLevelDb = -120.0f, photonColourPeak = 0.0f;
+        juce::SmoothedValue<float> photonIn, photonOut;
+        // Abyss: the cell's fast and slow parts (dB of reduction, 0 or less),
         // its memory of working hard (0 to 1), EMPHASIS's filter, its gain.
-        float glowFastDb = 0.0f, glowSlowDb = 0.0f, glowMemory = 0.0f, glowPeak = 0.0f, emphasisState = 0.0f;
-        juce::SmoothedValue<float> glowGain;
+        float abyssFastDb = 0.0f, abyssSlowDb = 0.0f, abyssMemory = 0.0f, abyssPeak = 0.0f, emphasisState = 0.0f;
+        juce::SmoothedValue<float> abyssGain;
     };
 }

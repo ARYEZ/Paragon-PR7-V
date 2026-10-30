@@ -42,7 +42,7 @@ descriptions below still talk about guitar.
 | V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
 | V15 | LO-FI voices: Cell Phone, Walkie-Talkie, Gramophone | ✅ Done (0.36.0) |
 | V16 | FORMANT: chipmunk to giant, the pitch kept | ✅ Done (0.37.0) |
-| V17 | DYNAMICS: Snap (1176-style FET) and Glow (LA-2A-style optical) | ✅ Done (0.41.0) |
+| V17 | DYNAMICS: Photon (1176-style FET) and Abyss (LA-2A-style optical); Classic retired | ✅ Done (0.41.0) |
 | V18 | Vocoder SIDECHAIN carrier | Next |
 
 ## Using it
@@ -55,13 +55,13 @@ descriptions below still talk about guitar.
   delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.) The **PITCH** stomp switches
   HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
   what was on (TUNE VOICE in the mode it had).
-  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
-    **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
+  - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has four TYPEs:
+    **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
+    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL;
     **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
     **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
-    it); **Snap**, a fast FET compressor inspired by the 1176 (INPUT, OUTPUT, ATTACK and RELEASE 1-7, RATIO 4/8/12/20 or
-    All); and **Glow**, a smooth optical leveller inspired by the LA-2A (PEAK REDUCTION, GAIN, Compress or Limit,
+    it); **Photon**, a fast FET compressor inspired by the 1176 (INPUT, OUTPUT, ATTACK and RELEASE 1-7, RATIO 4/8/12/20 or
+    All); and **Abyss**, a smooth optical leveller inspired by the LA-2A (PEAK REDUCTION, GAIN, Compress or Limit,
     EMPHASIS). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
