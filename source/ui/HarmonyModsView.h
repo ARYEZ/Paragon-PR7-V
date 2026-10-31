@@ -119,4 +119,7 @@ private:
     juce::Rectangle<float> display;      // the shape (or the steps) drawn
     juce::Rectangle<int> header;         // the assignments' line
     juce::String shownAssignments;
+    std::vector<int> displaySignature() const;   // what the display draws that can change
+    std::vector<int> shownDisplay;
+    std::vector<juce::RangedAudioParameter*> modParameters;
 };

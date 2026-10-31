@@ -102,10 +102,43 @@ void VocoderBandsView::resetCurve()
     repaint();
 }
 
+std::vector<int> VocoderBandsView::drawnState() const
+{
+    // Everything paint() draws that can change: ON, MODE, VOL or PAN, the
+    // notes playing, each bar's height (in whole pixels) and the curve.
+    std::vector<int> state;
+    const auto on = parameters.getRawParameterValue (ParamIDs::vocoderOn)->load() > 0.5f;
+    const auto mode = juce::jlimit (0, 2, juce::roundToInt (parameters.getRawParameterValue (ParamIDs::vocoderMode)->load()));
+    state.push_back (on ? 1 : 0);
+    state.push_back (mode);
+    state.push_back (showingPan ? 1 : 0);
+    if (vocoder != nullptr)
+    {
+        for (int v = 0; v < Voc::maxVoices; ++v)
+            state.push_back (juce::roundToInt (vocoder->getVoiceNote (v)));
+        if (on)
+            for (int b = 0; b < Voc::bandCounts[mode]; ++b)
+            {
+                const auto db = juce::Decibels::gainToDecibels (vocoder->getBandLevel (b) * 1.57f, lowestShownDb);
+                state.push_back (juce::roundToInt (juce::jlimit (0.0f, 1.0f, (db - lowestShownDb) / -lowestShownDb) * plot.getHeight()));
+            }
+    }
+    for (int p = 0; p < Voc::curvePoints; ++p)
+        state.push_back (juce::roundToInt (yFor (parameters.getRawParameterValue (pointId (p))->load()) * 4.0f));
+    return state;
+}
+
 void VocoderBandsView::timerCallback()
 {
-    if (isShowing())
+    // Only when something drawn moved: redrawing the screen 30 times a
+    // second for nothing took a good share of a core.
+    if (! isShowing())
+        return;
+    if (auto state = drawnState(); state != shownState)
+    {
+        shownState = std::move (state);
         repaint();
+    }
 }
 
 void VocoderBandsView::resized()

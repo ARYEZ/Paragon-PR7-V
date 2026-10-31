@@ -370,3 +370,29 @@ TEST_CASE ("SETTINGS: the pedal's MIDI CC and the tuner's reference are saved wi
     restored.setExpressionCc (500);
     CHECK (restored.getExpressionCc() == 127);
 }
+
+// Hidden (run with "[cpu]"): how much of one core the plugin takes, at its
+// defaults and with every switch off.
+TEST_CASE ("CPU with everything off", "[.][cpu]")
+{
+    TestRig rig;
+    const auto measure = [&rig] (const char* label)
+    {
+        rig.play (1.0);   // warm up
+        const auto startTime = juce::Time::getHighResolutionTicks();
+        const auto seconds = 10.0;
+        rig.play (seconds);
+        const auto took = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - startTime);
+        std::printf ("%-40s %6.2f%% of a core\n", label, 100.0 * took / seconds);
+    };
+    measure ("defaults");
+    for (auto* parameter : static_cast<juce::AudioProcessor&> (rig.processor).getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            if (ranged->getParameterID().endsWith ("On") && ranged->getParameterID() != "bypass")
+            {
+                if (ranged->getValue() > 0.5f)
+                    std::printf ("  on by default: %s\n", ranged->getParameterID().toRawUTF8());
+                ranged->setValueNotifyingHost (0.0f);
+            }
+    measure ("every ...On switch off");
+}

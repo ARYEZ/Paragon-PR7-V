@@ -147,6 +147,11 @@ HarmonyModsView::HarmonyModsView (juce::AudioProcessorValueTreeState& state)
         attach (*knob, id);
     spMode.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonySpMode, spMode.box);
     spTrigger.attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (parameters, ParamIDs::harmonySpTrigger, spTrigger.box);
+    // The modulators' own settings, for knowing when the display changes.
+    for (auto* parameter : parameters.processor.getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            if (const auto id = ranged->getParameterID(); id.startsWith ("hm") || id.startsWith ("harmonyA") || id.startsWith ("harmonyPt") || id.startsWith ("harmonySp"))
+                modParameters.push_back (ranged);
     showTab (0);
     startTimerHz (30);
 }
@@ -270,7 +275,47 @@ void HarmonyModsView::timerCallback()
         shownAssignments = text;
         repaint (header);
     }
-    repaint (display.expanded (4.0f).getSmallestIntegerContainer());
+    // The display only when something on it moved: redrawing it 30 times a
+    // second for nothing took a good share of a core.
+    if (const auto signature = displaySignature(); signature != shownDisplay)
+    {
+        shownDisplay = signature;
+        repaint (display.expanded (4.0f).getSmallestIntegerContainer());
+    }
+}
+
+std::vector<int> HarmonyModsView::displaySignature() const
+{
+    // What the display draws: the tab, its settings (each control in steps
+    // finer than a pixel), the sources' values now and the note voices'.
+    std::vector<int> state;
+    if (! isShowing())
+        return state;
+    const auto fine = [&state] (float value) { state.push_back (juce::roundToInt (value * 2000.0f)); };
+    state.push_back (tab);
+    for (auto* parameter : modParameters)
+        fine (parameter->getValue());
+    // Only the sources this tab draws (a free-running M1 doesn't move the MIDI tab).
+    const auto source = sourceOf (tab);
+    if (actions.value != nullptr)
+    {
+        fine (actions.value (source));
+        if (tab == midiTab)
+            for (const auto midiSource : { Mod::velocity, Mod::keyboard, Mod::pitchWheel, Mod::modWheel, Mod::aftertouch })
+                fine (actions.value (midiSource));
+    }
+    if (tab < Mod::numMods && actions.position != nullptr)
+        fine (actions.position (tab));
+    if (tab < Mod::numMods && actions.shape != nullptr)
+        for (const auto point : actions.shape (tab))
+            fine (point);
+    for (int voice = 0; voice < Mod::numNoteVoices; ++voice)
+    {
+        state.push_back (actions.voiceNote != nullptr ? actions.voiceNote (voice) : -1);
+        if (actions.voiceValue != nullptr)
+            fine (actions.voiceValue (source, voice));
+    }
+    return state;
 }
 
 void HarmonyModsView::resized()

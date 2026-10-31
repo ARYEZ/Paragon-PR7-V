@@ -1,3 +1,9 @@
+#include <atomic>
+#if defined (__linux__)
+ #include <dlfcn.h>
+#endif
+#include <ctime>
+#include <thread>
 #include "ui/VocoderBandsView.h"
 #include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
@@ -1597,4 +1603,187 @@ TEST_CASE ("The compressor's TYPE menu leaves Classic and Daybreak out, and says
     set (processor, ParamIDs::compType, 0.0f);
     CHECK (type->getTextWhenNothingSelected() == "Classic (old)");
     CHECK (type->getSelectedId() == 0);
+}
+
+// Hidden (run with "[uicpu]"): how much of one core the open window takes
+// while nothing happens, on a screen (xvfb), with silent audio running.
+// PARAGON_UICPU_BLOCK=n opens block n (as PARAGON_SNAPSHOT_BLOCK);
+// PARAGON_UICPU_PARAMS=id=value,... sets switches; PARAGON_UICPU_SING=1
+// plays a sung note instead of silence.
+TEST_CASE ("CPU of the open window, idle", "[.][uicpu]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.setPlayConfigDetails (1, 2, 48000.0, 256);
+    processor.prepareToPlay (48000.0, 256);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    // A bare virtual screen has no window manager, so some window properties
+    // JUCE sets don't exist there. Ignore those X errors rather than exit.
+#if defined (__linux__)
+    if (auto* x11 = dlopen ("libX11.so.6", RTLD_NOW))
+        if (auto* setHandler = (void* (*) (int (*) (void*, void*))) dlsym (x11, "XSetErrorHandler"))
+            setHandler ([] (void*, void*) { return 0; });
+#endif
+    editor->addToDesktop (0);
+    editor->setVisible (true);
+    if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_BLOCK", {}); block.isNotEmpty())
+    {
+        std::vector<SignalChain*> chains;
+        findAll (*editor, chains);
+        REQUIRE (! chains.empty());
+        chains.front()->onSelect (block.getIntValue());
+    }
+    for (const auto& pair : juce::StringArray::fromTokens (juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_PARAMS", {}), ",", {}))
+        set (processor, pair.upToFirstOccurrenceOf ("=", false, false).toRawUTF8(), pair.fromFirstOccurrenceOf ("=", false, false).getFloatValue());
+    const auto sing = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_SING", {}).isNotEmpty();
+    // PARAGON_UICPU_MODS=n: HARMONY's MODS page on tab n; PARAGON_UICPU_PAGE=n: MARS's page n (BANDS, GLOBAL, MOD, SLOTS).
+    if (const auto modsTab = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_MODS", {}); modsTab.isNotEmpty())
+    {
+        std::vector<HarmonyPanel*> panels;
+        findAll (*editor, panels);
+        REQUIRE (! panels.empty());
+        panels.front()->openMods (modsTab.getIntValue());
+    }
+    if (const auto page = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_PAGE", {}); page.isNotEmpty())
+    {
+        std::vector<MarsPanel*> panels;
+        findAll (*editor, panels);
+        REQUIRE (! panels.empty());
+        panels.front()->showPage (page.getIntValue());
+    }
+
+    std::atomic<bool> running { true };
+    std::thread audio ([&]
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        double phase = 0.0;
+        while (running)
+        {
+            buffer.clear();
+            if (sing)
+                for (int i = 0; i < buffer.getNumSamples(); ++i, phase += 220.0 / 48000.0)
+                    buffer.setSample (0, i, 0.3f * (float) std::sin (juce::MathConstants<double>::twoPi * phase));
+            processor.processBlock (buffer, midi);
+            std::this_thread::sleep_for (std::chrono::microseconds (5333));
+        }
+    });
+
+    // Run the message loop: settle for 2 s, then measure 10 s.
+    std::clock_t cpuStart = 0;
+    double wallStart = 0.0, cpu = 0.0, wall = 0.0;
+    juce::Timer::callAfterDelay (2000, [&] { cpuStart = std::clock(); wallStart = juce::Time::getMillisecondCounterHiRes(); });
+    juce::Timer::callAfterDelay (12000, [&]
+    {
+        cpu = (double) (std::clock() - cpuStart) / CLOCKS_PER_SEC;
+        wall = (juce::Time::getMillisecondCounterHiRes() - wallStart) / 1000.0;
+        juce::MessageManager::getInstance()->stopDispatchLoop();
+    });
+    juce::MessageManager::getInstance()->runDispatchLoop();
+    std::printf ("window idle: %.1f%% of a core (whole process)\n", 100.0 * cpu / wall);
+    running = false;
+    audio.join();
+}
+
+TEST_CASE ("The faceplate redraws only what changed: nothing while idle, the display for meters and animations, everything for a setting", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.setPlayConfigDetails (1, 2, 48000.0, 256);
+    processor.prepareToPlay (48000.0, 256);
+    Faceplate plate (processor);
+    plate.setBounds (0, 0, 1662, 260);
+    plate.setRackDisplayWidth (360.0f);
+    plate.setBlock (Faceplate::Unit::delay, "DELAY", Icons::Type::delay, juce::Colours::red, ParamIDs::delayOn, ParamIDs::delayType);
+
+    // Redrawing it all 30 times a second for nothing cost a whole core in
+    // software rendering: once drawn, an idle unit draws nothing.
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    for (int tick = 0; tick < 5; ++tick)
+    {
+        plate.updateMeters();
+        CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+    }
+
+    // A setting: the whole unit (the LED, name and display).
+    set (processor, ParamIDs::delayOn, 1.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    // DELAY on: its light runs, so the display redraws (and only it).
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::display);
+    set (processor, ParamIDs::delayOn, 0.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+
+    // A voice coming in doesn't touch DELAY's display (it has no meter)...
+    std::vector<float> loud (256);
+    for (size_t i = 0; i < loud.size(); ++i)
+        loud[i] = 0.5f * std::sin (0.1f * (float) i);
+    set (processor, ParamIDs::compOn, 1.0f);
+    set (processor, ParamIDs::compType, (float) effects::CompGate::Type::photon);
+    set (processor, ParamIDs::photonInput, 40.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    for (int block = 0; block < 4; ++block)
+        playThrough (processor, loud);
+    plate.updateMeters();
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+
+    // ...but swings DYNAMICS' gain-reduction needle: the display.
+    plate.setBlock (Faceplate::Unit::dynamics, "DYNAMICS", Icons::Type::comp, juce::Colours::red, ParamIDs::compOn, ParamIDs::compType);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);   // another block: everything
+    playThrough (processor, loud);
+    plate.updateMeters();
+    CAPTURE (plate.getShownReduction());
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::display);
+
+    // Where a panel draws over the display (HARMONY on the rack), its live
+    // readings don't redraw the faceplate.
+    plate.setBlock (Faceplate::Unit::pitch, "PITCH", Icons::Type::tuner, juce::Colours::red, ParamIDs::harmonyOn, {});
+    plate.setDisplayCovered (true);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    playThrough (processor, loud);
+    plate.updateMeters();
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+}
+
+TEST_CASE ("A faceplate display redrawn on its own matches the whole unit drawn at once", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+    Faceplate plate (processor);
+    plate.setBounds (0, 0, 1662, 260);
+    plate.setRackDisplayWidth (360.0f);
+    plate.setBlock (Faceplate::Unit::dynamics, "DYNAMICS", Icons::Type::comp, juce::Colours::red, ParamIDs::compOn, ParamIDs::compType);
+
+    // A scale between whole pixels, as in a resized window, where the
+    // display-only redraw uses the chassis's picture.
+    const auto startFinish = Finish::get();
+    for (const auto finish : { Finish::Type::pearlWhite, Finish::Type::pearlBlack })
+    {
+        Finish::set (finish, false);
+        plate.resized();   // as the finish's change message does
+        constexpr float scale = 1.4035f;
+        const auto draw = [&] (bool displayOnly)
+        {
+            juce::Image image (juce::Image::ARGB, juce::roundToInt (1662 * scale), juce::roundToInt (260 * scale), true);
+            juce::Graphics g (image);
+            g.addTransform (juce::AffineTransform::scale (scale));
+            if (displayOnly)
+                g.reduceClipRegion (plate.getDisplayArea().expanded (4));
+            plate.paintEntireComponent (g, false);
+            return image;
+        };
+        const auto whole = draw (false), display = draw (true);
+
+        // Compare inside the display area (what the redraw covers).
+        const auto area = (plate.getDisplayArea().expanded (4).toFloat() * scale).getSmallestIntegerContainer().reduced (1);
+        int worst = 0;
+        for (int y = area.getY(); y < area.getBottom(); ++y)
+            for (int x = area.getX(); x < area.getRight(); ++x)
+            {
+                const auto a = whole.getPixelAt (x, y), b = display.getPixelAt (x, y);
+                worst = juce::jmax (worst, std::abs ((int) a.getRed() - (int) b.getRed()), std::abs ((int) a.getGreen() - (int) b.getGreen()),
+                                    std::abs ((int) a.getBlue() - (int) b.getBlue()));
+            }
+        CAPTURE ((int) finish, worst);
+        CHECK (worst <= 6);   // out of 255: the grain's sub-pixel difference, not a visible seam
+    }
+    Finish::set (startFinish, false);
 }
