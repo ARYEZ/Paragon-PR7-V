@@ -37,6 +37,7 @@ public:
 
 private:
     void timerCallback() override;
+    std::vector<int> drawnState() const;           // what paint() draws that can change
     juce::String pointId (int point) const;
     float yFor (float value) const noexcept;       // a curve value on the plot
     float valueAt (float y) const noexcept;        // and back
@@ -47,4 +48,5 @@ private:
     juce::TextButton volKey { "VOL" }, panKey { "PAN" }, resetKey { "RESET" };
     juce::Rectangle<float> glass, plot;
     std::optional<juce::Point<float>> lastDrag;
+    std::vector<int> shownState;
 };

@@ -1,3 +1,4 @@
+#include <cstring>
 #include "Faceplate.h"
 
 #include "Finish.h"
@@ -157,6 +158,9 @@ Faceplate::Faceplate (ParagonX1AudioProcessor& processorToShow)
     : processor (processorToShow), parameters (processorToShow.getParameters())
 {
     setInterceptsMouseClicks (false, false);
+    for (auto* parameter : static_cast<juce::AudioProcessor&> (processor).getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            allValues.push_back (parameters.getRawParameterValue (ranged->getParameterID()));
     Finish::changes().addChangeListener (this);
     startTimerHz (30);
 }
@@ -170,6 +174,7 @@ void Faceplate::resized()
 {
     // Twice the size, so the grain stays fine on high-resolution screens (as on the unit).
     satin = Finish::makeSatinGrain (juce::jmax (1, getWidth() * 2), juce::jmax (1, getHeight() * 2), 4321);
+    chassisCache = {};
 }
 
 void Faceplate::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -235,12 +240,135 @@ bool Faceplate::isOn() const
     return false;
 }
 
+bool Faceplate::isAnimated() const
+{
+    const auto look = getLook();
+    return (look == Look::delay || look == Look::modulation || look == Look::glitch) && isOn();
+}
+
+namespace
+{
+    // FNV-1a, for the faceplate's signatures.
+    struct Fnv
+    {
+        juce::uint64 hash = 14695981039346656037ull;
+        void add (juce::uint64 value) noexcept
+        {
+            hash ^= value;
+            hash *= 1099511628211ull;
+        }
+        template <typename Number>
+        void addBits (Number number) noexcept
+        {
+            juce::uint64 bits = 0;
+            std::memcpy (&bits, &number, sizeof (number));
+            add (bits);
+        }
+        // A reading, in steps of `step` (finer changes can't be seen).
+        void addStep (float value, float step) noexcept { add ((juce::uint64) (juce::int64) juce::roundToInt (value / step)); }
+    };
+}
+
+juce::uint64 Faceplate::settingsSignature() const
+{
+    // Every parameter's value, the tempo, the block shown and whether a
+    // panel draws over the display.
+    Fnv fnv;
+    for (const auto* value : allValues)
+        fnv.addBits (value->load (std::memory_order_relaxed));
+    fnv.addBits (processor.getTempoBpm());
+    fnv.add ((juce::uint64) unit);
+    fnv.add (displayCovered ? 1u : 0u);
+    return fnv.hash;
+}
+
+juce::uint64 Faceplate::liveSignature() const
+{
+    // Only what the look shown draws from the sound, and none of it where
+    // a panel draws over the display (MARS, HARMONY and the VOCODER on the rack).
+    Fnv fnv;
+    switch (getLook())
+    {
+        case Look::classic: case Look::daybreak: case Look::revival: case Look::photon: case Look::abyss:
+            fnv.addStep (shownReduction, 0.1f);
+            break;
+        case Look::deEsser:
+            fnv.addStep (shownDeEss, 0.1f);
+            break;
+        case Look::mars:
+            if (! displayCovered)
+                for (const auto drive : shownDrive)
+                    fnv.addStep (drive, 0.005f);
+            break;
+        case Look::harmony:
+            if (! displayCovered)
+            {
+                fnv.addStep (processor.getHarmonySungNote(), 0.01f);
+                fnv.addStep (processor.getHarmonyCorrectNote(), 0.01f);
+                const auto& engine = processor.getHarmony();
+                for (int voice = 0; voice < effects::Harmony::numNoteVoices; ++voice)
+                {
+                    fnv.add ((juce::uint64) (juce::int64) engine.getNoteVoiceNote (voice));
+                    fnv.addStep (engine.getNoteVoicePan (voice), 0.005f);
+                    fnv.addStep (engine.getNoteVoiceLevel (voice), 0.01f);
+                }
+            }
+            break;
+        case Look::modulation:
+            // CYCLONE's rotors keep turning while they slow down after it's switched off.
+            fnv.addStep (processor.getCyclone().getHornTurn(), 0.002f);
+            fnv.addStep (processor.getCyclone().getDrumTurn(), 0.002f);
+            break;
+        case Look::vocoder:
+            if (! displayCovered)
+                for (int band = 0; band < effects::Vocoder::maxBands; ++band)
+                    fnv.addStep (processor.getVocoder().getBandLevel (band), 0.002f);
+            break;
+        case Look::generic: case Look::delay: case Look::reverb: case Look::filterPitch:
+        case Look::glitch: case Look::doubler: case Look::eq: case Look::loFi:
+            break;
+    }
+    return fnv.hash;
+}
+
+Faceplate::Redraw Faceplate::checkRedraw()
+{
+    // A setting changed: the whole unit (its name, LED and display).
+    if (const auto signature = settingsSignature(); signature != shownSignature)
+    {
+        shownSignature = signature;
+        shownLive = liveSignature();
+        return Redraw::whole;
+    }
+    // Only a meter, a live reading or an animation moved: just the display.
+    if (const auto live = liveSignature(); live != shownLive || isAnimated())
+    {
+        shownLive = live;
+        return Redraw::display;
+    }
+    return Redraw::nothing;
+}
+
 void Faceplate::timerCallback()
 {
     if (! isShowing())
         return;
     updateMeters();
-    repaint();
+    switch (checkRedraw())
+    {
+        case Redraw::whole:
+            repaint();
+            break;
+        case Redraw::display:
+            // On the rack the block's controls sit beside the display, and stay as they are.
+            if (isRack())
+                repaint (getDisplayArea().expanded (4));
+            else
+                repaint();
+            break;
+        case Redraw::nothing:
+            break;
+    }
 }
 
 void Faceplate::updateMeters()
@@ -338,7 +466,31 @@ void Faceplate::paint (juce::Graphics& g)
     // The unit: the PR7's chassis, smaller, in the current finish.
     const auto chassis = getLocalBounds().toFloat().reduced (glowRoom);
     const auto face = faceOf (getLocalBounds().toFloat());
-    PedalBody::paintUnit (g, chassis, face, [this] (juce::Graphics& gg) { gg.drawImage (satin, getLocalBounds().toFloat()); }, unitShape);
+    const auto drawSatin = [this] (juce::Graphics& gg) { gg.drawImage (satin, getLocalBounds().toFloat()); };
+    if (isRack() && getDisplayArea().expanded (8).contains (g.getClipBounds()))   // 4 round it, plus rounding to whole pixels
+    {
+        // Only the display is being redrawn (a meter or an animation): the
+        // chassis behind it from a picture drawn once, as its shadows and
+        // grain are slow to draw many times a second. Full redraws draw it
+        // directly, so its edges stay crisp (a picture drawn between pixels
+        // softens them a little; inside the face it can't be seen).
+        const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+        if (chassisCache.isNull() || ! juce::approximatelyEqual (scale, chassisScale))
+        {
+            chassisScale = scale;
+            chassisCache = juce::Image (juce::Image::ARGB, juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
+                                        juce::jmax (1, juce::roundToInt ((float) getHeight() * scale)), true);
+            juce::Graphics cache (chassisCache);
+            cache.addTransform (juce::AffineTransform::scale ((float) chassisCache.getWidth() / (float) juce::jmax (1, getWidth()),
+                                                              (float) chassisCache.getHeight() / (float) juce::jmax (1, getHeight())));
+            PedalBody::paintUnit (cache, chassis, face, drawSatin, unitShape);
+        }
+        g.drawImage (chassisCache, getLocalBounds().toFloat());
+    }
+    else
+    {
+        PedalBody::paintUnit (g, chassis, face, drawSatin, unitShape);
+    }
 
     // Its name top left, its status LED top right (as over the footswitches).
     auto content = face.reduced (12.0f, 8.0f);

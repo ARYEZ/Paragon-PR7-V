@@ -2,6 +2,17 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.42.1
+
+- **Much lighter on the computer with the window open** (as PR7-G 0.58.1). With the plugin's window open and nothing happening, it used almost a whole processor core (about 91%, measured with software drawing on Linux). The sound itself was never the cost: with every effect off, the processing takes well under 1%. The window was the problem: it redrew the whole rack unit, shadows and all, 30 times a second even when nothing on it had changed.
+  - **Now it redraws only what changed.** A setting you change redraws the unit. A meter or a moving display (DELAY's light, MOD's wave, GLITCH's steps, a compressor's needle, the de-esser's meter) redraws only that display, with the unit behind it drawn from a stored picture. When nothing moves, nothing is redrawn.
+  - **PR7-V's own displays got the same treatment:** HARMONY's graph and its MODS page, and the VOCODER's band lights. They redrew constantly; now they redraw only when a voice, a note, a band or a setting on them moves.
+  - **Measured with the window open and idle,** with every block's controls shown in turn: **about 91% of a core before, about 5% after**, on every block.
+    - While something moves on screen, the drawing adds roughly 1 to 13% on top of the sound processing. That's DELAY, MOD or GLITCH switched on (about 13%), or MARS's lights while you sing (about 7%).
+  - **It looks the same.** I rendered every block, both finishes and the HARMONY, MARS and VOCODER pages, and compared them with 0.42.0 pixel by pixel. The only differences are the screens' shadows, at most 5 steps out of 255, which you can't see.
+  - **One small visible change:** with MOD switched off, its dimmed wave on the rack's display now stays still instead of scrolling (as on PR7-G). It moves again as soon as MOD is on.
+  - **What can't be checked here:** these numbers come from software drawing on a Linux test machine. Your DAW on Windows draws with the graphics card, so the numbers there will be lower and different, but the saving comes from the same place.
+
 ## 0.42.0
 
 - **DAYBREAK has left DYNAMICS' TYPE menu too** (your call). The menu is now **Revival, Photon and Abyss**.

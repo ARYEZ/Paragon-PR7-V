@@ -1,3 +1,4 @@
+#include <cstring>
 #include "HarmonyPanel.h"
 
 #include "Icons.h"
@@ -280,6 +281,10 @@ HarmonyPanel::HarmonyPanel (juce::AudioProcessorValueTreeState& state, std::func
     addChildComponent (mods);
     for (auto* knob : allKnobs())
         knob->slider.onModulateMenu = [this, knob] (int target) { showModulationMenu (target - 1, knob->slider); };
+
+    for (auto* parameter : parameters.processor.getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            allValues.push_back (parameters.getRawParameterValue (ranged->getParameterID()));
 
     selectVoice (0);
     showNotes (false);
@@ -914,7 +919,55 @@ void HarmonyPanel::timerCallback()
         shownTuned = tuned;
         repaint (sungArea.getSmallestIntegerContainer());
     }
-    repaint (graph.expanded (2.0f).getSmallestIntegerContainer());
+    // The graph only when something on it moved: redrawing it 20 times a
+    // second for nothing took a good share of a core.
+    if (const auto signature = graphSignature(); signature != shownGraph)
+    {
+        shownGraph = signature;
+        repaint (graph.expanded (2.0f).getSmallestIntegerContainer());
+    }
+}
+
+juce::uint64 HarmonyPanel::graphSignature() const
+{
+    // FNV-1a over what the graph draws: the settings (every parameter, as
+    // the voices, chord and readout come from many), the picked voice and
+    // view, the note voices sounding, the generated note and the held keys.
+    juce::uint64 hash = 14695981039346656037ull;
+    const auto add = [&hash] (juce::uint64 value)
+    {
+        hash ^= value;
+        hash *= 1099511628211ull;
+    };
+    const auto addStep = [&add] (float value, float step) { add ((juce::uint64) (juce::int64) juce::roundToInt (value / step)); };
+    for (const auto* value : allValues)
+    {
+        const auto number = value->load (std::memory_order_relaxed);
+        juce::uint32 bits = 0;
+        std::memcpy (&bits, &number, sizeof (bits));
+        add (bits);
+    }
+    add ((juce::uint64) selected);
+    add (notesShown ? 1u : 0u);
+    if (harmonyEngine != nullptr)
+    {
+        for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+        {
+            const auto note = harmonyEngine->getNoteVoiceNote (v);
+            add ((juce::uint64) (juce::int64) note);
+            if (note >= 0)
+            {
+                addStep (harmonyEngine->getNoteVoicePan (v), 0.005f);
+                addStep (juce::Decibels::gainToDecibels (harmonyEngine->getNoteVoiceLevel (v), -60.0f), 0.25f);
+            }
+        }
+        if (notesShown)
+            add ((juce::uint64) (juce::int64) harmonyEngine->getGeneratedNote());
+    }
+    if (notesShown && midiKeyHeld != nullptr)
+        for (int note = 36; note <= 83; ++note)
+            add (midiKeyHeld (note) ? (juce::uint64) note : 0u);
+    return hash;
 }
 
 void HarmonyPanel::setRack (bool inRack, juce::Rectangle<int> displayArea)

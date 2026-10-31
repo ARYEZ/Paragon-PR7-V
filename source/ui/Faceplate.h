@@ -78,6 +78,12 @@ public:
     float getShownDeEss() const noexcept { return shownDeEss; }
     float getShownDrive (int band) const noexcept { return shownDrive[(size_t) juce::jlimit (0, 3, band)]; }
 
+    // What the timer redraws this tick: nothing (nothing changed), the
+    // display (a meter, a live reading or an animation moved) or the whole
+    // unit (a setting changed). Public for tests.
+    enum class Redraw { nothing, display, whole };
+    Redraw checkRedraw();
+
     void paint (juce::Graphics&) override;
     void resized() override;
 
@@ -90,6 +96,9 @@ private:
     float normalised (const juce::String& id) const;
     juce::String text (const juce::String& id) const;
     bool isOn() const;
+    bool isAnimated() const;                  // a look that moves by itself (DELAY's light, MOD's wave, GLITCH's steps)
+    juce::uint64 settingsSignature() const;   // changes when anything the faceplate shows from the settings does
+    juce::uint64 liveSignature() const;       // changes when a meter or live reading it shows does
 
     // Each draws its name in `header` and the rest in `body`.
     void paintGeneric (juce::Graphics&, juce::Rectangle<float> header, juce::Rectangle<float> body);
@@ -122,6 +131,14 @@ private:
     juce::Image satin;     // the pearl's grain, as on the unit
     float rackDisplayWidth = 0.0f, rackSideWidth = 0.0f;
     bool displayCovered = false;
+
+    // Redrawing only what changed (the window's CPU): the timer repaints
+    // only when a setting, a meter or an animation moves, and then only the
+    // display, with the chassis behind it from a picture (see paint).
+    juce::Image chassisCache;
+    float chassisScale = 0.0f;
+    std::vector<std::atomic<float>*> allValues;
+    juce::uint64 shownSignature = 0, shownLive = 0;
 
     // Meters, with a little ballistics so they move like real ones.
     float shownReduction = 0.0f;                 // dB, 0 or less

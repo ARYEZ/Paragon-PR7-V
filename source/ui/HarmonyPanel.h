@@ -186,6 +186,10 @@ private:
     int targetOf (const Knob&) const;
     void showModulationMenu (int target, juce::Component& knob);
     bool anyModulated = false;
+    // The graph redraws only when what it draws changes (see graphSignature).
+    juce::uint64 graphSignature() const;
+    std::vector<std::atomic<float>*> allValues;
+    juce::uint64 shownGraph = 0;
     HarmonySnapshotsView snapshots;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> keyAttachment, scaleAttachment;
     Knob pitch, fine, formant, source, harmony, spread, correctFormant;
