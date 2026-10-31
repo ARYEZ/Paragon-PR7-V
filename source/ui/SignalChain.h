@@ -7,7 +7,7 @@
 // The SIGNAL CHAIN strip along the bottom of the mockup:
 //   guitar -> COMP/GATE -> OD/DIST -> NAMP -> CABINET IR -> MODULATION
 //          -> DELAY -> REVERB -> output
-// Each block glows in its own colour while it's switched on. Clicking a block
+// Each block glows in its colour (set by its place in the chain) while it's switched on. Clicking a block
 // selects it, showing its knobs in the edit panel; double-clicking switches
 // it on or off.
 class SignalChain final : public juce::Component,

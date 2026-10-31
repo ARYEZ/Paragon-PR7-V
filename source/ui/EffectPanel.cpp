@@ -1,10 +1,14 @@
 #include "EffectPanel.h"
 
+#include "Finish.h"
+#include "LedDisplay.h"
 #include "ParagonLookAndFeel.h"
 
 namespace
 {
     constexpr int maxTileWidth = 104;
+    constexpr int maxRackTileWidth = 116;   // the rack has the room for bigger knobs
+    constexpr int rackValueHeight = 18;     // a knob's value screen, under it
     constexpr int tileGap = 8;
     constexpr int groupGap = 22;
 }
@@ -12,7 +16,8 @@ namespace
 // One control: a label plus whichever widget suits the parameter's type.
 struct EffectPanel::Control
 {
-    Control (juce::AudioProcessorValueTreeState& state, const juce::String& id, const juce::String& labelText)
+    Control (juce::AudioProcessorValueTreeState& state, const juce::String& id, const juce::String& labelText,
+             const std::vector<int>& retiredChoices = {})
     {
         auto* parameter = state.getParameter (id);
         jassert (parameter != nullptr);   // a typo in a panel's parameter list
@@ -26,14 +31,41 @@ struct EffectPanel::Control
         if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (parameter))
         {
             auto box = std::make_unique<juce::ComboBox>();
-            box->addItemList (choice->choices, 1);
+            // Each choice keeps its id (index + 1), so the attachment still
+            // finds them; a retired one is left out, and shown "(old)" when on.
+            for (int i = 0; i < choice->choices.size(); ++i)
+                if (std::find (retiredChoices.begin(), retiredChoices.end(), i) == retiredChoices.end())
+                    box->addItem (choice->choices[i], i + 1);
             for (const auto& item : choice->choices)
                 longestChoice = juce::jmax (longestChoice, item.length());
             box->setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff151217));
             box->setColour (juce::ComboBox::outlineColourId, ParagonColours::panelEdge);
             box->setColour (juce::ComboBox::textColourId, ParagonColours::accent);
             box->setColour (juce::ComboBox::arrowColourId, ParagonColours::textDim);
-            comboAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, id, *box);
+            if (retiredChoices.empty())
+            {
+                comboAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, id, *box);
+            }
+            else
+            {
+                // JUCE's attachment matches the parameter to the menu by
+                // position, which a left-out choice would shift: this one
+                // matches them by item (each choice's index + 1).
+                auto* combo = box.get();
+                choiceLink = std::make_unique<juce::ParameterAttachment> (*choice, [combo, names = choice->choices] (float index)
+                {
+                    // On a retired choice nothing in the menu is picked: say which, "(old)".
+                    const auto picked = juce::jlimit (0, names.size() - 1, juce::roundToInt (index));
+                    combo->setTextWhenNothingSelected (names[picked] + " (old)");
+                    combo->setSelectedId (picked + 1, juce::dontSendNotification);
+                });
+                combo->onChange = [this, combo]
+                {
+                    if (const auto picked = combo->getSelectedId(); picked > 0)
+                        choiceLink->setValueAsCompleteGesture ((float) (picked - 1));
+                };
+                choiceLink->sendInitialUpdate();
+            }
             widget = std::move (box);
         }
         else if (dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr)
@@ -56,8 +88,30 @@ struct EffectPanel::Control
         }
     }
 
-    void setBounds (juce::Rectangle<int> area)
+    void setBounds (juce::Rectangle<int> area, bool rack, int knobWidth = 0)
     {
+        if (rack)
+        {
+            // As on the unit: the name stamped over the control; a knob's
+            // value on a small screen under it; a list on a screen; a key.
+            // Every card's control centred on the knobs' line, so a row of
+            // knobs, lists and keys lines up across the face.
+            // The knob's drawing fills only the middle of its box, so the
+            // box may reach a little past its card; the row sits in the
+            // middle of the face, each name just over its control.
+            const auto knobSize = juce::jmin (juce::roundToInt ((float) knobWidth * 1.3f), area.getHeight() - 14 - rackValueHeight - 4);
+            auto column = area.withSizeKeepingCentre (area.getWidth(), 14 + knobSize + rackValueHeight + 4);
+            label.setBounds (column.removeFromTop (14).expanded (6, 0));
+            const auto knobCentreY = column.getY() + juce::roundToInt ((float) knobSize * 0.42f);   // where the knob's top is
+            if (isKnob)
+                widget->setBounds (column.withSizeKeepingCentre (knobSize, column.getHeight()));
+            else if (buttonAttachment != nullptr)
+                widget->setBounds (column.withSizeKeepingCentre (juce::jmin (area.getWidth() - 4, 48), 26).withCentre ({ column.getCentreX(), knobCentreY }));
+            else
+                widget->setBounds (column.withSizeKeepingCentre (area.getWidth() - 4, 30).withCentre ({ column.getCentreX(), knobCentreY }));
+            return;
+        }
+
         // Label at the top of the card, the control filling the rest.
         label.setBounds (area.removeFromTop (22));
         area.removeFromTop (4);
@@ -98,6 +152,7 @@ struct EffectPanel::Control
     int longestChoice = 0;   // a list's longest entry, in characters
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> comboAttachment;
+    std::unique_ptr<juce::ParameterAttachment> choiceLink;   // a list with retired choices (by item, not position)
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> buttonAttachment;
 };
 
@@ -108,7 +163,7 @@ EffectPanel::EffectPanel (juce::AudioProcessorValueTreeState& parameters, std::v
         GroupLayout layout { group.title, {}, {}, group.page };
         for (const auto& item : group.items)
         {
-            controls.push_back (std::make_unique<Control> (parameters, item.parameterId, item.label));
+            controls.push_back (std::make_unique<Control> (parameters, item.parameterId, item.label, item.retiredChoices));
             auto* control = controls.back().get();
             control->isActive = item.isActive;
             control->hideWhenInactive = item.hideWhenInactive;
@@ -126,8 +181,52 @@ EffectPanel::EffectPanel (juce::AudioProcessorValueTreeState& parameters, std::v
 
 EffectPanel::~EffectPanel() = default;
 
+void EffectPanel::setRack (bool inRack)
+{
+    if (rack == inRack)
+        return;
+    rack = inRack;
+    inkColour = {};
+    for (auto& control : controls)
+    {
+        control->label.setFont (juce::FontOptions (rack ? 9.0f : 10.5f, juce::Font::bold));
+        if (auto* slider = dynamic_cast<juce::Slider*> (control->widget.get()))
+        {
+            slider->getProperties().set (ParagonLookAndFeel::pedalKnobProperty, rack);
+            slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, maxTileWidth, rack ? rackValueHeight : 22);
+            slider->setColour (juce::Slider::textBoxTextColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+            slider->setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+        }
+        else if (auto* box = dynamic_cast<juce::ComboBox*> (control->widget.get()))
+        {
+            box->setColour (juce::ComboBox::backgroundColourId, rack ? juce::Colours::transparentBlack : juce::Colour (0xff151217));
+            box->setColour (juce::ComboBox::outlineColourId, rack ? juce::Colours::transparentBlack : ParagonColours::panelEdge);
+            box->setColour (juce::ComboBox::textColourId, rack ? LedDisplay::ledOrange : ParagonColours::accent);
+            box->setColour (juce::ComboBox::arrowColourId, rack ? LedDisplay::ledOrange.withAlpha (0.6f) : ParagonColours::textDim);
+        }
+        else
+        {
+            control->widget->getProperties().set (ParagonLookAndFeel::rackKeyProperty, rack);
+        }
+    }
+    for (auto& button : pageButtons)
+        button->getProperties().set (ParagonLookAndFeel::pedalButtonProperty, rack);
+    timerCallback();   // the names' ink
+    resized();
+    repaint();
+}
+
 void EffectPanel::timerCallback()
 {
+    // The names follow the finish (ink is dark on pearl white, light on black).
+    const auto ink = rack ? Finish::ink() : ParagonColours::textDim;
+    if (ink != inkColour)
+    {
+        inkColour = ink;
+        for (auto& control : controls)
+            control->label.setColour (juce::Label::textColourId, ink);
+    }
+
     auto relayout = false;
     for (auto& control : controls)
         if (control->isActive)
@@ -147,6 +246,12 @@ void EffectPanel::timerCallback()
             repaint (meterArea);
         meterDb = next;
     }
+}
+
+void EffectPanel::visibilityChanged()
+{
+    if (isVisible())
+        timerCallback();
 }
 
 void EffectPanel::setPages (const juce::StringArray& names)
@@ -204,6 +309,32 @@ void EffectPanel::setHeader (Icons::Type icon, juce::Colour colour, const juce::
 
 void EffectPanel::paint (juce::Graphics& g)
 {
+    if (rack)
+    {
+        // On the unit's face: only the screens behind the values and lists,
+        // and the parts' names stamped over them.
+        glasses.clear();
+        for (const auto& control : controls)
+        {
+            if (! control->widget->isVisible() || control->buttonAttachment != nullptr)
+                continue;
+            auto area = control->widget->getBounds().toFloat();
+            if (control->isKnob)
+                area = area.removeFromBottom ((float) rackValueHeight)
+                           .withSizeKeepingCentre ((float) control->label.getWidth() - 14.0f, (float) rackValueHeight).expanded (0.0f, 3.0f);   // as wide as its card
+            glasses.push_back (LedDisplay::paintScreen (g, area, 0.35f));
+        }
+        const auto groupsShowing = std::count_if (groups.begin(), groups.end(), [this] (const GroupLayout& group) { return group.page == currentPage; });
+        if (groupsShowing > 1)
+            for (const auto& group : groups)
+                if (group.page == currentPage)
+                {
+                    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+                    ParagonLookAndFeel::drawStampedText (g, group.title, group.area.withHeight (14).toFloat(), juce::Justification::centredLeft, Finish::printedRed());
+                }
+        return;
+    }
+
     // Same dark panel as the rest of the dock.
     const auto bounds = getLocalBounds().toFloat();
     g.setGradientFill (juce::ColourGradient (juce::Colour (0xff0e0b0f), 0.0f, bounds.getY(),
@@ -279,9 +410,15 @@ void EffectPanel::paint (juce::Graphics& g)
     }
 }
 
+void EffectPanel::paintOverChildren (juce::Graphics& g)
+{
+    for (const auto& glass : glasses)
+        LedDisplay::paintGlassOverlay (g, glass, 0.35f);
+}
+
 void EffectPanel::resized()
 {
-    auto area = getLocalBounds().reduced (16, 10);
+    auto area = rack ? getLocalBounds() : getLocalBounds().reduced (16, 10);
 
     // The meter sits in the header, just after the block's name.
     meterArea = {};
@@ -291,13 +428,41 @@ void EffectPanel::resized()
         meterArea = area.withHeight (24).withTrimmedLeft (26 + 8 + titleWidth + 28).withWidth (92 + 12 * 14 + 46);
     }
 
-    // The page buttons, in the header after the block's name.
+    // The page buttons, in the header after the block's name: only for
+    // pages with something on them for the type chosen (MOD's second page
+    // is Cyclone's alone), and none when only one page has.
     if (! pageButtons.empty())
     {
-        const auto titleWidth = juce::GlyphArrangement::getStringWidthInt (juce::FontOptions (14.0f, juce::Font::bold), headerTitle);
-        auto row = area.withHeight (24).withTrimmedLeft (26 + 8 + titleWidth + 24);
-        for (auto& button : pageButtons)
+        const auto hasControls = [this] (int page)
         {
+            for (const auto& group : groups)
+                if (group.page == page)
+                    for (const auto* control : group.controls)
+                        if (control->shown)
+                            return true;
+            return false;
+        };
+        if (! hasControls (currentPage))
+            for (int page = 0; page < (int) pageButtons.size(); ++page)
+                if (hasControls (page))
+                {
+                    currentPage = page;
+                    pageButtons[(size_t) page]->setToggleState (true, juce::dontSendNotification);
+                    updateVisibility();
+                    break;
+                }
+        int pagesUsed = 0;
+        for (int page = 0; page < (int) pageButtons.size(); ++page)
+            pagesUsed += hasControls (page) ? 1 : 0;
+
+        const auto titleWidth = juce::GlyphArrangement::getStringWidthInt (juce::FontOptions (14.0f, juce::Font::bold), headerTitle);
+        auto row = rack ? area.withHeight (24) : area.withHeight (24).withTrimmedLeft (26 + 8 + titleWidth + 24);
+        for (int page = 0; page < (int) pageButtons.size(); ++page)
+        {
+            auto& button = pageButtons[(size_t) page];
+            button->setVisible (pagesUsed > 1 && hasControls (page));
+            if (! button->isVisible())
+                continue;
             button->setBounds (row.removeFromLeft (76).reduced (0, 1));
             row.removeFromLeft (4);
         }
@@ -321,9 +486,9 @@ void EffectPanel::resized()
                 shown.back().push_back (control);
     }
 
-    area.removeFromTop (34);   // header
+    area.removeFromTop (rack ? 30 : 34);   // header (on the rack, the row of keys: pages, GRAPHIC EQ)
     if (groupsShowing.size() > 1)
-        area.removeFromTop (20);   // group names
+        area.removeFromTop (rack ? 14 : 20);   // group names
     area.removeFromBottom (4);
 
     // Cards as wide as fit (up to a limit), centred as a row. An ON light
@@ -352,7 +517,7 @@ void EffectPanel::resized()
         for (const auto* control : groupControls)
             totalWeight += weight (*control);
     const auto gaps = tileGap * (numControls - (int) groupsShowing.size()) + groupGap * ((int) groupsShowing.size() - 1);
-    const auto unitWidth = juce::jmin ((float) maxTileWidth, (float) (area.getWidth() - gaps) / juce::jmax (1.0f, totalWeight));
+    const auto unitWidth = juce::jmin ((float) (rack ? maxRackTileWidth : maxTileWidth), (float) (area.getWidth() - gaps) / juce::jmax (1.0f, totalWeight));
     const auto tileWidth = [&] (const Control& control) { return juce::roundToInt (unitWidth * weight (control)); };
 
     auto totalWidth = gaps;
@@ -377,7 +542,7 @@ void EffectPanel::resized()
             const auto tile = row.removeFromLeft (tileWidth (*control));
             row.removeFromLeft (tileGap);
             tiles.push_back (tile);
-            control->setBounds (tile.reduced (4, 8));
+            control->setBounds (rack ? tile.reduced (2, 4) : tile.reduced (4, 8), rack, juce::roundToInt (unitWidth) - 4);
         }
     }
 }

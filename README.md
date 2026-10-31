@@ -31,7 +31,19 @@ descriptions below still talk about guitar.
 | V3 | De-esser with LISTEN (DYNAMICS stomp) | ✅ Done |
 | V4 | Harmony stage 1, inspired by Waves Harmony: key/scale, 8 voices, graph | ✅ Done |
 | V5 | Harmony stage 2: CORRECT (pitch correction of your voice: Natural, Hard) | ✅ Done (0.17.0) |
-| V6 | Harmony: Generate Notes + chord maps, MIDI, per-voice delay/filter, snapshots, modulators | Next |
+| V6 | Harmony stage 3: Generate Notes + chord maps (and TUNE VOICE's Notes mode) | ✅ Done (0.19.0) |
+| V7 | Harmony stage 4: MIDI note input (As Played / Through Chord, velocity, sustain) | ✅ Done (0.20.0) |
+| V8 | Harmony stage 5: Note Map Editor (CHORD Custom, SCALE Custom, Spread/Fold) | ✅ Done (0.21.0) |
+| V9 | Harmony stage 6: per-voice DELAY, FEEDBACK, FILTER and FLATTEN | ✅ Done (0.22.0) |
+| V10 | Harmony stage 7: GLOBAL glide, pitch and formant | ✅ Done (0.26.0) |
+| V11 | Harmony stage 8: SNAPSHOTS (32 slots, SNAPSHOT parameter) | ✅ Done (0.27.0) |
+| V12 | Harmony stage 9: MODULATORS (M1-M4 LFO/SEQ, AM, PT; right-click a knob) | ✅ Done (0.33.0) |
+| V13 | Harmony stage 10: envelopes, Spreader, MIDI sources, Poly, drawn shapes | ✅ Done (0.34.0) |
+| V14 | VOCODER, inspired by VocalSynth 2: Auto / MIDI synth carrier, band VOL/PAN | ✅ Done (0.35.0) |
+| V15 | LO-FI voices: Cell Phone, Walkie-Talkie, Gramophone | ✅ Done (0.36.0) |
+| V16 | FORMANT: chipmunk to giant, the pitch kept | ✅ Done (0.37.0) |
+| V17 | DYNAMICS: Photon (1176-style FET) and Abyss (LA-2A-style optical); Classic retired | ✅ Done (0.41.0) |
+| V18 | Vocoder SIDECHAIN carrier | Next |
 
 ## Using it
 
@@ -40,13 +52,15 @@ descriptions below still talk about guitar.
 - **The seven stomps** turn the effect blocks on and off: **1 Dynamics, 2 Saturation, 3 Doubler** on the top row,
   **4 Pitch, 5 Modulation, 6 Delay, 7 Reverb** on the bottom. Click a stomp's name to show its knobs below. Signal
   chain: low cut → pitch → dynamics → de-esser → filter / pitch → saturation → presence → graphic EQ → doubler → modulation →
-  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.)
+  delay → reverb → lo-fi → output → limiter, with HARMONY's voices joining just before the doubler. (PITCH works first in the sound, where it tracks the clean voice best, though its stomp is 4.) The **PITCH** stomp switches
+  HARMONY, the octaver and TUNE VOICE together: off means your plain voice, and pressing it again brings back exactly
+  what was on (TUNE VOICE in the mode it had).
   - **1 Dynamics:** a compressor and a noise gate (threshold; all the way down is off). The compressor has three TYPEs:
-    **Classic** (threshold, ratio, level); **Daybreak**, a modern pedal compressor: COMP (how much, with automatic make-up),
-    DETAIL (how much of the attack gets through), MIX (parallel compression), INTENSITY (smooth or hard) and LEVEL; and
     **Revival**, a three-control vocal leveller inspired by Waves Renaissance Vox: **GATE** (gently eases noise down below it),
     **COMPRESSION** (pull it down for a more even, louder voice) and **GAIN** (a limiter's ceiling: nothing comes out above
-    it). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
+    it); **Photon**, a fast FET compressor inspired by the 1176 (INPUT, OUTPUT, ATTACK and RELEASE 1-7, RATIO 4/8/12/20 or
+    All); and **Abyss**, a smooth optical leveller inspired by the LA-2A (PEAK REDUCTION, GAIN, Compress or Limit,
+    EMPHASIS). The panel shows a gain-reduction meter. The stomp also switches the **de-esser** (its own **DE-ESS** block in the signal chain, right
     after): it turns down "s", "sh" and "t" sounds and leaves vowels exactly as they were. **FREQUENCY** is where esses
     are listened for (6 kHz to start), **AMOUNT** the most they're turned down (6 dB to start), and **LISTEN** plays only
     what's being taken away, so you can sweep FREQUENCY until you hear just the esses. It has its own gain-reduction meter.
@@ -86,6 +100,27 @@ descriptions below still talk about guitar.
       survive, **Hard** jumps to it (the robotic sound). It works with HARMONY off too, and SINGING shows the note it's
       tuning to. While it's on, the whole plugin runs 40 ms late, which it tells your DAW so the vocal is lined back up
       on playback; singing live through it you'll hear yourself 40 ms late. Off, there's no delay at all.
+      The **NOTES** tab (after voices 1-8): **GENERATE** turns your singing into steady notes (a new one after a silence,
+      or when your pitch moves more than **TOLERANCE** cents for longer than **TIME**; nothing below **MIN NOTE**), and
+      **CHORD** turns each note into harmonies, kept in the key: the same intervals on every note (3rd Above, 5th Above,
+      Octaves, Power, Choir...) or a chord from it (Triad Below, Seventh, Sus2, Sus4, Add9...). These **note voices**
+      play their notes exactly, whatever your own tuning, and show on the graph in blue while they sound; they have
+      their own **LEVEL**, **WIDTH**, **FORMANT**, **ATTACK** and **RELEASE**, and come on top of the voices on the graph.
+      TUNE VOICE's **Notes** setting tunes your voice hard to the generated note. **MIDI** keys played into PR7-V
+      become note voices too: **As Played** (exactly the keys) or **Through Chord** (each key through the CHORD map);
+      velocity sets their level and the sustain pedal holds them, and TUNE VOICE's Notes then follows the nearest held
+      key. A keyboard strip under the graph shows the keys held (pink) and the generated note (blue).
+      **EDIT** (beside CHORD) opens the **Note Map Editor**: CHORD becomes **Custom**, starting as a copy of the map
+      you had. Pick a note in **PLAYS**, then click keys to set what it plays; **SPREAD** moves the harmony with the octave
+      you sing, **FOLD** keeps it where it's set. **SCALE Custom** lets each note of the scale row be In, moved up
+      (**>**) or down (**<**). **FROM CHORD** starts from a built-in map, **ERASE** clears it, **DONE** closes it.
+      Each voice's **FLATTEN** holds it on one **NOTE** (C1 to C5) whatever you sing, in place of PITCH. **FX** (after
+      NOTES) shows the picked voice's **DELAY** (ms, or **SYNC**ed to the tempo), **FEEDBACK** (repeats), **FILTER**
+      (low-pass, high-pass or band-pass) and **CUTOFF**; on the NOTES tab, the note voices' shared set.
+      **GLOBAL** (beside the HARMONY switch): **GLIDE** (how long the voices take to reach a new note, or synced),
+      **PITCH** and **FORMANT** for every harmony voice at once, with the mix; it reads GLOBAL* when one is changed.
+      **SNAPSHOTS** (on the graph's top right): 32 slots of stored voices; click one to recall it, STORE, COPY, PASTE,
+      DELETE. The **SNAPSHOT** parameter switches them from your DAW (automation or MIDI).
     - **OCTAVE / FREEZE:** **TUNING** shifts everything -12 to +12 semitones; the **OCTAVER** blends two octaves down,
       one down, the dry voice and one up; **FREEZE** (its own switch) holds what you just sang as an endless pad you can
       sing over (with LEVEL, ATTACK and RELEASE).
@@ -110,7 +145,7 @@ descriptions below still talk about guitar.
   - **Glitch:** granular glitch effects in five MODEs: **Pitch Delay**, **Sequence** (tempo-locked stutters),
     **Interfere**, **Texturizer** and **Killswitch**. LENGTH (in note values with SYNC), DENSITY, PITCH, CHAOS and MIX.
     POSITION puts it after the EQ (POST, the default) or before the saturation (PRE).
-  - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss) or bitcrusher, for
+  - **Lo-Fi** (last in the chain): telephone, AM radio, megaphone, cassette (wow, flutter, hiss), bitcrusher, cell phone (a codec and dropouts), walkie-talkie (static and the squelch) or gramophone (horn, warble, crackle), for
     intros and breakdowns. AMOUNT, NOISE, MIX and LEVEL.
 - **OUTPUT** is the overall volume. **LIMITER** under it is the master limiter, last in the chain: nothing leaves the
   plugin above its ceiling (-1 dB to start; -12 to 0 dB; all the way up is OFF), so a loud note can't clip in your DAW.
@@ -123,7 +158,7 @@ descriptions below still talk about guitar.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-F), tags and favourites rigs. The factory rigs are for the voice, in six banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop).
+  (banks A-G), tags and favourites rigs. The factory rigs are for the voice, in seven banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop), **G** moving harmonies (HARMONY's modulators at work: a living choir, swells, a spread gospel chord, circling thirds, an arpeggiated harmony, harmonies that breathe with you, a gated choir, a harmony that rises with your pitch, a keyboard choir for MIDI).
   INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
@@ -137,15 +172,24 @@ descriptions below still talk about guitar.
   pedal's position aren't undone.
 - **Expression pedal** (right of the unit): drag it, use the mouse wheel, or send MIDI CC 11 (or the CC chosen in SETTINGS) from a
   real expression pedal (route your MIDI track to the plugin). Assign it on the small EXPRESSION screen beside it (click a line, or scroll; it also shows the
-  pedal's position) or with EXPRESSION ASSIGN in the dock, to
+  pedal's position) or with EXPRESSION ASSIGN on the rack, to
   **VOLUME**, **WAH / FILTER** (a wah before the saturation), **MORPH / FX** (fades the doubler, modulation, delay
   and reverb in from the heel), **PITCH / WHAMMY** (bends the pitch shifter from no shift at the heel to its
   INTERVAL at the toe), **LO-FI** (fades the lo-fi effect in: full band at the heel, lo-fi at the toe) or
   **WHAMMY-WAH** (plays the FILTER / PITCH block's Whammy-Wah). MIN and MAX set where the heel and toe land. The assignment and range
   are saved with each rig.
-- **Bottom panels:** RIG BROWSER jumps to the PRESETS page filtered; SELECTED RIG files and saves the
-  current rig; the middle shows the graphic EQ, or the knobs of whichever block you pick (click a
-  signal-chain block or a footswitch name); **GRAPHIC EQ** goes back to the EQ.
+- **The rack** (under the floorboard): one wide PR7 unit, the "brain" to go with the floorboard (same chassis,
+  screens, knobs, keys and lights, in your finish), for the block you pick (click a signal-chain block or a
+  footswitch name); **GRAPHIC EQ** goes back to the EQ.
+  - **On the left, its display**, following its TYPE, with live readings: DYNAMICS with a gain-reduction needle
+    (Photon, Abyss, and the retired Classic), a meter (the retired Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
+    DELAY with its repeats and TIME; REVERB with its shape and DECAY; PITCH with the note you sing and the harmony
+    voices; MODULATION's wave, the DE-ESSER's live meter, GLITCH's pattern, the DOUBLER's voices, the EQ's curve...
+  - **In the middle, its controls**, the real ones: the unit's big knobs with their values on small screens, menus
+    on screens, switches as keys with light stripes, pages as keys. HARMONY, the GRAPHIC EQ, the DOUBLER and
+    MARS are whole editors, shown on a big screen in the face.
+  - **At the right end, EXPRESSION ASSIGN.**
+  Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
 - **SETTINGS:** the tuner's reference pitch, mute while tuning, and the expression pedal's MIDI CC.
 - The paths of the loaded files are saved in your DAW project. If a file is missing when the project
   opens, the slot says so and keeps the path, so moving the file back fixes it.

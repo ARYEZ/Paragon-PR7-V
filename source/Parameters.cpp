@@ -1,13 +1,16 @@
 #include "Parameters.h"
+#include "dsp/Scales.h"
 
 #include "dsp/effects/CompGate.h"
 #include "dsp/effects/Delay.h"
 #include "dsp/effects/Doubler.h"
 #include "dsp/effects/FilterPitch.h"
 #include "dsp/effects/LoFi.h"
+#include "dsp/effects/Vocoder.h"
 #include "dsp/effects/Glitch.h"
 #include "dsp/effects/GraphicEq.h"
 #include "dsp/effects/Harmony.h"
+#include "dsp/effects/HarmonyModulation.h"
 #include "dsp/effects/Limiter.h"
 #include "dsp/effects/Mars.h"
 #include "dsp/effects/LowCut.h"
@@ -205,7 +208,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (makeChoice (ParamIDs::fpXpProgram, "Whammy-Wah Program", 21, effects::FilterPitch::xpProgramNames(), 1));
 
     constexpr int v22 = 22;
-    layout.add (makeChoice (ParamIDs::compType, "Comp Type", v22, effects::CompGate::typeNames, 0));
+    // Revival to start since 0.41.0 (Classic left the menu; older rigs and
+    // projects that relied on Classic as the default are kept on it).
+    layout.add (makeChoice (ParamIDs::compType, "Comp Type", v22, effects::CompGate::typeNames, (int) effects::CompGate::Type::revival));
     layout.add (makeFloat (ParamIDs::compAmount, "Comp Amount", { 0.0f, 10.0f, 0.1f }, 5.0f, v22, asKnob));
     layout.add (makeFloat (ParamIDs::compDetail, "Comp Detail", { 0.0f, 10.0f, 0.1f }, 5.0f, v22, asKnob));
     layout.add (makeFloat (ParamIDs::compMix, "Comp Mix", { 0.0f, 1.0f, 0.01f }, 1.0f, v22, asPercent));
@@ -568,7 +573,310 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     constexpr int v39 = 39;
     layout.add (makeFloat (ParamIDs::modManual, "AEON Manual", { 0.0f, 10.0f, 0.1f }, 5.0f, v39, asKnob));
     layout.add (makeFloat (ParamIDs::modRes, "AEON Res", { 0.0f, 10.0f, 0.1f }, 5.0f, v39, asKnob));
+    // Added in plugin version 40: HARMONY's GENERATE NOTES and CHORD maps
+    // (stage 3). Off to start; CORRECT's NOTES state is appended to its list.
+    constexpr int v40 = 40;
+    const effects::Harmony::Notes noteDefaults;
+    const ToText asNote = [] (float midi, int)
+    {
+        static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const auto note = juce::roundToInt (midi);
+        return juce::String (names[((note % 12) + 12) % 12]) + juce::String (note / 12 - 1);
+    };
+    const ToText asTolerance = [] (float cents, int)
+    {
+        return cents > 200.0f ? juce::String ("Off") : juce::String (juce::roundToInt (cents)) + " ct";
+    };
+    layout.add (makeSwitch (ParamIDs::harmonyGenerate, "Harmony Generate Notes", v40, noteDefaults.generate));
+    layout.add (makeChoice (ParamIDs::harmonyChord, "Harmony Chord Map", v40, effects::Harmony::chordMapNames(), noteDefaults.chord));
+    layout.add (makeFloat (ParamIDs::harmonyMinNote, "Harmony Min Note",
+                           { (float) effects::Harmony::minNoteLowest, (float) effects::Harmony::minNoteHighest, 1.0f }, noteDefaults.minNote, v40, asNote));
+    layout.add (makeFloat (ParamIDs::harmonyTolerance, "Harmony Tolerance", { 50.0f, effects::Harmony::toleranceOff, 1.0f },
+                           noteDefaults.toleranceCents, v40, asTolerance));
+    layout.add (makeFloat (ParamIDs::harmonyToleranceTime, "Harmony Tolerance Time", skewed (1.0f, 1000.0f, 100.0f, 1.0f),
+                           noteDefaults.toleranceMs, v40, asMs));
+    layout.add (makeFloat (ParamIDs::harmonyNoteLevel, "Harmony Note Level", { effects::Harmony::silentDb, 6.0f, 0.1f }, noteDefaults.levelDb, v40, asLevel));
+    layout.add (makeFloat (ParamIDs::harmonyNoteWidth, "Harmony Note Width", { 0.0f, 1.0f, 0.01f }, noteDefaults.width, v40, asPercent));
+    layout.add (makeFloat (ParamIDs::harmonyNoteFormant, "Harmony Note Formant", { -12.0f, 12.0f, 0.1f }, noteDefaults.formant, v40, asSemitoneShift));
+    layout.add (makeFloat (ParamIDs::harmonyNoteAttack, "Harmony Note Attack", skewed (1.0f, 2000.0f, 100.0f, 1.0f), noteDefaults.attackMs, v40, asTime));
+    layout.add (makeFloat (ParamIDs::harmonyNoteRelease, "Harmony Note Release", skewed (1.0f, 5000.0f, 300.0f, 1.0f), noteDefaults.releaseMs, v40, asTime));
+    // Added in plugin version 41: HARMONY's MIDI note input (stage 4): how
+    // played keys become note voices.
+    constexpr int v41 = 41;
+    layout.add (makeChoice (ParamIDs::harmonyMidiMap, "Harmony MIDI Notes", v41, effects::Harmony::midiMapNames, 0));
+    // Added in plugin version 42: the Note Map Editor (HARMONY stage 5).
+    // The map's parts aren't for automating: they're edited on the keyboard.
+    constexpr int v42 = 42;
+    for (int note = 0; note < 12; ++note)
+        for (int part = 0; part < 3; ++part)
+            layout.add (std::make_unique<juce::AudioParameterFloat> (
+                juce::ParameterID { ParamIDs::harmonyMap (note, part), v42 }, "Harmony Map " + Scales::keyNames[note] + " " + juce::String (part + 1),
+                juce::NormalisableRange<float> { 0.0f, 65535.0f, 1.0f }, 0.0f, juce::AudioParameterFloatAttributes().withAutomatable (false)));
+    layout.add (makeSwitch (ParamIDs::harmonyMapFold, "Harmony Map Fold", v42, false));
+    for (int note = 0; note < 12; ++note)
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { ParamIDs::harmonyScaleNote (note), v42 }, "Harmony Custom Scale " + juce::String (note + 1),
+            ParamIDs::scaleNoteChoices, 0, juce::AudioParameterChoiceAttributes().withAutomatable (false)));
+
+    // Added in plugin version 43: HARMONY stage 6, per-voice DELAY,
+    // FEEDBACK, FILTER (and the note voices' shared set) and FLATTEN. All
+    // start where they do nothing, so rigs and projects sound as before.
+    constexpr int v43 = 43;
+    const ToText asEchoTime = [] (float ms, int) { return ms < 0.5f ? juce::String ("Off") : juce::String (juce::roundToInt (ms)) + " ms"; };
+    const ToText asCutoff = [] (float hz, int)
+    {
+        return hz >= 1000.0f ? juce::String (hz / 1000.0f, hz >= 9950.0f ? 1 : 2) + " kHz" : juce::String (juce::roundToInt (hz)) + " Hz";
+    };
+    const auto echoRange = skewed (0.0f, effects::Harmony::maxDelayMs, 150.0f, 1.0f);
+    const auto cutoffRange = skewed (effects::Harmony::filterLowestHz, effects::Harmony::filterHighestHz, 1000.0f, 1.0f);
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+    {
+        const auto id = [voice] (const char* part) { return ParamIDs::harmonyVoice (voice, part); };
+        const auto name = "Harmony " + juce::String (voice + 1) + " ";
+        layout.add (makeSwitch (id ("Flatten").toRawUTF8(), name + "Flatten", v43, false));
+        layout.add (makeFloat (id ("Note").toRawUTF8(), name + "Flatten Note", { 24.0f, 72.0f, 1.0f },   // C1 to C5, as in the guide
+                               effects::Harmony::flattenDefault, v43, asNote));
+        layout.add (makeFloat (id ("Delay").toRawUTF8(), name + "Delay", echoRange, 0.0f, v43, asEchoTime));
+        layout.add (makeChoice (id ("Sync").toRawUTF8(), name + "Delay Sync", v43, effects::Delay::syncNames, 0));
+        layout.add (makeFloat (id ("Feedback").toRawUTF8(), name + "Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v43, asPercent));
+        layout.add (makeChoice (id ("Filter").toRawUTF8(), name + "Filter", v43, effects::Harmony::filterNames, 0));
+        layout.add (makeFloat (id ("Cutoff").toRawUTF8(), name + "Cutoff", cutoffRange, effects::Harmony::filterHighestHz, v43, asCutoff));
+    }
+    layout.add (makeFloat (ParamIDs::harmonyNoteDelay, "Harmony Note Delay", echoRange, 0.0f, v43, asEchoTime));
+    layout.add (makeChoice (ParamIDs::harmonyNoteSync, "Harmony Note Delay Sync", v43, effects::Delay::syncNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyNoteFeedback, "Harmony Note Feedback", { 0.0f, 1.0f, 0.01f }, 0.0f, v43, asPercent));
+    layout.add (makeChoice (ParamIDs::harmonyNoteFilter, "Harmony Note Filter", v43, effects::Harmony::filterNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyNoteCutoff, "Harmony Note Cutoff", cutoffRange, effects::Harmony::filterHighestHz, v43, asCutoff));
+
+    // Added in plugin version 44: HARMONY's GLOBAL controls (stage 7). All
+    // start where they change nothing (GLIDE at its shortest: straight to the note).
+    constexpr int v44 = 44;
+    layout.add (makeFloat (ParamIDs::harmonyGlide, "Harmony Glide", skewed (effects::Harmony::minGlideMs, effects::Harmony::maxGlideMs, 100.0f, 1.0f),
+                           effects::Harmony::minGlideMs, v44, asMs));
+    layout.add (makeChoice (ParamIDs::harmonyGlideSync, "Harmony Glide Sync", v44, effects::Delay::syncNames, 0));
+    layout.add (makeFloat (ParamIDs::harmonyGlobalPitch, "Harmony Global Pitch", { -12.0f, 12.0f, 1.0f }, 0.0f, v44, asInterval));
+    layout.add (makeFloat (ParamIDs::harmonyGlobalFormant, "Harmony Global Formant", { -12.0f, 12.0f, 0.1f }, 0.0f, v44, asSemitoneShift));
+
+    // Added in plugin version 45: HARMONY's SNAPSHOT selector (stage 8),
+    // the guide's Snapshot Selection knob: automatable, so a DAW or a MIDI
+    // controller can switch harmonies.
+    constexpr int v45 = 45;
+    juce::StringArray snapshotChoices { "-" };
+    for (int slot = 1; slot <= 32; ++slot)
+        snapshotChoices.add (juce::String (slot));
+    layout.add (makeChoice (ParamIDs::harmonySnapshot, "Harmony Snapshot", v45, snapshotChoices, 0));
+
+    // Added in plugin version 46: HARMONY's modulators (stage 9). They do
+    // nothing until one is put on a control (its slots aren't parameters).
+    constexpr int v46 = 46;
+    {
+        using Mod = effects::HarmonyModulation;
+        const ToText asDegrees = [] (float value, int) { return juce::String (juce::roundToInt (value * 360.0f)) + juce::String (juce::CharPointer_UTF8 ("\xc2\xb0")); };
+        const ToText asWarp = [] (float value, int) { return "x" + juce::String (value, value < 10.0f ? 2 : 1); };
+        const ToText asSteps = [] (float value, int) { return juce::String (juce::roundToInt (value)); };
+        const ToText asTwice = [] (float value, int) { return juce::String (juce::roundToInt (value * 100.0f)) + "%"; };
+        const ToText asPlusMinus = [] (float value, int) { return (value > 0.004f ? "+" : "") + juce::String (value, 2); };
+        for (int m = 0; m < Mod::numMods; ++m)
+        {
+            const auto id = [m] (const char* part) { return ParamIDs::harmonyMod (m, part); };
+            const auto name = "Harmony M" + juce::String (m + 1) + " ";
+            layout.add (makeChoice (id ("Type").toRawUTF8(), name + "Type", v46, Mod::typeNames, 0));
+            layout.add (makeChoice (id ("Shape").toRawUTF8(), name + "Shape", v46, Mod::shapeNames, 0));
+            layout.add (makeFloat (id ("Rate").toRawUTF8(), name + "Rate", skewed (Mod::minRateHz, Mod::maxRateHz, 2.0f, 0.01f), 1.0f, v46, asHz));
+            layout.add (makeChoice (id ("Sync").toRawUTF8(), name + "Sync", v46, Mod::syncNames, 0));
+            layout.add (makeFloat (id ("Phase").toRawUTF8(), name + "Phase", { 0.0f, 1.0f, 0.0f }, 0.0f, v46, asDegrees));
+            layout.add (makeFloat (id ("Warp").toRawUTF8(), name + "Warp", skewed (Mod::minWarp, Mod::maxWarp, 1.0f, 0.01f), 1.0f, v46, asWarp));
+            layout.add (makeFloat (id ("Smooth").toRawUTF8(), name + "Smooth", skewed (1.0f, 1000.0f, 50.0f, 1.0f), 1.0f, v46, asMs));
+            layout.add (makeFloat (id ("Level").toRawUTF8(), name + "Level", { 0.0f, 1.0f, 0.01f }, 1.0f, v46, asPercent));
+            layout.add (makeChoice (id ("Trigger").toRawUTF8(), name + "Trigger", v46, Mod::triggerNames, 0));
+            layout.add (makeChoice (id ("Play").toRawUTF8(), name + "Play", v46, Mod::playNames, 0));
+            layout.add (makeFloat (id ("Steps").toRawUTF8(), name + "Steps", { 2.0f, (float) Mod::maxSteps, 1.0f }, 8.0f, v46, asSteps));
+            for (int step = 0; step < Mod::maxSteps; ++step)
+                layout.add (makeFloat (ParamIDs::harmonyModStep (m, step).toRawUTF8(), name + "Step " + juce::String (step + 1),
+                                       { -Mod::pitchSpan, Mod::pitchSpan, 1.0f }, 0.0f, v46, asInterval));
+        }
+        layout.add (makeFloat (ParamIDs::harmonyAmAttack, "Harmony AM Attack", skewed (0.1f, 1000.0f, 30.0f, 0.1f), 10.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyAmRelease, "Harmony AM Release", skewed (0.1f, 1000.0f, 100.0f, 0.1f), 150.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyAmLevel, "Harmony AM Level", { 0.0f, 2.0f, 0.01f }, 1.0f, v46, asTwice));
+        layout.add (makeFloat (ParamIDs::harmonyPtSmooth, "Harmony PT Smooth", skewed (0.1f, 1000.0f, 50.0f, 0.1f), 50.0f, v46, asMs));
+        layout.add (makeFloat (ParamIDs::harmonyPtOffset, "Harmony PT Offset", { -1.0f, 1.0f, 0.01f }, 0.0f, v46, asPlusMinus));
+        layout.add (makeFloat (ParamIDs::harmonyPtLevel, "Harmony PT Level", { 0.0f, 2.0f, 0.01f }, 1.0f, v46, asTwice));
+
+        // Added in plugin version 47: stage 10, the envelopes and the Spreader.
+        // (M1-M4's TRIGGER gained Poly and SHAPE gained Drawn, at the ends of their lists.)
+        constexpr int v47 = 47;
+        const ToText asCurve = [] (float value, int) { return juce::String (value, value < 10.0f ? 2 : 1); };
+        for (int e = 0; e < Mod::numEnvelopes; ++e)
+        {
+            const auto id = [e] (const char* part) { return ParamIDs::harmonyEnvelope (e, part); };
+            const auto name = "Harmony A" + juce::String (e + 1) + " ";
+            const auto timeRange = skewed (0.1f, 10000.0f, 300.0f, 0.1f);
+            layout.add (makeFloat (id ("Attack").toRawUTF8(), name + "Attack", timeRange, 10.0f, v47, asTime));
+            layout.add (makeFloat (id ("Decay").toRawUTF8(), name + "Decay", timeRange, 200.0f, v47, asTime));
+            layout.add (makeFloat (id ("Sustain").toRawUTF8(), name + "Sustain", { 0.0f, 1.0f, 0.01f }, 0.7f, v47, asPercent));
+            layout.add (makeFloat (id ("Release").toRawUTF8(), name + "Release", timeRange, 300.0f, v47, asTime));
+            for (auto* curve : { "AttackCurve", "DecayCurve", "ReleaseCurve" })
+                layout.add (makeFloat (id (curve).toRawUTF8(), name + juce::String (curve).replace ("Curve", " Curve"), skewed (0.1f, 10.0f, 1.0f, 0.01f), 1.0f, v47, asCurve));
+        }
+        layout.add (makeChoice (ParamIDs::harmonySpMode, "Harmony SP Mode", v47, Mod::spreadModeNames, 0));
+        layout.add (makeChoice (ParamIDs::harmonySpTrigger, "Harmony SP Trigger", v47, Mod::spreadTriggerNames, 0));
+        layout.add (makeFloat (ParamIDs::harmonySpSpread, "Harmony SP Spread", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
+        layout.add (makeFloat (ParamIDs::harmonySpLevel, "Harmony SP Level", { 0.0f, 1.0f, 0.01f }, 1.0f, v47, asPercent));
+    }
+
+    // Added in plugin version 48: the VOCODER, inspired by iZotope
+    // VocalSynth 2's Vocoder (the owner's manual). Off to start; when on,
+    // the robot voice alone (DRY off), a saw playing what you sing.
+    {
+        constexpr int v48 = 48;
+        using Voc = effects::Vocoder;
+        const ToText asVocLevel = [] (float db, int) { return db <= Voc::offDb ? juce::String ("Off") : juce::String (db, 1) + " dB"; };
+        const ToText asBand = [] (float db, int) { return db <= Voc::minBandDb ? juce::String ("Off") : (db > 0.0f ? "+" : "") + juce::String (db, 1) + " dB"; };
+        const ToText asShift = [] (float st, int) { return (st > 0.0f ? "+" : "") + juce::String (st, 1) + " st"; };
+        const ToText asCoarse = [] (float st, int) { return (st > 0.0f ? "+" : "") + juce::String (juce::roundToInt (st)) + " st"; };
+        const ToText asFine = [] (float cents, int) { return (cents > 0.0f ? "+" : "") + juce::String (juce::roundToInt (cents)) + " ct"; };
+        const ToText asSignedPercent = [] (float value, int) { return (value > 0.004f ? "+" : "") + juce::String (juce::roundToInt (value * 100.0f)) + "%"; };
+        const ToText asVocPan = [] (float pan, int)
+        {
+            const auto amount = juce::roundToInt (std::abs (pan) * 100.0f);
+            return amount == 0 ? juce::String ("C") : juce::String (amount) + (pan < 0.0f ? " L" : " R");
+        };
+        const ToText asCutHz = [] (float hz, int) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " Hz" : juce::String (hz / 1000.0f, 1) + " kHz"; };
+        const ToText asLowCutOff = [asCutHz] (float hz, int) { return hz <= 21.0f ? juce::String ("Off") : asCutHz (hz, 0); };
+        const ToText asHighCutOff = [asCutHz] (float hz, int) { return hz >= 19900.0f ? juce::String ("Off") : asCutHz (hz, 0); };
+        const Voc::Settings defaults;
+        layout.add (makeSwitch (ParamIDs::vocoderOn, "Vocoder On", v48, false));
+        layout.add (makeChoice (ParamIDs::vocoderMode, "Vocoder Mode", v48, Voc::modeNames, (int) defaults.mode));
+        layout.add (makeFloat (ParamIDs::vocoderShift, "Vocoder Shift", { -12.0f, 12.0f, 0.1f }, 0.0f, v48, asShift));
+        layout.add (makeFloat (ParamIDs::vocoderScale, "Vocoder Scale", { 0.0f, 1.0f, 0.01f }, defaults.scale, v48, asPercent));
+        layout.add (makeFloat (ParamIDs::vocoderLevel, "Vocoder Level", { Voc::offDb, 6.0f, 0.1f }, defaults.levelDb, v48, asVocLevel));
+        layout.add (makeFloat (ParamIDs::vocoderDry, "Vocoder Dry", { Voc::offDb, 6.0f, 0.1f }, defaults.dryDb, v48, asVocLevel));
+        layout.add (makeChoice (ParamIDs::vocoderCarrier, "Vocoder Carrier", v48, Voc::carrierNames, 0));
+        layout.add (makeChoice (ParamIDs::vocoderVoicing, "Vocoder Voicing", v48, Voc::voicingNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderGlide, "Vocoder Glide", skewed (0.0f, 2000.0f, 200.0f, 1.0f), 0.0f, v48, asTime));
+        for (int i = 0; i < Voc::numIntervals; ++i)
+            layout.add (makeChoice (ParamIDs::vocoderInterval (i).toRawUTF8(), "Vocoder Interval " + juce::String (i + 1), v48, Voc::intervalNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderIntervalLevel, "Vocoder Interval Level", { Voc::offDb, 6.0f, 0.1f }, defaults.intervalDb, v48, asVocLevel));
+        for (int o = 0; o < 2; ++o)
+        {
+            const auto id = [o] (const char* part) { return ParamIDs::vocoderOsc (o, part); };
+            const auto name = "Vocoder Osc " + juce::String (o + 1) + " ";
+            layout.add (makeSwitch (id ("On").toRawUTF8(), name + "On", v48, o == 0));
+            layout.add (makeChoice (id ("Wave").toRawUTF8(), name + "Wave", v48, Voc::waveNames, o == 0 ? Voc::saw : Voc::square));
+            layout.add (makeFloat (id ("Gain").toRawUTF8(), name + "Gain", { Voc::offDb, 6.0f, 0.1f }, o == 0 ? 0.0f : -6.0f, v48, asVocLevel));
+            layout.add (makeFloat (id ("Coarse").toRawUTF8(), name + "Coarse", { -24.0f, 24.0f, 1.0f }, o == 0 ? 0.0f : -12.0f, v48, asCoarse));
+            layout.add (makeFloat (id ("Fine").toRawUTF8(), name + "Fine", { -100.0f, 100.0f, 1.0f }, 0.0f, v48, asFine));
+            layout.add (makeFloat (id ("PitchMod").toRawUTF8(), name + "Pitch Mod", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+            layout.add (makeFloat (id ("Shape").toRawUTF8(), name + "Shape", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+            layout.add (makeFloat (id ("ShapeMod").toRawUTF8(), name + "Shape Mod", { 0.0f, 1.0f, 0.01f }, 0.0f, v48, asPercent));
+        }
+        layout.add (makeSwitch (ParamIDs::vocoderNoiseOn, "Vocoder Noise On", v48, defaults.noise.on));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseGain, "Vocoder Noise Gain", { Voc::offDb, 6.0f, 0.1f }, defaults.noise.gainDb, v48, asVocLevel));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseCrush, "Vocoder Noise Crush", { 0.0f, 1.0f, 0.01f }, defaults.noise.crush, v48, asPercent));
+        layout.add (makeFloat (ParamIDs::vocoderNoiseCrushMod, "Vocoder Noise Crush Mod", { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asSignedPercent));
+        layout.add (makeChoice (ParamIDs::vocoderNoiseModSource, "Vocoder Noise Mod Source", v48, Voc::noiseModNames, 0));
+        layout.add (makeChoice (ParamIDs::vocoderLfoShape, "Vocoder LFO Shape", v48, Voc::lfoShapeNames, 0));
+        layout.add (makeFloat (ParamIDs::vocoderLfoRate, "Vocoder LFO Rate", skewed (0.05f, 20.0f, 3.0f, 0.01f), defaults.lfoRateHz, v48, asHz));
+        layout.add (makeFloat (ParamIDs::vocoderPan, "Vocoder Pan", { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asVocPan));
+        layout.add (makeFloat (ParamIDs::vocoderLowCut, "Vocoder Low Cut", skewed (20.0f, 2000.0f, 200.0f, 1.0f), 20.0f, v48, asLowCutOff));
+        layout.add (makeFloat (ParamIDs::vocoderHighCut, "Vocoder High Cut", skewed (1000.0f, 20000.0f, 6000.0f, 1.0f), 20000.0f, v48, asHighCutOff));
+        for (int p = 0; p < Voc::curvePoints; ++p)
+        {
+            layout.add (makeFloat (ParamIDs::vocoderBandVol (p).toRawUTF8(), "Vocoder Band Vol " + juce::String (p + 1),
+                                   { Voc::minBandDb, 6.0f, 0.1f }, 0.0f, v48, asBand));
+            layout.add (makeFloat (ParamIDs::vocoderBandPan (p).toRawUTF8(), "Vocoder Band Pan " + juce::String (p + 1),
+                                   { -1.0f, 1.0f, 0.01f }, 0.0f, v48, asVocPan));
+        }
+    }
+
+    // Added in plugin version 49: FORMANT on the singer's own voice. Off to
+    // start (on, the plugin runs TUNE VOICE's 40 ms late, reported to the DAW).
+    constexpr int v49 = 49;
+    layout.add (makeSwitch (ParamIDs::formantOn, "Formant On", v49, false));
+    layout.add (makeFloat (ParamIDs::formantShift, "Formant Shift", { -12.0f, 12.0f, 0.1f }, 0.0f, v49,
+                           [] (float st, int) { return (st > 0.04f ? "+" : "") + juce::String (st, 1) + " st"; }));
+
+    // Added in plugin version 50: CYCLONE, the MOD block's rotary speaker
+    // (inspired by the Neo Ventilator II, as on PR7-G 0.55.0). Its defaults
+    // are the manual's starting points: the speeds of an average 122,
+    // ACCELERATION at 1 o'clock, the MIX / DIST knobs at 2 o'clock. MODE
+    // starts on KEY, the 122's own speakers: the manual's choice when
+    // nothing follows but a mixer (GIT 1 and 2 are for a guitar amp after it).
+    constexpr int v50 = 50;
+    using effects::Cyclone;
+    layout.add (makeSwitch (ParamIDs::modCycFast, "Cyclone Fast", v50, false));
+    layout.add (makeSwitch (ParamIDs::modCycStop, "Cyclone Stop", v50, false));
+    layout.add (makeFloat (ParamIDs::modCycFastSpeed, "Cyclone Fast Speed", skewed (Cyclone::fastMinHz, Cyclone::fastMaxHz, Cyclone::fastDefaultHz, 0.01f),
+                           Cyclone::fastDefaultHz, v50, asHz));
+    layout.add (makeFloat (ParamIDs::modCycSlowSpeed, "Cyclone Slow Speed", skewed (Cyclone::slowMinHz, Cyclone::slowMaxHz, Cyclone::slowDefaultHz, 0.01f),
+                           Cyclone::slowDefaultHz, v50, asHz));
+    layout.add (makeFloat (ParamIDs::modCycAccel, "Cyclone Acceleration", { 0.0f, 10.0f, 0.1f }, 6.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycBalance, "Cyclone Balance", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycDrive, "Cyclone Drive", { 0.0f, 10.0f, 0.1f }, 0.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycLow, "Cyclone Mix / Dist Lo", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
+    layout.add (makeFloat (ParamIDs::modCycHigh, "Cyclone Mix / Dist Hi", { 0.0f, 10.0f, 0.1f }, 7.0f, v50, asKnob));
+    layout.add (makeChoice (ParamIDs::modCycMode, "Cyclone Mode", v50, Cyclone::modeNames, (int) Cyclone::Mode::keys));
+    layout.add (makeFloat (ParamIDs::modCycLevel, "Cyclone Level", { 0.0f, 10.0f, 0.1f }, 5.0f, v50, asKnob));
+
+    // Added in plugin version 51: the compressor's PHOTON and ABYSS TYPEs. Each
+    // starts where a voice at an ordinary level comes out about as loud as
+    // it went in, with a moderate squeeze.
+    constexpr int v51 = 51;
+    {
+        using effects::CompGate;
+        const CompGate::Settings defaults;
+        const ToText asSignedDb51 = [] (float db, int) { return (db > 0.04f ? "+" : "") + juce::String (db, 1) + " dB"; };
+        const ToText asPhotonAttack = [] (float knob, int)
+        {
+            const auto us = CompGate::photonAttackSeconds (knob) * 1.0e6f;
+            return juce::String (juce::roundToInt (us)) + " us";   // the time: the knob's 1-7 is its position
+        };
+        const ToText asPhotonRelease = [] (float knob, int)
+        {
+            const auto ms = CompGate::photonReleaseSeconds (knob) * 1000.0f;
+            return ms < 1000.0f ? juce::String (juce::roundToInt (ms)) + " ms" : juce::String (ms / 1000.0f, 2) + " s";
+        };
+        layout.add (makeFloat (ParamIDs::photonInput, "Photon Input", { 0.0f, 40.0f, 0.1f }, defaults.photonInputDb, v51, asDb));
+        layout.add (makeFloat (ParamIDs::photonOutput, "Photon Output", { -30.0f, 10.0f, 0.1f }, defaults.photonOutputDb, v51, asSignedDb51));
+        layout.add (makeFloat (ParamIDs::photonAttack, "Photon Attack", { 1.0f, 7.0f, 0.1f }, defaults.photonAttack, v51, asPhotonAttack));
+        layout.add (makeFloat (ParamIDs::photonRelease, "Photon Release", { 1.0f, 7.0f, 0.1f }, defaults.photonRelease, v51, asPhotonRelease));
+        layout.add (makeChoice (ParamIDs::photonRatio, "Photon Ratio", v51, CompGate::photonRatioNames, defaults.photonRatio));
+        layout.add (makeFloat (ParamIDs::abyssPeakReduction, "Abyss Peak Reduction", { 0.0f, 100.0f, 1.0f }, defaults.abyssPeakReduction, v51,
+                               [] (float value, int) { return juce::String (juce::roundToInt (value)); }));
+        layout.add (makeFloat (ParamIDs::abyssGain, "Abyss Gain", { -10.0f, 30.0f, 0.1f }, defaults.abyssGainDb, v51, asSignedDb51));
+        layout.add (makeChoice (ParamIDs::abyssMode, "Abyss Mode", v51, CompGate::abyssModeNames, defaults.abyssMode));
+        layout.add (makeFloat (ParamIDs::abyssEmphasis, "Abyss Emphasis", { 0.0f, 1.0f, 0.01f }, defaults.abyssEmphasis, v51, asPercent));
+    }
     return layout;
+}
+
+juce::StringArray ParamIDs::harmonyModTargets()
+{
+    juce::StringArray ids;
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (auto* part : { "Pitch", "Note", "Formant", "Pan", "Level", "Delay", "Feedback", "Cutoff" })
+            ids.add (harmonyVoice (voice, part));
+    ids.addArray (juce::StringArray { harmonyNoteLevel, harmonyNoteWidth, harmonyNoteFormant, harmonyNoteDelay, harmonyNoteFeedback,
+                                      harmonyNoteCutoff, harmonySource, harmonyLevel, harmonySpread, harmonyCorrectFormant,
+                                      harmonyGlobalPitch, harmonyGlobalFormant });
+    return ids;
+}
+
+bool ParamIDs::isHarmonyPitchTarget (const juce::String& id)
+{
+    return id == harmonyGlobalPitch || (id.startsWith ("hv") && (id.endsWith ("Pitch") || id.endsWith ("Note")));
+}
+
+juce::StringArray ParamIDs::harmonySnapshotIds()
+{
+    juce::StringArray ids;
+    for (int voice = 0; voice < effects::Harmony::numVoices; ++voice)
+        for (const auto& part : harmonyVoiceParts)
+            ids.add (harmonyVoice (voice, part));
+    for (const auto* id : { harmonyNoteLevel, harmonyNoteWidth, harmonyNoteFormant, harmonyNoteAttack, harmonyNoteRelease,
+                            harmonyNoteDelay, harmonyNoteSync, harmonyNoteFeedback, harmonyNoteFilter, harmonyNoteCutoff })
+        ids.add (id);
+    return ids;
 }
 
 juce::String ParamIDs::marsTargetParameter (int target)
@@ -733,3 +1041,18 @@ void convertOldDrive (const std::function<std::optional<float> (const juce::Stri
     band (0, "Level", bandLevel);
 }
 
+void convertOldRotary (const std::function<std::optional<float> (const juce::String&)>& get,
+                       const std::function<void (const juce::String&, float)>& set)
+{
+    const auto type = get (ParamIDs::modType);
+    if (! type.has_value() || juce::roundToInt (*type) != (int) effects::Modulation::Type::rotary || get (ParamIDs::modCycFast).has_value())
+        return;
+    const auto cyclone = effects::Cyclone::fromOldRotary (get (ParamIDs::modRate).value_or (0.8f), get (ParamIDs::modDepth).value_or (0.5f),
+                                                          get (ParamIDs::modMix).value_or (0.5f));
+    set (ParamIDs::modCycFast, cyclone.fast ? 1.0f : 0.0f);
+    set (ParamIDs::modCycFastSpeed, cyclone.fastHz);
+    set (ParamIDs::modCycSlowSpeed, cyclone.slowHz);
+    set (ParamIDs::modCycLow, cyclone.mixDist);
+    set (ParamIDs::modCycHigh, cyclone.mixDist);
+    set (ParamIDs::modCycMode, (float) cyclone.mode);
+}

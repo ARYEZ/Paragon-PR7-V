@@ -32,6 +32,16 @@ namespace ParagonColours
     inline const juce::Colour delay      { 0xff45b4ff };
     inline const juce::Colour reverb     { 0xff4fe3dd };
     inline const juce::Colour eq         { 0xffff5a2c };
+
+    // A signal-chain block's colour, by its place in the chain: the red,
+    // hot pink and orange gradient of the PR7 family's chains (as on the
+    // PR7-E), red first, orange last. Its edit panel uses the same colour.
+    inline juce::Colour chainColour (int index, int count)
+    {
+        juce::ColourGradient gradient (juce::Colour (0xffe0103c), 0.0f, 0.0f, juce::Colour (0xffff7a1a), 1.0f, 0.0f, false);
+        gradient.addColour (0.5, juce::Colour (0xffff2f7a));
+        return gradient.getColourAtPosition ((double) index / juce::jmax (1, count - 1));
+    }
     inline const juce::Colour filterPitch { 0xffb8f040 };   // lime
     inline const juce::Colour glitch     { 0xffff4fd8 };   // hot magenta
     inline const juce::Colour pitch      { 0xffbfe6ff };   // ice blue
@@ -64,9 +74,19 @@ public:
     // box: the header's rig name and tempo, which sit in framed groups.
     static constexpr const char* plainTextProperty = "plainText";
 
+    // Set this on a ToggleButton to draw it as one of the unit's small keys,
+    // its light stripe lit while it's on (the rack unit's switches).
+    static constexpr const char* rackKeyProperty = "rackKey";
+    // Set this on a pedalButton to letter it dimmer (HARMONY's keys for voices not in use).
+    static constexpr const char* dimTextProperty = "dimText";
+
     // Set this on a vertical slider to draw it as a graphic-EQ fader: a thin
     // groove lit from its centre (0 dB) to the cap, and a small black cap.
     static constexpr const char* eqFaderProperty = "eqFader";
+    // Set this (true or false) on an EQ fader to draw its cap's light as one
+    // of the unit's key stripes: the neon bar lit while the EQ is on, dim
+    // while it's off, like the PR7's other keys.
+    static constexpr const char* eqFaderLitProperty = "eqFaderLit";
     static constexpr int eqFaderThumbRadius = 7;
 
     // Every font in the plugin is Inter, built in: semibold for bold text,
@@ -100,9 +120,19 @@ public:
 private:
     juce::Typeface::Ptr regular, semiBold, blackItalic;
 
-    static void drawPedalKnob (juce::Graphics&, juce::Rectangle<float> bounds, float angle);
-
 public:
+    // One of the big black knobs on the pedal face (RIG LEVEL, PRESENCE),
+    // pointing at `angle` (radians, 0 straight up), in the current finish.
+    static void drawPedalKnob (juce::Graphics&, juce::Rectangle<float> bounds, float angle);
+    // A graphic-EQ fader: the groove from `top` to `bottom` at `centreX`,
+    // lit in `colour` from `litFrom` to the cap at `capY`, and the cap (a
+    // small piano-black key). `width` limits the cap. With `capLight` 0 or 1
+    // the cap's light is a key stripe, unlit or lit; with -1 it's a thin line
+    // in `colour`.
+    static void drawFader (juce::Graphics&, float centreX, float top, float bottom, float litFrom, float capY,
+                           float width, juce::Colour colour, bool pressed = false, bool highlighted = false,
+                           int capLight = -1);
+
     // The mockup's piano-black keys (footswitches, slot blocks, small
     // buttons): a glossy black top set in chamfered edges, the top bevel
     // catching the light, the side bevels reflecting the red glow, and a
@@ -122,6 +152,11 @@ public:
     // catch on pearl white, a shadow on pearl black: Finish::stampEdge).
     static void drawStampedText (juce::Graphics&, const juce::String& text, juce::Rectangle<float> area,
                                  juce::Justification, juce::Colour colour);
+    // The unit's small black keys (UNDO, BYPASS, TAP...) in their chrome
+    // surround, and the light stripe on one (`area`: inside the surround,
+    // as the key's text area is).
+    static void drawSmallKey (juce::Graphics&, juce::Rectangle<float> bounds, bool down, bool highlighted);
+    static void drawKeyStripe (juce::Graphics&, juce::Rectangle<float> area, bool on, bool down);
 };
 
 // JUCE finds fonts through the *default* look-and-feel, so while any plugin

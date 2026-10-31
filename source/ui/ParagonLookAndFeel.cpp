@@ -25,8 +25,16 @@ ParagonLookAndFeel::ParagonLookAndFeel()
     setColour (juce::TooltipWindow::outlineColourId, ParagonColours::panelEdge);
 }
 
-void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool)
+void ParagonLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool down)
 {
+    if (button.getProperties()[rackKeyProperty])
+    {
+        const auto key = button.getLocalBounds().toFloat();
+        drawSmallKey (g, key, down, highlighted);
+        drawKeyStripe (g, key.reduced (4.0f, 2.0f), button.getToggleState(), down);
+        return;
+    }
+
     auto bounds = button.getLocalBounds().toFloat();
     const auto ledSize = juce::jmin (12.0f, bounds.getHeight() - 4.0f);
     const auto led = bounds.removeFromLeft (bounds.getHeight()).withSizeKeepingCentre (ledSize, ledSize);
@@ -83,17 +91,7 @@ void ParagonLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& 
 
     if (button.getProperties()[pedalButtonProperty])
     {
-        // A small piano-black key, in a recessed chrome surround on the metal:
-        // a dark well round the key, a lit lower lip, and a chrome rim.
-        const auto surround = button.getLocalBounds().toFloat().reduced (0.5f);
-        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff6e5f67), 0.0f, surround.getY(),
-                                                 juce::Colour (0xffe9dde3), 0.0f, surround.getBottom(), false));
-        g.fillRoundedRectangle (surround, 5.0f);
-        g.setColour (juce::Colour (0xff1a1216));
-        g.fillRoundedRectangle (surround.reduced (1.5f), 4.0f);
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawRoundedRectangle (surround, 5.0f, 0.8f);
-        drawPianoKey (g, surround.reduced (2.2f, 2.0f).withTrimmedBottom (0.6f), 3.0f, 2.2f, down, highlighted, Finish::neonKeys());
+        drawSmallKey (g, button.getLocalBounds().toFloat(), down, highlighted);
         return;
     }
 
@@ -108,6 +106,34 @@ void ParagonLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& 
     g.fillRoundedRectangle (bounds, 4.0f);
     g.setColour (ParagonColours::panelEdge);
     g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+}
+
+void ParagonLookAndFeel::drawSmallKey (juce::Graphics& g, juce::Rectangle<float> bounds, bool down, bool highlighted)
+{
+    // A small piano-black key, in a recessed chrome surround on the metal:
+    // a dark well round the key, a lit lower lip, and a chrome rim.
+    const auto surround = bounds.reduced (0.5f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff6e5f67), 0.0f, surround.getY(),
+                                             juce::Colour (0xffe9dde3), 0.0f, surround.getBottom(), false));
+    g.fillRoundedRectangle (surround, 5.0f);
+    g.setColour (juce::Colour (0xff1a1216));
+    g.fillRoundedRectangle (surround.reduced (1.5f), 4.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawRoundedRectangle (surround, 5.0f, 0.8f);
+    drawPianoKey (g, surround.reduced (2.2f, 2.0f).withTrimmedBottom (0.6f), 3.0f, 2.2f, down, highlighted, Finish::neonKeys());
+}
+
+void ParagonLookAndFeel::drawKeyStripe (juce::Graphics& g, juce::Rectangle<float> area, bool on, bool down)
+{
+    // On a neon key an unlit stripe would be red on red, so it shows as a dark slot instead.
+    const auto stripe = area.withSizeKeepingCentre (area.getWidth() * 0.6f, 4.0f).translated (0.0f, down ? 0.5f : -0.5f);
+    if (Finish::neonKeys() && ! on)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
+        g.fillRoundedRectangle (stripe, 2.0f);
+        return;
+    }
+    drawNeonBar (g, stripe, on);
 }
 
 void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool highlighted, bool down)
@@ -142,14 +168,7 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
         // Just the LED stripe, like the mockup's EXIT / MODE / BYPASS caps.
         // On a neon key an unlit stripe would be red on red, so it shows
         // as a dark slot instead.
-        const auto stripe = area.withSizeKeepingCentre (area.getWidth() * 0.6f, 4.0f).translated (0.0f, down ? 0.5f : -0.5f);
-        if (Finish::neonKeys() && ! on)
-        {
-            g.setColour (juce::Colours::black.withAlpha (0.5f));
-            g.fillRoundedRectangle (stripe, 2.0f);
-            return;
-        }
-        drawNeonBar (g, stripe, on);
+        drawKeyStripe (g, area, on, down);
         return;
     }
 
@@ -159,6 +178,8 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     const auto neonKey = Finish::neonKeys();
     g.setColour (button.isEnabled() ? (on ? (neonKey ? juce::Colour (0xffffe9a8) : ParagonColours::accent) : (neonKey ? juce::Colours::white : ParagonColours::text))
                                     : (neonKey ? juce::Colours::white.withAlpha (0.5f) : ParagonColours::textDim));
+    if (button.getProperties()[dimTextProperty] && ! on)
+        g.setColour (neonKey ? juce::Colours::white.withAlpha (0.45f) : ParagonColours::textDim.withAlpha (0.6f));
     g.drawFittedText (button.getButtonText(), area.toNearestInt(), juce::Justification::centred, 1);
 }
 
@@ -432,33 +453,46 @@ void ParagonLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int 
     g.fillPath (pointer, juce::AffineTransform::rotation (angle).translated (centre));
 }
 
+void ParagonLookAndFeel::drawFader (juce::Graphics& g, float centreX, float top, float bottom, float litFrom, float capY,
+                                    float width, juce::Colour colour, bool pressed, bool highlighted, int capLight)
+{
+    // Groove, then the lit part (from 0 dB on the EQ) to the cap.
+    const auto middle = (top + bottom) * 0.5f;
+    g.setColour (juce::Colour (0xff050406));
+    g.fillRoundedRectangle (juce::Rectangle<float> (4.0f, bottom - top).withCentre ({ centreX, middle }), 2.0f);
+    g.setColour (ParagonColours::panelEdge.brighter (0.2f));
+    g.drawRoundedRectangle (juce::Rectangle<float> (4.0f, bottom - top).withCentre ({ centreX, middle }), 2.0f, 0.8f);
+    const auto lit = juce::Rectangle<float>::leftTopRightBottom (centreX - 1.5f, juce::jmin (capY, litFrom), centreX + 1.5f, juce::jmax (capY, litFrom));
+    g.setColour (colour.withAlpha (0.3f));
+    g.fillRoundedRectangle (lit.expanded (2.5f, 0.0f), 2.0f);
+    g.setColour (colour);
+    g.fillRoundedRectangle (lit, 1.5f);
+
+    // The cap: a small piano-black key with a lit line across it.
+    const auto cap = juce::Rectangle<float> (juce::jmin (26.0f, width - 4.0f), 14.0f).withCentre ({ centreX, capY });
+    drawPianoKey (g, cap, 3.0f, 2.0f, pressed, highlighted);
+    if (capLight >= 0)
+    {
+        // The unit's key stripe, as bright as its lit keys. Unlit, it stays a
+        // dim red in every finish: the cap is black even on the neon units,
+        // where a key's unlit stripe is a dark slot.
+        drawNeonBar (g, cap.withSizeKeepingCentre (cap.getWidth() * 0.6f, 4.0f).translated (0.0f, pressed ? 0.5f : -0.5f), capLight > 0);
+        return;
+    }
+    g.setColour (colour);
+    g.fillRect (cap.reduced (5.0f, 0.0f).withSizeKeepingCentre (cap.getWidth() - 10.0f, 1.6f).translated (0.0f, -0.5f));
+}
+
 void ParagonLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
                                           float sliderPos, float minSliderPos, float maxSliderPos,
                                           juce::Slider::SliderStyle style, juce::Slider& slider)
 {
     if (style == juce::Slider::LinearVertical && slider.getProperties()[eqFaderProperty])
     {
-        const auto centreX = (float) x + (float) width * 0.5f;
         const auto top = (float) y, bottom = (float) (y + height);   // already inset by the thumb radius
-        const auto middle = (top + bottom) * 0.5f;
-        const auto colour = slider.findColour (juce::Slider::trackColourId);
-
-        // Groove, then the lit part from 0 dB to the cap.
-        g.setColour (juce::Colour (0xff050406));
-        g.fillRoundedRectangle (juce::Rectangle<float> (4.0f, bottom - top).withCentre ({ centreX, middle }), 2.0f);
-        g.setColour (ParagonColours::panelEdge.brighter (0.2f));
-        g.drawRoundedRectangle (juce::Rectangle<float> (4.0f, bottom - top).withCentre ({ centreX, middle }), 2.0f, 0.8f);
-        const auto lit = juce::Rectangle<float>::leftTopRightBottom (centreX - 1.5f, juce::jmin (sliderPos, middle), centreX + 1.5f, juce::jmax (sliderPos, middle));
-        g.setColour (colour.withAlpha (0.3f));
-        g.fillRoundedRectangle (lit.expanded (2.5f, 0.0f), 2.0f);
-        g.setColour (colour);
-        g.fillRoundedRectangle (lit, 1.5f);
-
-        // The cap: a small piano-black key with a lit line across it.
-        const auto cap = juce::Rectangle<float> (juce::jmin (26.0f, (float) width - 4.0f), 14.0f).withCentre ({ centreX, sliderPos });
-        drawPianoKey (g, cap, 3.0f, 2.0f, slider.isMouseButtonDown(), slider.isMouseOver());
-        g.setColour (colour);
-        g.fillRect (cap.reduced (5.0f, 0.0f).withSizeKeepingCentre (cap.getWidth() - 10.0f, 1.6f).translated (0.0f, -0.5f));
+        drawFader (g, (float) x + (float) width * 0.5f, top, bottom, (top + bottom) * 0.5f, sliderPos, (float) width,
+                   slider.findColour (juce::Slider::trackColourId), slider.isMouseButtonDown(), slider.isMouseOver(),
+                   slider.getProperties().contains (eqFaderLitProperty) ? ((bool) slider.getProperties()[eqFaderLitProperty] ? 1 : 0) : -1);
         return;
     }
 

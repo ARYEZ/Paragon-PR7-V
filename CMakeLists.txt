@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures")
 
-project(ParagonX1 VERSION 0.18.0 LANGUAGES C CXX)
+project(ParagonX1 VERSION 0.42.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,14 +52,17 @@ target_sources(ParagonX1
         source/dsp/effects/CompGate.cpp
         source/dsp/effects/DeEsser.cpp
         source/dsp/effects/Aeon.cpp
+        source/dsp/effects/Cyclone.cpp
         source/dsp/effects/Delay.cpp
         source/dsp/effects/Doubler.cpp
         source/dsp/effects/Mars.cpp
         source/dsp/effects/MarsModulation.cpp
+        source/dsp/effects/HarmonyModulation.cpp
         source/dsp/effects/FilterPitch.cpp
         source/dsp/effects/GraphicEq.cpp
         source/dsp/effects/Harmony.cpp
         source/dsp/effects/LoFi.cpp
+        source/dsp/effects/Vocoder.cpp
         source/dsp/effects/Glitch.cpp
         source/dsp/effects/PitchBlock.cpp
         source/dsp/effects/TalkBox.cpp
@@ -83,6 +86,11 @@ target_sources(ParagonX1
         source/ui/DockPanels.cpp
         source/ui/DoublerPanel.cpp
         source/ui/MarsPanel.cpp
+        source/ui/NoteMapEditor.cpp
+        source/ui/HarmonySnapshotsView.cpp
+        source/ui/HarmonyModsView.cpp
+        source/ui/VocoderBandsView.cpp
+        source/ui/Faceplate.cpp
         source/ui/MarsModUi.cpp
         source/ui/MarsSlotsView.cpp
         source/ui/MarsSourcesView.cpp
@@ -91,7 +99,8 @@ target_sources(ParagonX1
         source/ui/PerformanceControls.cpp
         source/ui/MainView.cpp
         source/ui/ParagonLookAndFeel.cpp
-        source/ui/Finish.cpp)
+        source/ui/Finish.cpp
+        source/ui/RackView.cpp)
 
 target_include_directories(ParagonX1 PUBLIC source)
 

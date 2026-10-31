@@ -1,6 +1,7 @@
 #include "Rig.h"
 
 #include "Parameters.h"
+#include "dsp/effects/CompGate.h"
 
 namespace
 {
@@ -13,10 +14,109 @@ namespace
     // 15: the reverb's TYPE, defaulting to HALL.
     // 26: the DOUBLER stomp, until then MODULATION's Doubler type.
     // 30: the four-voice DOUBLER, replacing its RATE, DEPTH and MIX.
-    constexpr int parameterVersion = 36;
+    // 37: CYCLONE, replacing MODULATION's original rotary speaker.
+    // 38: the compressor's TYPE defaulting to Revival (Classic left the menu, 0.41.0).
+    constexpr int parameterVersion = 38;
 
     const juce::Identifier rigTag { "ParagonRig" };
     const juce::Identifier parameterTag { "Param" };
+    const juce::Identifier snapshotTag { "HarmonySnapshot" };
+    const juce::Identifier modSlotTag { "HarmonyMod" };
+    const juce::Identifier modShapeTag { "HarmonyShape" };
+}
+
+void Rig::writeSnapshots (const HarmonySnapshots& snapshots, juce::XmlElement& parent)
+{
+    for (int i = 0; i < numHarmonySnapshots; ++i)
+    {
+        const auto& snapshot = snapshots[(size_t) i];
+        if (! snapshot.has_value())
+            continue;
+        auto* element = parent.createNewChildElement (snapshotTag);
+        element->setAttribute ("slot", i + 1);
+        for (const auto& [id, value] : *snapshot)
+        {
+            auto* parameter = element->createNewChildElement (parameterTag);
+            parameter->setAttribute ("id", id);
+            parameter->setAttribute ("value", value);
+        }
+    }
+}
+
+Rig::HarmonySnapshots Rig::readSnapshots (const juce::XmlElement& parent)
+{
+    HarmonySnapshots snapshots;
+    for (const auto* element : parent.getChildWithTagNameIterator (snapshotTag))
+    {
+        const auto slot = element->getIntAttribute ("slot", 0) - 1;
+        if (slot < 0 || slot >= numHarmonySnapshots)
+            continue;
+        HarmonySnapshot snapshot;
+        for (const auto* parameter : element->getChildWithTagNameIterator (parameterTag))
+            if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
+                snapshot[id] = (float) parameter->getDoubleAttribute ("value");
+        snapshots[(size_t) slot] = std::move (snapshot);
+    }
+    return snapshots;
+}
+
+void Rig::writeModSlots (const HarmonyModSlots& slots, juce::XmlElement& parent)
+{
+    for (const auto& [target, four] : slots)
+        for (size_t slot = 0; slot < four.size(); ++slot)
+            if (four[slot].source != 0)
+            {
+                auto* element = parent.createNewChildElement (modSlotTag);
+                element->setAttribute ("target", target);
+                element->setAttribute ("slot", (int) slot + 1);
+                element->setAttribute ("source", four[slot].source);
+                element->setAttribute ("depth", four[slot].depth);
+            }
+}
+
+Rig::HarmonyModSlots Rig::readModSlots (const juce::XmlElement& parent)
+{
+    HarmonyModSlots slots;
+    for (const auto* element : parent.getChildWithTagNameIterator (modSlotTag))
+    {
+        const auto target = element->getStringAttribute ("target");
+        const auto slot = element->getIntAttribute ("slot", 0) - 1;
+        const auto source = element->getIntAttribute ("source", 0);
+        if (target.isEmpty() || slot < 0 || slot >= 4 || source <= 0)
+            continue;
+        slots[target][(size_t) slot] = { source, juce::jlimit (-1.0f, 1.0f, (float) element->getDoubleAttribute ("depth")) };
+    }
+    return slots;
+}
+
+void Rig::writeModShapes (const HarmonyModShapes& shapes, juce::XmlElement& parent)
+{
+    for (size_t mod = 0; mod < shapes.size(); ++mod)
+    {
+        if (std::all_of (shapes[mod].begin(), shapes[mod].end(), [] (float point) { return juce::exactlyEqual (point, 0.0f); }))
+            continue;
+        juce::StringArray points;
+        for (auto point : shapes[mod])
+            points.add (juce::String (point, 4));   // the points are kept to 4 decimals (setHarmonyModShape), so this is exact
+        auto* element = parent.createNewChildElement (modShapeTag);
+        element->setAttribute ("mod", (int) mod + 1);
+        element->setAttribute ("points", points.joinIntoString (" "));
+    }
+}
+
+Rig::HarmonyModShapes Rig::readModShapes (const juce::XmlElement& parent)
+{
+    HarmonyModShapes shapes {};
+    for (const auto* element : parent.getChildWithTagNameIterator (modShapeTag))
+    {
+        const auto mod = element->getIntAttribute ("mod", 0) - 1;
+        if (mod < 0 || mod >= (int) shapes.size())
+            continue;
+        const auto points = juce::StringArray::fromTokens (element->getStringAttribute ("points"), " ", {});
+        for (int i = 0; i < juce::jmin (points.size(), (int) shapes[(size_t) mod].size()); ++i)
+            shapes[(size_t) mod][(size_t) i] = juce::jlimit (-1.0f, 1.0f, points[i].getFloatValue());
+    }
+    return shapes;
 }
 
 juce::String Rig::bankName (int bankIndex)
@@ -46,6 +146,9 @@ std::unique_ptr<juce::XmlElement> Rig::toXml() const
         parameter->setAttribute ("id", id);
         parameter->setAttribute ("value", value);
     }
+    writeSnapshots (harmonySnapshots, *xml);
+    writeModSlots (harmonyModSlots, *xml);
+    writeModShapes (harmonyModShapes, *xml);
     return xml;
 }
 
@@ -72,6 +175,9 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
     for (const auto* parameter : xml.getChildWithTagNameIterator (parameterTag))
         if (const auto id = parameter->getStringAttribute ("id"); id.isNotEmpty())
             rig.parameters[id] = (float) parameter->getDoubleAttribute ("value");
+    rig.harmonySnapshots = readSnapshots (xml);
+    rig.harmonyModSlots = readModSlots (xml);
+    rig.harmonyModShapes = readModShapes (xml);
 
     // Saved before the drive had a MODEL: it was the original overdrive,
     // model 0. Without this it would load as the newer default.
@@ -107,6 +213,13 @@ std::optional<Rig> Rig::fromXml (const juce::XmlElement& xml)
         for (const auto* gone : { ParamIDs::driveModel, ParamIDs::driveGain, ParamIDs::driveTone, ParamIDs::driveLevel })
             rig.parameters.erase (gone);
     }
+    // Saved with the original rotary speaker: now CYCLONE, set to match.
+    if (savedWith < 37)
+        convertOldRotary (get, set);
+    // Saved while the compressor started on Classic (and not mentioning its
+    // TYPE): it was Classic, and still is, sounding as it did.
+    if (savedWith < 38 && rig.parameters.count (ParamIDs::compType) == 0)
+        rig.parameters[ParamIDs::compType] = (float) effects::CompGate::Type::classic;
 
     return rig;
 }

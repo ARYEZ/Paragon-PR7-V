@@ -27,12 +27,39 @@ namespace effects
     //             so however far COMPRESSION goes, nothing passes GAIN.
     //             Gate, then compressor, then limiter; no look-ahead, so no
     //             latency. It replaces the noise gate and LEVEL.
+    //
+    // Added in PR7-V 0.41.0, two classic studio compressors (the owner
+    // asked for them by their originals; named our own way), from the
+    // originals' published specifications, our design where they don't say:
+    //
+    //   photon      inspired by the 1176 FET limiting amplifier. INPUT drives
+    //             the voice into a fixed threshold (more INPUT, more
+    //             compression), OUTPUT sets the level back. ATTACK 1-7 (7
+    //             fastest, 20 us; 1 slowest, 800 us) and RELEASE 1-7 (7
+    //             fastest, 50 ms; 1 slowest, 1.1 s), numbered as on the
+    //             original. RATIO 4, 8, 12, 20 and ALL ("all buttons in": the
+    //             loudest peaks pushed below quieter ones, quicker, grittier).
+    //             The FET's colour, a little distortion growing with the gain
+    //             reduction, is our own curve.
+    //   abyss      inspired by the LA-2A optical leveller. PEAK REDUCTION (how
+    //             much) and GAIN; COMPRESS (gentle) or LIMIT (firmer);
+    //             EMPHASIS (the original's rear trim: it reacts more to bright
+    //             sounds). The light cell's feel: about 10 ms to grab; lets go
+    //             half way in about 60 ms and the rest over 1 to 5 seconds,
+    //             slower the harder and longer it's been working. The ratios,
+    //             that memory and the valve warmth are our guesses: the cell
+    //             isn't specified that precisely.
     class CompGate
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Type { classic, daybreak, revival };
-        static inline const juce::StringArray typeNames { "Classic", "Daybreak", "Revival" };
+        // Classic (0, since 0.41.0) and Daybreak (1, since 0.42.0) are out of
+        // the TYPE menu (EffectPanel's retired choices): they still play for
+        // rigs and projects that use them.
+        enum class Type { classic, daybreak, revival, photon, abyss };
+        static inline const juce::StringArray typeNames { "Classic", "Daybreak", "Revival", "Photon", "Abyss" };
+        static inline const juce::StringArray photonRatioNames { "4:1", "8:1", "12:1", "20:1", "All" };
+        static inline const juce::StringArray abyssModeNames { "Compress", "Limit" };
 
         struct Settings
         {
@@ -49,7 +76,25 @@ namespace effects
             float revivalGateDb = revivalGateOffDb;   // revival: GATE
             float revivalCompDb = -12.0f;              // revival: COMPRESSION, 0 (none) to -36
             float revivalGainDb = 0.0f;                // revival: GAIN, the limiter's ceiling
+            float photonInputDb = 18.0f;                 // photon: INPUT, 0 to 40
+            float photonOutputDb = -8.0f;                // photon: OUTPUT
+            float photonAttack = 4.0f;                   // photon: ATTACK 1 (slow) to 7 (fast)
+            float photonRelease = 5.0f;                  // photon: RELEASE 1 (slow) to 7 (fast)
+            int photonRatio = 0;                         // photon: photonRatioNames
+            float abyssPeakReduction = 40.0f;           // abyss: PEAK REDUCTION, 0 to 100
+            float abyssGainDb = 6.0f;                   // abyss: GAIN
+            int abyssMode = 0;                          // abyss: abyssModeNames
+            float abyssEmphasis = 0.0f;                 // abyss: EMPHASIS, 0 to 1
         };
+
+        // Photon's attack and release (seconds) for its 1-7 knobs: 7 fastest.
+        static float photonAttackSeconds (float knob) noexcept;
+        static float photonReleaseSeconds (float knob) noexcept;
+        // Photon's and Abyss's gain change at a steady level, in dB (0 or less),
+        // before OUTPUT / GAIN: for tests and the curves' shape. Photon's input
+        // is the level after INPUT.
+        static float photonCurveDb (float drivenDb, int ratio) noexcept;
+        static float abyssCurveDb (float inputDb, float peakReduction, int mode) noexcept;
 
         // Revival's GATE at (or below) this is off.
         static constexpr float revivalGateOffDb = -80.0f;
@@ -78,6 +123,8 @@ namespace effects
     private:
         void processDaybreak (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processRevival (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processPhoton (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processAbyss (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
 
         double sampleRate = 48000.0;
         juce::dsp::NoiseGate<float> gate;
@@ -96,5 +143,13 @@ namespace effects
         float compLevelDb = -120.0f, sustainedDb = 0.0f;  // the compressor's detector, and how long it's been working
         float limiterEnvelope = 0.0f;
         juce::SmoothedValue<float> revivalThreshold, revivalCeiling;
+
+        // Photon: the FET's detector (dB), and its input and output gains.
+        float photonLevelDb = -120.0f, photonColourPeak = 0.0f;
+        juce::SmoothedValue<float> photonIn, photonOut;
+        // Abyss: the cell's fast and slow parts (dB of reduction, 0 or less),
+        // its memory of working hard (0 to 1), EMPHASIS's filter, its gain.
+        float abyssFastDb = 0.0f, abyssSlowDb = 0.0f, abyssMemory = 0.0f, abyssPeak = 0.0f, emphasisState = 0.0f;
+        juce::SmoothedValue<float> abyssGain;
     };
 }

@@ -1,3 +1,10 @@
+#include <atomic>
+#if defined (__linux__)
+ #include <dlfcn.h>
+#endif
+#include <ctime>
+#include <thread>
+#include "ui/VocoderBandsView.h"
 #include "ui/MarsPanel.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -6,12 +13,19 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "ui/DoublerPanel.h"
+#include "ui/EffectPanel.h"
 #include "ui/Footswitch.h"
+#include "ui/Faceplate.h"
+#include "ui/SignalChain.h"
 #include "ui/GraphicEqPanel.h"
 #include "ui/HarmonyPanel.h"
+#include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
+#include "ui/ParagonLookAndFeel.h"
 #include "ui/PerformanceControls.h"
+#include "ui/RackView.h"
+#include "ui/SignalChain.h"
 
 using Catch::Matchers::WithinAbs;
 
@@ -84,6 +98,170 @@ TEST_CASE ("The window lays out cleanly at every size", "[ui]")
     }
 }
 
+TEST_CASE ("HIDE RACK takes the rack away and shortens the window; a block clicked in the chain brings it back", "[ui][rack]")
+{
+    RackView::setShown (true, false);
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setSize (1280, 720);
+    auto* view = editor->getChildComponent (0);
+    REQUIRE (view != nullptr);
+
+    auto* rackButton = dynamic_cast<juce::TextButton*> (view->findChildWithID ("rackButton"));
+    REQUIRE (rackButton != nullptr);
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    std::vector<GraphicEqPanel*> eqPanels;
+    findAll (*editor, eqPanels);
+    REQUIRE (eqPanels.size() == 1);
+    std::vector<EffectPanel*> effectPanels;
+    findAll (*editor, effectPanels);
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    const auto anyPanelShowing = [&]
+    {
+        return eqPanels[0]->isVisible()
+            || std::any_of (effectPanels.begin(), effectPanels.end(), [] (auto* panel) { return panel->isVisible(); });
+    };
+
+    CHECK (rackButton->getButtonText() == "HIDE RACK");
+    CHECK (faceplates[0]->isVisible());
+    CHECK (anyPanelShowing());
+
+    // Hidden: the faceplate and every block's controls go, the chain moves
+    // up under the floor unit and the window keeps its width but gets
+    // shorter by the rack's height (the view keeps its scale).
+    rackButton->onClick();
+    CHECK_FALSE (RackView::isShown());
+    CHECK (rackButton->getButtonText() == "SHOW RACK");
+    CHECK_FALSE (faceplates[0]->isVisible());
+    CHECK_FALSE (anyPanelShowing());
+    CHECK (view->getHeight() == MainView::height - MainView::rackHeight);
+    CHECK (editor->getWidth() == 1280);
+    CHECK (editor->getHeight() == juce::roundToInt (1280.0f * (float) view->getHeight() / (float) MainView::width));
+    CHECK_THAT (view->getTransform().mat00, WithinAbs (1280.0f / (float) MainView::width, 0.001));
+    CHECK (chains[0]->getBottom() <= view->getHeight());
+    checkLayout (*view, "view");
+
+    // Dragging the window keeps the shorter shape.
+    auto* constrainer = editor->getConstrainer();
+    REQUIRE (constrainer != nullptr);
+    CHECK_THAT (constrainer->getFixedAspectRatio(), WithinAbs ((double) MainView::width / (double) view->getHeight(), 0.0001));
+
+    // The other pages fit in the shorter window too.
+    for (const auto* tabId : { "presetsTab", "settingsTab", "processorTab" })
+    {
+        auto* tab = dynamic_cast<juce::Button*> (view->findChildWithID (tabId));
+        REQUIRE (tab != nullptr);
+        tab->onClick();
+        // (Only the top level: the rig list scrolls, so its contents are taller than it.)
+        for (auto* child : view->getChildren())
+            if (child->isVisible())
+            {
+                INFO (tabId << ": " << typeid (*child).name() << " at " << child->getBounds().toString());
+                CHECK (view->getLocalBounds().contains (child->getBounds()));
+                if (child != chains[0] && child != rackButton)
+                    CHECK (child->getBottom() <= chains[0]->getY());   // nothing runs into the chain
+            }
+    }
+    CHECK_FALSE (RackView::isShown());
+
+    // Clicking a block in the chain opens the rack on that block, at full height again.
+    chains[0]->onSelect (3);
+    CHECK (RackView::isShown());
+    CHECK (rackButton->getButtonText() == "HIDE RACK");
+    CHECK (faceplates[0]->isVisible());
+    CHECK (effectPanels[3]->isVisible());
+    CHECK (view->getHeight() == MainView::height);
+    CHECK (editor->getWidth() == 1280);
+    CHECK (editor->getHeight() == 720);   // (the rack's own layout is the [rack] test's)
+
+    // And the button brings it back too.
+    rackButton->onClick();
+    rackButton->onClick();
+    CHECK (RackView::isShown());
+    CHECK (editor->getHeight() == 720);
+    CHECK (effectPanels[3]->isVisible());
+}
+
+TEST_CASE ("HIDE RACK / SHOW RACK: each new window size already fits the shape and limits the DAW checks it against", "[ui][rack]")
+{
+    // A DAW like Cubase checks every size the plugin asks for against the
+    // plugin's limits and shape at that moment, and "corrects" it if it
+    // doesn't fit. This listener does the same check on every resize.
+    struct HostCheck final : juce::ComponentListener
+    {
+        void componentMovedOrResized (juce::Component& component, bool, bool wasResized) override
+        {
+            if (! wasResized)
+                return;
+            auto& editor = static_cast<juce::AudioProcessorEditor&> (component);
+            const auto* constrainer = editor.getConstrainer();
+            const auto width = editor.getWidth(), height = editor.getHeight();
+            const auto fits = width >= constrainer->getMinimumWidth() && width <= constrainer->getMaximumWidth()
+                           && height >= constrainer->getMinimumHeight() && height <= constrainer->getMaximumHeight()
+                           && std::abs ((double) width / constrainer->getFixedAspectRatio() - (double) height) <= 1.0;
+            if (! fits)
+                misfits.add (juce::String (width) + " x " + juce::String (height));
+        }
+        juce::StringArray misfits;
+    };
+
+    RackView::setShown (true, false);
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setSize (1706, 959);   // the opening size on a 1080p screen
+    HostCheck host;
+    editor->addComponentListener (&host);
+    auto* rackButton = dynamic_cast<juce::TextButton*> (editor->getChildComponent (0)->findChildWithID ("rackButton"));
+    REQUIRE (rackButton != nullptr);
+
+    rackButton->onClick();   // hide
+    CHECK (editor->getWidth() == 1706);
+    CHECK (editor->getHeight() == juce::roundToInt (1706.0f * (float) (MainView::height - MainView::rackHeight) / (float) MainView::width));
+    rackButton->onClick();   // show: back to the size it had (to the pixel: 1706 x 9 / 16 is 959.6)
+    CHECK (editor->getWidth() == 1706);
+    CHECK (std::abs (editor->getHeight() - 959) <= 1);
+
+    // A width dragged to while hidden carries over to the shown window.
+    rackButton->onClick();
+    editor->setSize (1280, juce::roundToInt (1280.0f * (float) (MainView::height - MainView::rackHeight) / (float) MainView::width));
+    rackButton->onClick();
+    CHECK (editor->getWidth() == 1280);
+    CHECK (editor->getHeight() == 720);
+
+    INFO ("sizes the DAW would have changed: " << host.misfits.joinIntoString (", "));
+    CHECK (host.misfits.isEmpty());
+    editor->removeComponentListener (&host);
+    RackView::setShown (true, false);
+}
+
+TEST_CASE ("SHOW RACK never runs the window off the bottom of the screen", "[ui][rack]")
+{
+    // The DAW keeps the window's top left corner where it is, so a window
+    // placed low down grows downwards: SHOW RACK makes it narrower instead,
+    // just enough to fit. (Pictured on a 1080p screen with a 40-pixel taskbar.)
+    using Editor = ParagonX1AudioProcessorEditor;
+    const juce::Rectangle<int> screen (0, 0, 1920, 1040);
+    const auto shown = MainView::heightFor (true), hidden = MainView::heightFor (false);
+
+    // Cubase's window, as opened with the rack hidden: the plugin's top at 207.
+    const auto width = Editor::widthToFit (1706, shown, screen, 207);
+    CHECK (width < 1706);
+    CHECK (207 + width * shown / MainView::width <= 1040 - 16);
+    CHECK (207 + (width + 4) * shown / MainView::width > 1040 - 16);   // and no narrower than it needs to be (to a few pixels)
+
+    // Near the top of the screen there's room: the width chosen.
+    CHECK (Editor::widthToFit (1706, shown, screen, 60) == 1706);
+    // The shorter, rack-hidden window fits where the tall one doesn't.
+    CHECK (Editor::widthToFit (1706, hidden, screen, 207) == 1706);
+    // Never smaller than the smallest window, or bigger than the biggest.
+    CHECK (Editor::widthToFit (1706, shown, screen, 900) == 960);
+    CHECK (Editor::widthToFit (2400, hidden, screen, 0) == 1920);
+}
+
 TEST_CASE ("The window opens as big as fits above the taskbar, up to 1824 x 1026", "[ui]")
 {
     using Editor = ParagonX1AudioProcessorEditor;
@@ -145,12 +323,12 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    // The knob panels in signal-chain order: nine EffectPanels, with
+    // The knob panels in signal-chain order: ten EffectPanels, with
     // SATURATION's own (MARS) as block 4, the graphic EQ's as 5 and
-    // DOUBLER's as 7.
+    // DOUBLER's as 8 (after the VOCODER, 7).
     std::vector<EffectPanel*> effectPanels;
     findAll (*editor, effectPanels);
-    REQUIRE (effectPanels.size() == 9);
+    REQUIRE (effectPanels.size() == 10);
     std::vector<GraphicEqPanel*> eqPanels;
     findAll (*editor, eqPanels);
     REQUIRE (eqPanels.size() == 1);
@@ -164,8 +342,8 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     std::vector<DoublerPanel*> doublerPanels;
     findAll (*editor, doublerPanels);
     REQUIRE (doublerPanels.size() == 1);
-    panels.insert (panels.begin() + 7, doublerPanels[0]);
-    // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE view is
+    panels.insert (panels.begin() + 8, doublerPanels[0]);
+    // PITCH (block 0) opens on its HARMONY view; its OCTAVE / FREEZE / FORMANT view is
     // the first EffectPanel, checked below.
     std::vector<HarmonyPanel*> harmonyPanels;
     findAll (*editor, harmonyPanels);
@@ -208,7 +386,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
     {
         return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX());   // reading order
     });
-    const int expectedBlocks[] = { 1, 4, 7, 0, 8, 9, 10 };
+    const int expectedBlocks[] = { 1, 4, 8, 0, 9, 10, 11 };
     for (size_t i = 0; i < footswitches.size(); ++i)
     {
         INFO ("stomp " << i + 1);
@@ -221,7 +399,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
         CHECK (footswitches[i]->getY() == footswitches[3]->getY());   // ...one bottom row of four...
     CHECK (footswitches[0]->getBottom() <= footswitches[3]->getY());   // ...above it
 
-    // PITCH's view tabs swap HARMONY for OCTAVE / FREEZE and back.
+    // PITCH's view tabs swap HARMONY for OCTAVE / FREEZE / FORMANT and back.
     std::vector<juce::TextButton*> buttons;
     findAll (*editor, buttons);
     const auto button = [&buttons] (const juce::String& text)
@@ -231,7 +409,7 @@ TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphi
         return *found;
     };
     chains[0]->onSelect (0);
-    button ("OCTAVE / FREEZE")->onClick();
+    button ("OCTAVE / FREEZE / FORMANT")->onClick();
     CHECK (octaveFreeze->isVisible());
     CHECK_FALSE (harmonyPanels[0]->isVisible());
     button ("HARMONY")->onClick();
@@ -414,6 +592,41 @@ TEST_CASE ("The dock's expression screen scrolls with the buttons beside it", "[
 
     // Scrolling never assigns the pedal.
     CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::expressionTarget)->load()) == ExpressionTargets::off);
+}
+
+TEST_CASE ("The GRAPHIC EQ's fader lights are lit like the unit's keys while the EQ is on", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<GraphicEqPanel*> eqPanels;
+    findAll (*editor, eqPanels);
+    REQUIRE (eqPanels.size() == 1);
+    std::vector<juce::Slider*> faders;
+    findAll (*eqPanels[0], faders);
+    faders.erase (std::remove_if (faders.begin(), faders.end(),
+                                  [] (auto* s) { return ! (bool) s->getProperties()[ParagonLookAndFeel::eqFaderProperty]; }),
+                  faders.end());
+    REQUIRE (faders.size() == 10);   // nine bands and LEVEL
+
+    const auto litCount = [&]
+    {
+        int lit = 0;
+        for (auto* fader : faders)
+        {
+            REQUIRE (fader->getProperties().contains (ParagonLookAndFeel::eqFaderLitProperty));
+            lit += (bool) fader->getProperties()[ParagonLookAndFeel::eqFaderLitProperty] ? 1 : 0;
+        }
+        return lit;
+    };
+
+    // Switched from the parameter (the DAW, a rig), not only by a click.
+    set (processor, ParamIDs::eqOn, 0.0f);
+    CHECK (litCount() == 0);
+    set (processor, ParamIDs::eqOn, 1.0f);
+    CHECK (litCount() == 10);
+    set (processor, ParamIDs::eqOn, 0.0f);
+    CHECK (litCount() == 0);
+
 }
 
 TEST_CASE ("EQ PRESETS: choosing one sets the faders and switches the EQ on; moving a fader lets go of the name", "[ui]")
@@ -650,4 +863,927 @@ TEST_CASE ("MARS's modulation pages: slots from the knobs, the target list, XLFO
         CHECK_THAT (step (1, "Value"), Catch::Matchers::WithinAbs (-1.0, 0.01));
         CHECK (juce::roundToInt (value (ParamIDs::marsLfo (0, "Steps"))) == 1);   // XLFO 1 untouched
     }
+}
+
+TEST_CASE ("HARMONY's NOTES tab: the note controls in place of the voice's", "[ui][harmony][notes]")
+{
+    ParagonX1AudioProcessor processor;
+    HarmonyPanel panel (processor.getParameters(), [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::ComboBox*> boxes;
+    findAll (panel, boxes);
+    const auto chordBox = std::find_if (boxes.begin(), boxes.end(), [] (juce::ComboBox* box)
+                                        { return box->getNumItems() == (int) effects::Harmony::chordMaps.size(); });
+    REQUIRE (chordBox != boxes.end());
+    CHECK_FALSE ((*chordBox)->isVisible());
+    panel.showNotes (true);
+    CHECK (panel.isShowingNotes());
+    CHECK ((*chordBox)->isVisible());
+    CHECK ((*chordBox)->getText() == "3rd + 5th Above");   // the default
+    panel.selectVoice (1);
+    panel.showNotes (false);
+    CHECK_FALSE ((*chordBox)->isVisible());
+}
+
+TEST_CASE ("HARMONY's Note Map Editor: EDIT, keys, SCALE boxes and DONE", "[ui][harmony][notemap]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    HarmonyPanel panel (parameters, [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    panel.showNotes (true);
+    const auto plain = [&parameters] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    auto& editor = panel.getNoteMap();
+    const auto mapOfA = [&editor] { return editor.mapOf (9); };
+    const auto bit = [] (int offset) { return std::uint64_t { 1 } << (offset + effects::Harmony::mapSpan); };
+
+    // EDIT: CHORD becomes Custom, starting from the map that was playing
+    // (3rd + 5th Above in C major: A plays C and E above).
+    CHECK_FALSE (panel.isShowingNoteMap());
+    panel.openNoteMap();
+    CHECK (panel.isShowingNoteMap());
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyChord)) == effects::Harmony::customChord);
+    CHECK (mapOfA() == (bit (3) | bit (7)));
+
+    // A key click adds or removes what the picked note plays.
+    editor.selectNote (9);
+    editor.toggleKey (60 + 9 + 12);   // A4: an octave above
+    CHECK (mapOfA() == (bit (3) | bit (7) | bit (12)));
+    CHECK (plain (ParamIDs::harmonyMap (9, 1)) > 0.0f);
+    editor.toggleKey (60 + 9 + 3);    // C5 off
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+
+    // SCALE boxes: only with SCALE Custom; In → Up → Down → In.
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 0);
+    auto* scale = parameters.getParameter (ParamIDs::harmonyScale);
+    scale->setValueNotifyingHost (scale->convertTo0to1 ((float) Scales::Scale::custom));
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 1);
+    editor.cycleScaleBox (1);
+    CHECK (juce::roundToInt (plain (ParamIDs::harmonyScaleNote (1))) == 2);
+
+    // A second EDIT keeps your map; ERASE clears it; DONE (or leaving NOTES) closes.
+    panel.closeNoteMap();
+    panel.openNoteMap();
+    CHECK (mapOfA() == (bit (7) | bit (12)));
+    editor.erase();
+    CHECK (mapOfA() == 0);
+    panel.showNotes (false);
+    CHECK_FALSE (panel.isShowingNoteMap());
+}
+
+TEST_CASE ("The PITCH stomp switches TUNE VOICE too: off means the plain voice, on brings its mode back", "[ui][harmony][correct]")
+{
+    // 0.21.0 and before: TUNE VOICE works without HARMONY, and the stomp
+    // didn't switch it, so with the stomp's light out the voice stayed
+    // tuned and 40 ms late: PITCH seemed impossible to turn off.
+    ParagonX1AudioProcessor processor;
+    constexpr double rate = 48000.0;
+    constexpr int blockSize = 256;
+    processor.setPlayConfigDetails (1, 2, rate, blockSize);
+    set (processor, ParamIDs::inputLowCut, 20.0f);
+    processor.prepareToPlay (rate, blockSize);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Footswitch*> footswitches;
+    findAll (*editor, footswitches);
+    REQUIRE (footswitches.size() == 7);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+               { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    auto& pitch = *footswitches[3];
+    auto& state = processor.getParameters();
+    const auto correct = [&state] { return juce::roundToInt (state.getRawParameterValue (ParamIDs::harmonyCorrect)->load()); };
+
+    // The largest difference between what goes in and what comes out over
+    // the last half of a second of a slightly flat A3 (a voice to tune).
+    const auto changeToVoice = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        auto worst = 0.0f;
+        const auto blocks = (int) rate / blockSize;
+        for (int n = 0; n < blocks; ++n)
+        {
+            std::array<float, blockSize> in {};
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const auto t = (double) (n * blockSize + i) / rate;
+                for (int h = 1; h <= 6; ++h)
+                    in[(size_t) i] += (float) (0.15 / h * std::sin (juce::MathConstants<double>::twoPi * 214.0 * h * t));
+                buffer.setSample (0, i, in[(size_t) i]);
+            }
+            processor.processBlock (buffer, midi);
+            if (n >= blocks / 2)
+                for (int i = 0; i < blockSize; ++i)
+                    worst = std::max (worst, std::abs (buffer.getSample (0, i) - in[(size_t) i]));
+        }
+        return worst;
+    };
+
+    set (processor, ParamIDs::harmonyCorrect, (float) effects::Harmony::Correct::hard);
+    processor.updateLatency();
+    CHECK (processor.getLatencySamples() > 0);
+    CHECK (changeToVoice() > 0.1f);   // tuned (and late)
+    pitch.refresh();
+    CHECK (pitch.isAnyOn());          // the stomp's light shows it
+
+    pitch.toggle();                   // off
+    processor.updateLatency();
+    CHECK (correct() == (int) effects::Harmony::Correct::off);
+    CHECK (processor.getLatencySamples() == 0);
+    CHECK (changeToVoice() < 1.0e-5f);   // the plain voice, untouched
+    CHECK_FALSE (pitch.isAnyOn());
+
+    pitch.toggle();                   // on: Hard again, not another mode, and not HARMONY
+    CHECK (correct() == (int) effects::Harmony::Correct::hard);
+    CHECK (state.getRawParameterValue (ParamIDs::harmonyOn)->load() < 0.5f);
+}
+
+TEST_CASE ("HARMONY's FLATTEN and FX view", "[ui][harmony][voicefx]")
+{
+    ParagonX1AudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    HarmonyPanel panel (parameters, [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::Slider*> sliders;
+    std::vector<juce::ComboBox*> boxes;
+    findAll (panel, sliders);
+    findAll (panel, boxes);
+    // The visible slider (or box) bound to `id` right now, if any.
+    const auto sliderFor = [&] (const juce::String& id) -> juce::Slider*
+    {
+        auto* parameter = dynamic_cast<juce::RangedAudioParameter*> (parameters.getParameter (id));
+        for (auto* slider : sliders)
+            if (slider->isVisible() && slider->getRange().getEnd() == parameter->getNormalisableRange().end
+                && juce::approximatelyEqual ((float) slider->getValue(), parameter->convertFrom0to1 (parameter->getValue())))
+                return slider;
+        return nullptr;
+    };
+    const auto boxWith = [&] (const juce::StringArray& choices) -> juce::ComboBox*
+    {
+        for (auto* box : boxes)
+            if (box->isVisible() && box->getNumItems() == choices.size() && box->getItemText (0) == choices[0])
+                return box;
+        return nullptr;
+    };
+
+    // FLATTEN: PITCH's knob gives way to NOTE (C1 to C5).
+    panel.selectVoice (0);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Pitch")) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) == nullptr);
+    set (processor, ParamIDs::harmonyVoice (0, "Flatten").toRawUTF8(), 1.0f);
+    panel.selectVoice (0);   // (the panel's timer does this in the plugin)
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Pitch")) == nullptr);
+
+    // FX: the voice's DELAY, SYNC, FEEDBACK, FILTER, CUTOFF instead.
+    CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
+    panel.showFx (true);
+    CHECK (panel.isShowingFx());
+    auto* filter = boxWith (effects::Harmony::filterNames);
+    REQUIRE (filter != nullptr);
+    CHECK (boxWith (effects::Delay::syncNames) != nullptr);
+    CHECK (sliderFor (ParamIDs::harmonyVoice (0, "Note")) == nullptr);
+
+    // Switching to HIGH-PASS with CUTOFF at 20 kHz (silence) starts it at 20 Hz.
+    const auto cutoffOf = [&parameters] (const juce::String& id) { return parameters.getRawParameterValue (id)->load(); };
+    filter->setSelectedItemIndex (1, juce::sendNotificationSync);
+    CHECK (juce::roundToInt (cutoffOf (ParamIDs::harmonyVoice (0, "Filter"))) == 1);
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));
+
+    // On NOTES, FX is the note voices' (still at their own starting values).
+    panel.showNotes (true);
+    filter = boxWith (effects::Harmony::filterNames);
+    REQUIRE (filter != nullptr);
+    CHECK (filter->getSelectedItemIndex() == 0);
+    filter->setSelectedItemIndex (2, juce::sendNotificationSync);   // band-pass: from 20 kHz to 1 kHz
+    CHECK (juce::roundToInt (cutoffOf (ParamIDs::harmonyNoteFilter)) == 2);
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyNoteCutoff), Catch::Matchers::WithinAbs (1000.0, 1.0));
+    CHECK_THAT (cutoffOf (ParamIDs::harmonyVoice (0, "Cutoff")), Catch::Matchers::WithinAbs (effects::Harmony::filterLowestHz, 0.5));   // voice 1 untouched
+    panel.showFx (false);
+    CHECK (boxWith (effects::Harmony::filterNames) == nullptr);
+}
+
+TEST_CASE ("The rack: every block's display, real controls and EXPRESSION ASSIGN on one unit", "[ui][faceplate][rack]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    auto& rack = *faceplates[0];
+    REQUIRE (rack.isRack());
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    std::vector<EffectPanel*> effectPanels;
+    findAll (*editor, effectPanels);
+    std::vector<juce::Component*> editors;   // HARMONY, the EQ, the DOUBLER, MARS
+    {
+        std::vector<HarmonyPanel*> harmony; findAll (*editor, harmony);
+        std::vector<GraphicEqPanel*> eq; findAll (*editor, eq);
+        std::vector<DoublerPanel*> doubler; findAll (*editor, doubler);
+        std::vector<MarsPanel*> mars; findAll (*editor, mars);
+        REQUIRE ((harmony.size() == 1 && eq.size() == 1 && doubler.size() == 1 && mars.size() == 1));
+        editors = { harmony[0], eq[0], doubler[0], mars[0] };
+    }
+    auto* parent = rack.getParentComponent();
+    const auto rackBounds = rack.getBounds();
+
+    // EXPRESSION ASSIGN at the rack's right end, on the same unit.
+    std::vector<ExpressionPanel*> expression;
+    findAll (*editor, expression);
+    REQUIRE (expression.size() == 1);
+    CHECK (expression[0]->getBounds() == rack.getSideArea() + rack.getPosition());
+    CHECK (expression[0]->getRight() > rack.getControlArea().getRight() + rack.getX());
+
+    for (int block = 0; block < 13; ++block)
+    {
+        CAPTURE (block);
+        chains[0]->onSelect (block);
+        // Exactly one set of controls showing, on the rack's face, between
+        // its display and EXPRESSION ASSIGN.
+        juce::Component* showing = nullptr;
+        int count = 0;
+        for (auto* panel : effectPanels)
+            if (panel->isVisible())
+            {
+                CHECK (panel->isRack());
+                showing = panel;
+                ++count;
+            }
+        for (auto* panel : editors)
+            if (panel->isVisible())
+            {
+                showing = panel;
+                ++count;
+            }
+        REQUIRE (count == 1);
+        const auto shown = showing->getBoundsInParent();   // as drawn, scaled for an editor
+        CHECK (rackBounds.contains (shown));
+        CHECK (shown.getX() >= rack.getX() + rack.getDisplayArea().getX());
+        CHECK (shown.getRight() <= expression[0]->getX());
+        // On the face at full size, nothing shrunk. HARMONY and MARS cover
+        // the rack's display too (their graph and band display are the
+        // display), and a click there lands on them.
+        CHECK (showing->getTransform().isIdentity());
+        const auto controls = rack.getControlArea() + rack.getPosition();
+        const auto coversDisplay = dynamic_cast<MarsPanel*> (showing) != nullptr || dynamic_cast<HarmonyPanel*> (showing) != nullptr;
+        CHECK (shown == (coversDisplay ? controls.getUnion (rack.getDisplayArea() + rack.getPosition()) : controls));
+        if (coversDisplay)
+        {
+            auto* hit = parent->getComponentAt ((rack.getDisplayArea() + rack.getPosition()).getCentre());
+            CHECK ((hit == showing || showing->isParentOf (hit)));
+        }
+    }
+
+    // The DOUBLER on the rack: its number boxes set their voices' settings.
+    chains[0]->onSelect (8);   // DOUBLER
+    auto* doublerPanel = dynamic_cast<DoublerPanel*> (editors[2]);
+    REQUIRE (doublerPanel != nullptr);
+    CHECK (doublerPanel->isRack());
+    std::vector<juce::Slider*> numbers;
+    findAll (*doublerPanel, numbers);
+    REQUIRE (! numbers.empty());
+    // The first box in reading order is voice 1's GAIN.
+    std::sort (numbers.begin(), numbers.end(), [] (auto* a, auto* b) { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    juce::Slider* gain = nullptr;
+    for (auto* number : numbers)
+        if (gain == nullptr && number->getX() < doublerPanel->getWidth() / 2)
+            gain = number;
+    REQUIRE (gain != nullptr);
+    gain->setValue (-9.0, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::doublerVoice (0, "Gain"))->load(), Catch::Matchers::WithinAbs (-9.0, 0.05));
+
+    // MARS on the rack: its band display is the rack's display, and clicking
+    // it picks a band; its DRIVE knob (one of the unit's big knobs) sets the band's drive.
+    chains[0]->onSelect (4);
+    auto* marsPanel = dynamic_cast<MarsPanel*> (editors[3]);
+    REQUIRE (marsPanel != nullptr);
+    CHECK (marsPanel->isRack());
+    set (processor, ParamIDs::marsBands, 1.0f);   // two bands
+    set (processor, ParamIDs::marsCross1, 1000.0f);
+    marsPanel->selectBand (0);
+    const auto displayArea = rack.getDisplayArea() + rack.getPosition() - marsPanel->getPosition();
+    const juce::Point<float> inBand2 (marsPanel->xFor (5000.0f), (float) displayArea.getCentreY());
+    CHECK (displayArea.toFloat().contains (inBand2));
+    marsPanel->mouseDown (mouseAt (*marsPanel, inBand2));
+    marsPanel->mouseUp (mouseAt (*marsPanel, inBand2));
+    CHECK (marsPanel->getSelectedBand() == 1);
+    std::vector<juce::Slider*> marsKnobs;
+    findAll (*marsPanel, marsKnobs);
+    juce::Slider* driveKnob = nullptr;
+    for (auto* knob : marsKnobs)
+        if (knob->isVisible() && (bool) knob->getProperties()[ParagonLookAndFeel::pedalKnobProperty]
+            && (driveKnob == nullptr || knob->getX() < driveKnob->getX()))
+            driveKnob = knob;   // the first knob in the row: DRIVE
+    REQUIRE (driveKnob != nullptr);
+    driveKnob->setValue (0.75, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::marsBand (1, "Drive"))->load(), Catch::Matchers::WithinAbs (0.75, 0.01));
+
+    // The GRAPHIC EQ's faders on the rack set their bands.
+    chains[0]->onSelect (5);
+    auto* eqPanel = dynamic_cast<GraphicEqPanel*> (editors[1]);
+    REQUIRE (eqPanel != nullptr);
+    CHECK (eqPanel->isRack());
+    std::vector<juce::Slider*> eqFaders;
+    findAll (*eqPanel, eqFaders);
+    REQUIRE (eqFaders.size() == 10);   // nine bands and LEVEL
+    std::sort (eqFaders.begin(), eqFaders.end(), [] (auto* a, auto* b) { return a->getX() < b->getX(); });
+    eqFaders[2]->setValue (-5.0, juce::sendNotificationSync);   // 250 Hz
+    CHECK_THAT (processor.getParameters().getRawParameterValue ("eq250")->load(), Catch::Matchers::WithinAbs (-5.0, 0.05));
+    eqFaders[9]->setValue (3.0, juce::sendNotificationSync);    // LEVEL
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::eqLevel)->load(), Catch::Matchers::WithinAbs (3.0, 0.05));
+
+    // HARMONY on the rack: its graph is in the rack's display, and a click
+    // on an empty spot there adds a voice, as before.
+    chains[0]->onSelect (0);
+    auto* harmonyPanel = dynamic_cast<HarmonyPanel*> (editors[0]);
+    REQUIRE (harmonyPanel != nullptr);
+    REQUIRE (harmonyPanel->isVisible());
+    CHECK (harmonyPanel->isRack());
+    // (Voices 1 and 2 start in use; a click on an empty spot adds the first free one, voice 3.)
+    REQUIRE (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() < 0.5f);
+    const auto spot = harmonyPanel->pointFor (0.6f, -12.0f);
+    const auto harmonyDisplay = rack.getDisplayArea() + rack.getPosition() - harmonyPanel->getPosition();
+    CHECK (harmonyDisplay.toFloat().contains (spot));
+    harmonyPanel->mouseDown (mouseAt (*harmonyPanel, spot));
+    harmonyPanel->mouseUp (mouseAt (*harmonyPanel, spot));
+    CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (2, "Active"))->load() > 0.5f);
+    CHECK (harmonyPanel->getSelectedVoice() == 2);
+    // The Note Map opens on the wide screen, hiding what's under it; closing it brings that back.
+    harmonyPanel->showNotes (true);
+    harmonyPanel->openNoteMap();
+    CHECK (harmonyPanel->getNoteMap().getX() < harmonyDisplay.getRight());   // across the display too
+    std::vector<juce::TextButton*> harmonyButtons;
+    findAll (*harmonyPanel, harmonyButtons);
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (! button->isVisible());
+    harmonyPanel->closeNoteMap();
+    for (auto* button : harmonyButtons)
+        if (button->getButtonText() == "NOTES")
+            CHECK (button->isVisible());
+    harmonyPanel->showNotes (false);
+
+    // On the rack the controls are the real ones: DELAY's FEEDBACK knob
+    // (one of the unit's big knobs) sets the delay's feedback.
+    chains[0]->onSelect (10);   // DELAY
+    EffectPanel* delay = nullptr;
+    for (auto* panel : effectPanels)
+        if (panel->isVisible())
+            delay = panel;
+    REQUIRE (delay != nullptr);
+    juce::Label* feedbackName = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* label = dynamic_cast<juce::Label*> (child); label != nullptr && label->getText() == "FEEDBACK")
+            feedbackName = label;
+    REQUIRE (feedbackName != nullptr);
+    juce::Slider* feedback = nullptr;
+    for (auto* child : delay->getChildren())
+        if (auto* slider = dynamic_cast<juce::Slider*> (child); slider != nullptr && slider->getBounds().contains (feedbackName->getBounds().getCentreX(), slider->getY() + 1))
+            feedback = slider;
+    REQUIRE (feedback != nullptr);
+    CHECK ((bool) feedback->getProperties()[ParagonLookAndFeel::pedalKnobProperty]);
+    feedback->setValue (0.8, juce::sendNotificationSync);
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::delayFeedback)->load(), Catch::Matchers::WithinAbs (0.8, 0.01));
+}
+
+TEST_CASE ("The FACEPLATE shows the selected block, by its TYPE, with live meters", "[ui][faceplate]")
+{
+    ParagonX1AudioProcessor processor;
+    constexpr double rate = 48000.0;
+    constexpr int blockSize = 256;
+    processor.setPlayConfigDetails (1, 2, rate, blockSize);
+    processor.prepareToPlay (rate, blockSize);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    auto& faceplate = *faceplates[0];
+    std::vector<Footswitch*> footswitches;
+    findAll (*editor, footswitches);
+    std::sort (footswitches.begin(), footswitches.end(), [] (auto* a, auto* b)
+               { return std::make_pair (a->getY(), a->getX()) < std::make_pair (b->getY(), b->getX()); });
+    REQUIRE (footswitches.size() == 7);
+
+    // The graphic EQ shows first.
+    CHECK (faceplate.getLook() == Faceplate::Look::eq);
+
+    // DYNAMICS (stomp 1's name): the faceplate follows its TYPE.
+    footswitches[0]->onSelect();
+    for (auto [type, look] : { std::pair { 0, Faceplate::Look::classic }, std::pair { 1, Faceplate::Look::daybreak },
+                               std::pair { 3, Faceplate::Look::photon }, std::pair { 4, Faceplate::Look::abyss },
+                               std::pair { 2, Faceplate::Look::revival } })
+    {
+        set (processor, ParamIDs::compType, (float) type);
+        CHECK (faceplate.getLook() == look);
+    }
+    footswitches[1]->onSelect();   // SATURATION
+    CHECK (faceplate.getLook() == Faceplate::Look::mars);
+    footswitches[3]->onSelect();   // PITCH
+    CHECK (faceplate.getLook() == Faceplate::Look::harmony);
+    footswitches[5]->onSelect();   // DELAY
+    CHECK (faceplate.getLook() == Faceplate::Look::delay);
+    footswitches[6]->onSelect();   // REVERB
+    CHECK (faceplate.getLook() == Faceplate::Look::reverb);
+    // Every block in the signal chain has its own faceplate now.
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    REQUIRE (chains.size() == 1);
+    const Faceplate::Look expected[] = { Faceplate::Look::harmony, Faceplate::Look::revival /* TYPE set above */, Faceplate::Look::deEsser,
+                                         Faceplate::Look::filterPitch, Faceplate::Look::mars, Faceplate::Look::eq,
+                                         Faceplate::Look::glitch, Faceplate::Look::vocoder, Faceplate::Look::doubler, Faceplate::Look::modulation,
+                                         Faceplate::Look::delay, Faceplate::Look::reverb, Faceplate::Look::loFi };
+    for (int block = 0; block < (int) std::size (expected); ++block)
+    {
+        chains[0]->onSelect (block);
+        CAPTURE (block);
+        CHECK (faceplate.getLook() == expected[block]);
+    }
+
+    // A loud note: the compressor's needle swings, MARS's driven band glows.
+    const auto play = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        for (int b = 0, n = 0; b < 100; ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i, ++n)
+                buffer.setSample (0, i, 0.5f * (float) std::sin (juce::MathConstants<double>::twoPi * 220.0 * n / rate));
+            processor.processBlock (buffer, midi);
+        }
+    };
+    footswitches[0]->onSelect();
+    set (processor, ParamIDs::compType, 0.0f);
+    set (processor, ParamIDs::compOn, 1.0f);
+    set (processor, ParamIDs::compThreshold, -40.0f);
+    set (processor, ParamIDs::compRatio, 8.0f);
+    set (processor, ParamIDs::driveOn, 1.0f);
+    set (processor, ParamIDs::marsBand (0, "On").toRawUTF8(), 1.0f);
+    set (processor, ParamIDs::marsBand (0, "Drive").toRawUTF8(), 0.9f);
+    play();
+    for (int tick = 0; tick < 30; ++tick)
+        faceplate.updateMeters();
+    CAPTURE (processor.getCompGainReductionDb(), faceplate.getShownReduction(), faceplate.getShownDrive (0), faceplate.getShownDrive (1));
+    CHECK (faceplate.getShownReduction() < -6.0f);
+    CHECK_THAT (faceplate.getShownReduction(), Catch::Matchers::WithinAbs (processor.getCompGainReductionDb(), 1.0));
+    CHECK (faceplate.getShownDrive (0) > 0.1f);
+    CHECK (faceplate.getShownDrive (1) < 1.0e-3f);   // band 2 isn't in use
+
+    // DYNAMICS off: the needle comes back to rest.
+    set (processor, ParamIDs::compOn, 0.0f);
+    play();
+    for (int tick = 0; tick < 60; ++tick)
+        faceplate.updateMeters();
+    CHECK (faceplate.getShownReduction() > -0.5f);
+}
+
+TEST_CASE ("HARMONY's GLOBAL view: GLIDE, SYNC, PITCH, FORMANT, and its asterisk", "[ui][harmony][global]")
+{
+    ParagonX1AudioProcessor processor;
+    HarmonyPanel panel (processor.getParameters(), [] { return -1.0f; }, [] { return -1.0f; }, &processor.getHarmony());
+    panel.setBounds (0, 0, 672, 254);
+    std::vector<juce::TextButton*> buttons;
+    std::vector<juce::Label*> labels;
+    findAll (panel, buttons);
+    findAll (panel, labels);
+    const auto button = [&buttons] (const juce::String& prefix) -> juce::TextButton*
+    {
+        for (auto* b : buttons)
+            if (b->getButtonText().startsWith (prefix))
+                return b;
+        return nullptr;
+    };
+    const auto labelShown = [&labels] (const juce::String& text)
+    {
+        for (auto* label : labels)
+            if (label->isVisible() && label->getText() == text)
+                return true;
+        return false;
+    };
+    auto* global = button ("GLOBAL");
+    REQUIRE (global != nullptr);
+    CHECK (global->isVisible());
+    CHECK_FALSE (labelShown ("GLIDE"));
+
+    panel.showGlobal (true);
+    CHECK (panel.isShowingGlobal());
+    CHECK (labelShown ("GLIDE"));
+    CHECK (labelShown ("SOURCE"));       // the mix stays
+    CHECK_FALSE (labelShown ("FLATTEN"));
+
+    // The asterisk: a global setting changed.
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL");
+    set (processor, ParamIDs::harmonyGlobalPitch, 7.0f);
+    panel.updateReadings();
+    CHECK (global->getButtonText() == "GLOBAL*");
+
+    // FX and GLOBAL take turns; a voice tab goes back to the voice.
+    panel.showFx (true);
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK_FALSE (labelShown ("GLIDE"));
+    panel.showGlobal (true);
+    CHECK_FALSE (panel.isShowingFx());
+    button ("2")->onClick();   // what clicking tab 2 does
+    CHECK_FALSE (panel.isShowingGlobal());
+    CHECK (labelShown ("FLATTEN"));
+}
+
+TEST_CASE ("HARMONY's SNAPSHOTS page: pick to recall, STORE, COPY / PASTE, DELETE", "[ui][harmony][snapshots]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<HarmonyPanel*> panels;
+    findAll (*editor, panels);
+    REQUIRE (panels.size() == 1);
+    auto& panel = *panels[0];
+    panel.openSnapshots();
+    CHECK (panel.isShowingSnapshots());
+    auto& page = panel.getSnapshots();
+    const auto pitch = [&processor] { return processor.getParameters().getRawParameterValue (ParamIDs::harmonyVoice (0, "Pitch"))->load(); };
+
+    // STORE with nothing picked: the first empty slot.
+    page.storeHere();
+    CHECK (page.getPicked() == 0);
+    REQUIRE (processor.getHarmonySnapshot (0).has_value());
+    CHECK (HarmonySnapshotsView::summary (*processor.getHarmonySnapshot (0)) == "+4 +7");   // the two starting voices
+
+    // Change the voice, store in slot 3, and pick slot 1 again: it's recalled.
+    set (processor, ParamIDs::harmonyVoice (0, "Pitch").toRawUTF8(), 3.0f);
+    page.pick (2);
+    page.storeHere();
+    page.pick (0);
+    CHECK (pitch() == 4.0f);
+    page.pick (2);
+    CHECK (pitch() == 3.0f);
+
+    // COPY slot 3, PASTE into slot 8; DELETE it again.
+    page.copyPicked();
+    page.pick (7);   // empty: just picked
+    CHECK (pitch() == 3.0f);
+    page.pastePicked();
+    REQUIRE (processor.getHarmonySnapshot (7).has_value());
+    CHECK (*processor.getHarmonySnapshot (7) == *processor.getHarmonySnapshot (2));
+    page.deletePicked();
+    CHECK_FALSE (processor.getHarmonySnapshot (7).has_value());
+
+    panel.closeSnapshots();
+    CHECK_FALSE (panel.isShowingSnapshots());
+}
+
+TEST_CASE ("HARMONY's modulators: a knob's menu puts one on it, the MODS page shows and edits them", "[ui][harmony][modulators]")
+{
+    using HarmonyMod = effects::HarmonyModulation;
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<HarmonyPanel*> panels;
+    findAll (*editor, panels);
+    REQUIRE (panels.size() == 1);
+    auto& panel = *panels[0];
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    chains[0]->onSelect (0);   // PITCH, on HARMONY
+    REQUIRE (panel.isVisible());
+
+    // The PITCH knob is voice 1's PITCH (the picked voice); voice 2 picked, it's voice 2's.
+    std::vector<MarsModUi::ModSlider*> knobs;
+    findAll (panel, knobs);
+    MarsModUi::ModSlider* pitchKnob = nullptr;
+    for (auto* knob : knobs)
+        if (knob->isVisible() && panel.targetOfKnobAt (knob->getBounds().getCentre()) == ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (0, "Pitch")))
+            pitchKnob = knob;
+    REQUIRE (pitchKnob != nullptr);
+    CHECK (pitchKnob->target > 0);   // answers a right-click
+    panel.selectVoice (1);
+    const auto voice2Pitch = ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonyVoice (1, "Pitch"));
+    CHECK (panel.targetOfKnobAt (pitchKnob->getBounds().getCentre()) == voice2Pitch);
+
+    // The menu: add M1 (a semitone either way, for a pitch), set its depth, add PT, remove M1.
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::m1);
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0) == Rig::HarmonyModSlot { HarmonyMod::m1, 1.0f / 24.0f });
+    CHECK (panel.modulationMenu (voice2Pitch).getNumItems() > 2);   // the heading, "Add", M1's slot, MODS
+    panel.chooseFromModulationMenu (voice2Pitch, 100 + 1);          // slot 1: depth 100%
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0).depth == 1.0f);
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::pt);
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 1).source == HarmonyMod::pt);
+    panel.chooseFromModulationMenu (voice2Pitch, 100);              // slot 1: remove
+    CHECK (processor.getHarmonyModSlot (voice2Pitch, 0).source == 0);
+    panel.addModulator (ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread), HarmonyMod::m3);
+    CHECK (processor.getHarmonyModSlot (ParagonX1AudioProcessor::harmonyModTarget (ParamIDs::harmonySpread), 0).depth == 0.25f);   // a quarter of its range
+
+    // MODS: opens on the rack's wide screen, hiding the controls under it.
+    panel.openMods (2);   // M3
+    REQUIRE (panel.isShowingMods());
+    auto& page = panel.getMods();
+    CHECK (page.getTab() == 2);
+    CHECK (page.assignmentsText().contains ("SPREAD +25%"));
+    CHECK_FALSE (pitchKnob->isVisible());
+    page.showTab (0);
+    CHECK (page.assignmentsText().startsWith ("NOT ON ANYTHING"));
+    // SEQ: drag a step's bar.
+    set (processor, ParamIDs::harmonyMod (0, "Type").toRawUTF8(), 1.0f);
+    set (processor, ParamIDs::harmonyMod (0, "Steps").toRawUTF8(), 4.0f);
+    page.resized();
+    const auto area = page.stepArea();
+    page.setStepAt ({ area.getX() + area.getWidth() * 0.6f, area.getY() + area.getHeight() * 0.25f });   // step 3, half way up
+    CHECK (processor.getParameters().getRawParameterValue (ParamIDs::harmonyModStep (0, 2))->load() == 12.0f);
+
+    // Stage 10. SHAPE Drawn: drawing on the display sets the points under the drag, with no gaps.
+    set (processor, ParamIDs::harmonyMod (0, "Type").toRawUTF8(), 0.0f);
+    set (processor, ParamIDs::harmonyMod (0, "Shape").toRawUTF8(), (float) HarmonyMod::drawnShape);
+    page.resized();
+    REQUIRE (page.isDrawing());
+    const auto inner = page.stepArea().reduced (6.0f, 6.0f);
+    const auto at = [&inner] (float place, float height) { return juce::Point<float> (inner.getX() + inner.getWidth() * place, inner.getCentreY() - height * inner.getHeight() * 0.5f); };
+    page.drawAt (at (0.1f, 0.5f));
+    page.drawAt (at (0.5f, 0.5f), at (0.1f, 0.5f));
+    const auto drawn = processor.getHarmonyModShape (0);
+    for (size_t i = 4; i <= 15; ++i)
+        CHECK_THAT (drawn[i], Catch::Matchers::WithinAbs (0.5, 0.01));
+    CHECK (drawn[20] == 0.0f);
+
+    // A1: its own knobs, bound to A1's parameters; A2's are A2's.
+    page.showTab (HarmonyModsView::a2Tab);
+    set (processor, ParamIDs::harmonyEnvelope (1, "Attack").toRawUTF8(), 250.0f);
+    auto* attackKnob = [&page]() -> juce::Slider*
+    {
+        for (auto* child : page.getChildren())
+            if (auto* slider = dynamic_cast<juce::Slider*> (child); slider != nullptr && slider->isVisible())
+                return slider;   // the first one showing: ATTACK
+        return nullptr;
+    }();
+    REQUIRE (attackKnob != nullptr);
+    CHECK_THAT (attackKnob->getValue(), Catch::Matchers::WithinAbs (250.0, 0.5));
+    page.showTab (HarmonyModsView::a1Tab);
+    CHECK_THAT (attackKnob->getValue(), Catch::Matchers::WithinAbs (10.0, 0.5));
+    CHECK (HarmonyModsView::sourceOf (HarmonyModsView::spTab) == HarmonyMod::sp);
+
+    // MIDI's sources are in a group of their own in the knob's menu, and on the MIDI tab.
+    panel.chooseFromModulationMenu (voice2Pitch, HarmonyMod::pitchWheel);
+    page.showTab (HarmonyModsView::midiTab);
+    CHECK (page.assignmentsText().contains ("PITCH WHEEL > VOICE 2 PITCH"));
+    panel.closeMods();
+    CHECK_FALSE (panel.isShowingMods());
+    CHECK (pitchKnob->isVisible());
+}
+
+TEST_CASE ("The VOCODER's band display: on the rack's display, drawn with the mouse", "[ui][vocoder]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<SignalChain*> chains;
+    findAll (*editor, chains);
+    std::vector<VocoderBandsView*> views;
+    findAll (*editor, views);
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE ((chains.size() == 1 && views.size() == 1 && faceplates.size() == 1));
+    auto& view = *views[0];
+    auto& rack = *faceplates[0];
+
+    CHECK_FALSE (view.isVisible());
+    chains[0]->onSelect (7);   // VOCODER
+    REQUIRE (view.isVisible());
+    CHECK (rack.getLook() == Faceplate::Look::vocoder);
+    CHECK (view.getBounds() == rack.getDisplayArea() + rack.getPosition());
+
+    // VOL: drawing low across the left half turns those bands down; RESET brings them back.
+    // (0 dB reads back a few millionths of a dB off on macOS, through the
+    // parameter's 0-1 position: compared within a ten-thousandth.)
+    const auto plot = view.getPlotArea();
+    const auto at = [&plot] (float place, float height) { return juce::Point<float> (plot.getX() + plot.getWidth() * place, plot.getBottom() - plot.getHeight() * height); };
+    view.drawAt (at (0.0f, 0.0f));
+    view.drawAt (at (0.5f, 0.0f), at (0.0f, 0.0f));
+    const auto vol = [&processor] (int point) { return processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandVol (point))->load(); };
+    for (int point = 0; point <= 15; ++point)
+        CHECK (vol (point) <= effects::Vocoder::minBandDb + 0.5f);
+    CHECK_THAT (vol (20), Catch::Matchers::WithinAbs (0.0, 1.0e-4));
+    view.resetCurve();
+    CHECK_THAT (vol (3), Catch::Matchers::WithinAbs (0.0, 1.0e-4));
+
+    // PAN: drawing at the top sends a band right.
+    view.showPan (true);
+    view.drawAt (at (1.0f, 1.0f));
+    CHECK_THAT (processor.getParameters().getRawParameterValue (ParamIDs::vocoderBandPan (31))->load(), Catch::Matchers::WithinAbs (1.0, 0.02));
+    CHECK_THAT (vol (31), Catch::Matchers::WithinAbs (0.0, 1.0e-4));   // VOL untouched
+
+    chains[0]->onSelect (5);
+    CHECK_FALSE (view.isVisible());
+}
+
+TEST_CASE ("The compressor's TYPE menu leaves Classic and Daybreak out, and says (old) when a song is on one", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    std::vector<juce::ComboBox*> boxes;
+    findAll (*editor, boxes);
+    juce::ComboBox* type = nullptr;
+    for (auto* box : boxes)
+        if (box->indexOfItemId (3) >= 0 && box->getItemText (box->indexOfItemId (3)) == "Revival")
+            type = box;
+    REQUIRE (type != nullptr);
+    CHECK (type->indexOfItemId (1) < 0);   // no Classic to pick (0.41.0)...
+    CHECK (type->indexOfItemId (2) < 0);   // ...nor Daybreak (0.42.0)
+    CHECK (type->getNumItems() == 3);      // Revival, Photon, Abyss
+    CHECK (type->getItemText (type->indexOfItemId (4)) == "Photon");
+    CHECK (type->getItemText (type->indexOfItemId (5)) == "Abyss");
+    // Picking from the menu sets the right TYPE (by item, not position: Classic's gap mustn't shift them).
+    type->setSelectedId (3, juce::sendNotificationSync);
+    CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 2);   // Revival
+    type->setSelectedId (5, juce::sendNotificationSync);
+    CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 4);   // Abyss
+    set (processor, ParamIDs::compType, 1.0f);   // a song on Daybreak
+    CHECK (type->getSelectedId() == 0);
+    CHECK (type->getTextWhenNothingSelected() == "Daybreak (old)");
+    // A song on Classic: nothing picked in the menu, "Classic (old)" shown.
+    set (processor, ParamIDs::compType, 0.0f);
+    CHECK (type->getTextWhenNothingSelected() == "Classic (old)");
+    CHECK (type->getSelectedId() == 0);
+}
+
+// Hidden (run with "[uicpu]"): how much of one core the open window takes
+// while nothing happens, on a screen (xvfb), with silent audio running.
+// PARAGON_UICPU_BLOCK=n opens block n (as PARAGON_SNAPSHOT_BLOCK);
+// PARAGON_UICPU_PARAMS=id=value,... sets switches; PARAGON_UICPU_SING=1
+// plays a sung note instead of silence.
+TEST_CASE ("CPU of the open window, idle", "[.][uicpu]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.setPlayConfigDetails (1, 2, 48000.0, 256);
+    processor.prepareToPlay (48000.0, 256);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    // A bare virtual screen has no window manager, so some window properties
+    // JUCE sets don't exist there. Ignore those X errors rather than exit.
+#if defined (__linux__)
+    if (auto* x11 = dlopen ("libX11.so.6", RTLD_NOW))
+        if (auto* setHandler = (void* (*) (int (*) (void*, void*))) dlsym (x11, "XSetErrorHandler"))
+            setHandler ([] (void*, void*) { return 0; });
+#endif
+    editor->addToDesktop (0);
+    editor->setVisible (true);
+    if (const auto block = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_BLOCK", {}); block.isNotEmpty())
+    {
+        std::vector<SignalChain*> chains;
+        findAll (*editor, chains);
+        REQUIRE (! chains.empty());
+        chains.front()->onSelect (block.getIntValue());
+    }
+    for (const auto& pair : juce::StringArray::fromTokens (juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_PARAMS", {}), ",", {}))
+        set (processor, pair.upToFirstOccurrenceOf ("=", false, false).toRawUTF8(), pair.fromFirstOccurrenceOf ("=", false, false).getFloatValue());
+    const auto sing = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_SING", {}).isNotEmpty();
+    // PARAGON_UICPU_MODS=n: HARMONY's MODS page on tab n; PARAGON_UICPU_PAGE=n: MARS's page n (BANDS, GLOBAL, MOD, SLOTS).
+    if (const auto modsTab = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_MODS", {}); modsTab.isNotEmpty())
+    {
+        std::vector<HarmonyPanel*> panels;
+        findAll (*editor, panels);
+        REQUIRE (! panels.empty());
+        panels.front()->openMods (modsTab.getIntValue());
+    }
+    if (const auto page = juce::SystemStats::getEnvironmentVariable ("PARAGON_UICPU_PAGE", {}); page.isNotEmpty())
+    {
+        std::vector<MarsPanel*> panels;
+        findAll (*editor, panels);
+        REQUIRE (! panels.empty());
+        panels.front()->showPage (page.getIntValue());
+    }
+
+    std::atomic<bool> running { true };
+    std::thread audio ([&]
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        double phase = 0.0;
+        while (running)
+        {
+            buffer.clear();
+            if (sing)
+                for (int i = 0; i < buffer.getNumSamples(); ++i, phase += 220.0 / 48000.0)
+                    buffer.setSample (0, i, 0.3f * (float) std::sin (juce::MathConstants<double>::twoPi * phase));
+            processor.processBlock (buffer, midi);
+            std::this_thread::sleep_for (std::chrono::microseconds (5333));
+        }
+    });
+
+    // Run the message loop: settle for 2 s, then measure 10 s.
+    std::clock_t cpuStart = 0;
+    double wallStart = 0.0, cpu = 0.0, wall = 0.0;
+    juce::Timer::callAfterDelay (2000, [&] { cpuStart = std::clock(); wallStart = juce::Time::getMillisecondCounterHiRes(); });
+    juce::Timer::callAfterDelay (12000, [&]
+    {
+        cpu = (double) (std::clock() - cpuStart) / CLOCKS_PER_SEC;
+        wall = (juce::Time::getMillisecondCounterHiRes() - wallStart) / 1000.0;
+        juce::MessageManager::getInstance()->stopDispatchLoop();
+    });
+    juce::MessageManager::getInstance()->runDispatchLoop();
+    std::printf ("window idle: %.1f%% of a core (whole process)\n", 100.0 * cpu / wall);
+    running = false;
+    audio.join();
+}
+
+TEST_CASE ("The faceplate redraws only what changed: nothing while idle, the display for meters and animations, everything for a setting", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.setPlayConfigDetails (1, 2, 48000.0, 256);
+    processor.prepareToPlay (48000.0, 256);
+    Faceplate plate (processor);
+    plate.setBounds (0, 0, 1662, 260);
+    plate.setRackDisplayWidth (360.0f);
+    plate.setBlock (Faceplate::Unit::delay, "DELAY", Icons::Type::delay, juce::Colours::red, ParamIDs::delayOn, ParamIDs::delayType);
+
+    // Redrawing it all 30 times a second for nothing cost a whole core in
+    // software rendering: once drawn, an idle unit draws nothing.
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    for (int tick = 0; tick < 5; ++tick)
+    {
+        plate.updateMeters();
+        CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+    }
+
+    // A setting: the whole unit (the LED, name and display).
+    set (processor, ParamIDs::delayOn, 1.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    // DELAY on: its light runs, so the display redraws (and only it).
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::display);
+    set (processor, ParamIDs::delayOn, 0.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+
+    // A voice coming in doesn't touch DELAY's display (it has no meter)...
+    std::vector<float> loud (256);
+    for (size_t i = 0; i < loud.size(); ++i)
+        loud[i] = 0.5f * std::sin (0.1f * (float) i);
+    set (processor, ParamIDs::compOn, 1.0f);
+    set (processor, ParamIDs::compType, (float) effects::CompGate::Type::photon);
+    set (processor, ParamIDs::photonInput, 40.0f);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    for (int block = 0; block < 4; ++block)
+        playThrough (processor, loud);
+    plate.updateMeters();
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+
+    // ...but swings DYNAMICS' gain-reduction needle: the display.
+    plate.setBlock (Faceplate::Unit::dynamics, "DYNAMICS", Icons::Type::comp, juce::Colours::red, ParamIDs::compOn, ParamIDs::compType);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);   // another block: everything
+    playThrough (processor, loud);
+    plate.updateMeters();
+    CAPTURE (plate.getShownReduction());
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::display);
+
+    // Where a panel draws over the display (HARMONY on the rack), its live
+    // readings don't redraw the faceplate.
+    plate.setBlock (Faceplate::Unit::pitch, "PITCH", Icons::Type::tuner, juce::Colours::red, ParamIDs::harmonyOn, {});
+    plate.setDisplayCovered (true);
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::whole);
+    playThrough (processor, loud);
+    plate.updateMeters();
+    CHECK (plate.checkRedraw() == Faceplate::Redraw::nothing);
+}
+
+TEST_CASE ("A faceplate display redrawn on its own matches the whole unit drawn at once", "[ui]")
+{
+    ParagonX1AudioProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+    Faceplate plate (processor);
+    plate.setBounds (0, 0, 1662, 260);
+    plate.setRackDisplayWidth (360.0f);
+    plate.setBlock (Faceplate::Unit::dynamics, "DYNAMICS", Icons::Type::comp, juce::Colours::red, ParamIDs::compOn, ParamIDs::compType);
+
+    // A scale between whole pixels, as in a resized window, where the
+    // display-only redraw uses the chassis's picture.
+    const auto startFinish = Finish::get();
+    for (const auto finish : { Finish::Type::pearlWhite, Finish::Type::pearlBlack })
+    {
+        Finish::set (finish, false);
+        plate.resized();   // as the finish's change message does
+        constexpr float scale = 1.4035f;
+        const auto draw = [&] (bool displayOnly)
+        {
+            juce::Image image (juce::Image::ARGB, juce::roundToInt (1662 * scale), juce::roundToInt (260 * scale), true);
+            juce::Graphics g (image);
+            g.addTransform (juce::AffineTransform::scale (scale));
+            if (displayOnly)
+                g.reduceClipRegion (plate.getDisplayArea().expanded (4));
+            plate.paintEntireComponent (g, false);
+            return image;
+        };
+        const auto whole = draw (false), display = draw (true);
+
+        // Compare inside the display area (what the redraw covers).
+        const auto area = (plate.getDisplayArea().expanded (4).toFloat() * scale).getSmallestIntegerContainer().reduced (1);
+        int worst = 0;
+        for (int y = area.getY(); y < area.getBottom(); ++y)
+            for (int x = area.getX(); x < area.getRight(); ++x)
+            {
+                const auto a = whole.getPixelAt (x, y), b = display.getPixelAt (x, y);
+                worst = juce::jmax (worst, std::abs ((int) a.getRed() - (int) b.getRed()), std::abs ((int) a.getGreen() - (int) b.getGreen()),
+                                    std::abs ((int) a.getBlue() - (int) b.getBlue()));
+            }
+        CAPTURE ((int) finish, worst);
+        CHECK (worst <= 6);   // out of 255: the grain's sub-pixel difference, not a visible seam
+    }
+    Finish::set (startFinish, false);
 }

@@ -17,14 +17,28 @@ namespace effects
     //               top end, tape saturation and hiss
     //   bitcrusher  digital decimation: fewer bits and a lower sample rate
     //
+    // Added in PR7-V 0.36.0, voices through a device (our designs):
+    //
+    //   cellPhone     a digital call: the phone band, then a codec's 8 kHz,
+    //                 8-bit companded sound (to 4 kHz and 4 bits at AMOUNT
+    //                 10); NOISE drops whole 20 ms moments, as a bad signal does
+    //   walkieTalkie  a handheld radio: narrow, driven hard, static under the
+    //                 voice while it talks (NOISE) and the squelch's burst of
+    //                 hiss when it stops
+    //   gramophone    an old 78: a horn's two resonances, a slow warble, and
+    //                 the record's crackle and hiss (NOISE)
+    //
     // AMOUNT is how strong the effect is (narrower, dirtier, wobblier,
     // crunchier); NOISE adds the line hiss, tape hiss or static that sells it.
     class LoFi
     {
     public:
         // Saved by number in rigs and projects: only ever add to the end.
-        enum class Type { telephone, amRadio, megaphone, cassette, bitcrusher };
-        static inline const juce::StringArray typeNames { "Telephone", "AM Radio", "Megaphone", "Cassette", "Bitcrusher" };
+        enum class Type { telephone, amRadio, megaphone, cassette, bitcrusher, cellPhone, walkieTalkie, gramophone };
+        static inline const juce::StringArray typeNames { "Telephone", "AM Radio", "Megaphone", "Cassette", "Bitcrusher",
+                                                          "Cell Phone", "Walkie-Talkie", "Gramophone" };
+        // The squelch's burst (Walkie-Talkie) and a lost moment (Cell Phone), in seconds.
+        static constexpr double squelchSeconds = 0.14, frameSeconds = 0.02;
 
         struct Settings
         {
@@ -48,6 +62,11 @@ namespace effects
         void processSpeaker (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processCassette (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
         void processBitcrusher (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processCellPhone (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processWalkieTalkie (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        void processGramophone (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept;
+        // Writes the mono result `x` (sample i) over every channel at MIX and LEVEL.
+        void writeMono (juce::dsp::AudioBlock<float> block, size_t i, float x) noexcept;
         float nextNoise() noexcept;
 
         double sampleRate = 48000.0;
@@ -72,5 +91,19 @@ namespace effects
         // Bitcrusher: the held sample and how long until the next one.
         float heldSample[maxChannels] {};
         int holdCountdown = 0;
+
+        // Cell Phone: where the 20 ms moment is, and whether it's lost.
+        int frameCountdown = 0;
+        bool frameLost = false;
+        float lostGain = 1.0f;
+        // Walkie-Talkie: how loud the voice is, whether it's talking, the squelch burst left.
+        float voiceLevel = 0.0f;
+        bool talking = false;
+        int squelchLeft = 0, quietFor = 0;
+        // Gramophone: the horn's second resonance and the crackle's click.
+        juce::dsp::StateVariableTPTFilter<float> horn;
+        // Cell Phone: the codec's filter before its rate drop (so nothing above the band folds down).
+        std::array<juce::dsp::StateVariableTPTFilter<float>, 2> codecFilter;
+        float click = 0.0f;
     };
 }

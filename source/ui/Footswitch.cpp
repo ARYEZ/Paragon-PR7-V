@@ -17,6 +17,13 @@ Footswitch::Footswitch (int numberToShow, const juce::String& nameToShow, juce::
     // Parameters can change from the DAW (automation) as well as from here,
     // so poll them rather than only reacting to our own clicks.
     startTimerHz (15);
+
+    addMouseListener (&hold, false);
+    hold.onHold = [this]
+    {
+        heldPad = pressedPad && onHold != nullptr && onHold();
+        repaint();
+    };
 }
 
 bool Footswitch::isAnyOn() const
@@ -29,26 +36,34 @@ bool Footswitch::isAnyOn() const
 
 void Footswitch::toggle()
 {
-    juce::StringArray turnOn;
+    // What each parameter is set to (0 to 1): off, or what to bring back.
+    std::map<juce::String, float> turnTo;
     if (isAnyOn())
     {
-        // Off: remember what was on, to bring exactly that back.
+        // Off: remember what was on, and how (TUNE VOICE's Natural, Hard
+        // or Notes, not just "on"), to bring exactly that back.
         wereOn.clear();
         for (const auto& id : onParameterIds)
             if (parameters.getRawParameterValue (id)->load() > 0.5f)
-                wereOn.add (id);
+                wereOn[id] = parameters.getParameter (id)->getValue();
+    }
+    else if (! wereOn.empty())
+    {
+        turnTo = wereOn;
     }
     else
     {
-        turnOn = ! wereOn.isEmpty() ? wereOn : ! firstOnIds.isEmpty() ? firstOnIds : onParameterIds;
+        for (const auto& id : firstOnIds.isEmpty() ? onParameterIds : firstOnIds)
+            turnTo[id] = 1.0f;
     }
 
     for (const auto& id : onParameterIds)
     {
         auto* parameter = parameters.getParameter (id);
+        const auto found = turnTo.find (id);
         // Begin/end tell the DAW this is one user action, for automation recording.
         parameter->beginChangeGesture();
-        parameter->setValueNotifyingHost (turnOn.contains (id) ? 1.0f : 0.0f);
+        parameter->setValueNotifyingHost (found != turnTo.end() ? found->second : 0.0f);
         parameter->endChangeGesture();
     }
     refresh();
@@ -136,11 +151,21 @@ void Footswitch::paint (juce::Graphics& g)
     }
 }
 
+void Footswitch::mouseDown (const juce::MouseEvent& event)
+{
+    pressedPad = switchArea.contains (event.getPosition());
+    heldPad = false;
+}
+
 void Footswitch::mouseUp (const juce::MouseEvent& event)
 {
-    if (switchArea.contains (event.getPosition()))
-        toggle();
-    else if (onSelect)
-        onSelect();
+    // After a hold that did something, letting go does nothing more.
+    if (! std::exchange (heldPad, false))
+    {
+        if (switchArea.contains (event.getPosition()))
+            toggle();
+        else if (onSelect)
+            onSelect();
+    }
     repaint();
 }

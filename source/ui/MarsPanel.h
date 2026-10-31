@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ui/ParagonLookAndFeel.h"
+
 #include "MarsModUi.h"
 #include "MarsSlotsView.h"
 #include "MarsSourcesView.h"
@@ -32,6 +34,19 @@ public:
     MarsPanel (juce::AudioProcessorValueTreeState&, std::function<float (int)> bandDrive, const effects::Mars* mars = nullptr);
     ~MarsPanel() override;
 
+    // The colour of the header icon: the SATURATION block's colour in the chain. (The bands keep their own colours.)
+    void setAccent (juce::Colour colour);
+
+    // On the rack unit's face (see Faceplate), at full size. The panel then
+    // covers the rack's display too (`displayArea`, in this component): the
+    // band display is the rack's display, on one of the unit's screens, and
+    // still played with the mouse. Along the top, the page keys, ON and
+    // BANDS; on BANDS the picked band's ON, STYLE and its ten knobs in a
+    // row (the unit's big knobs); on GLOBAL its row; MOD and SLOTS on one
+    // wide screen across the display and the controls.
+    void setRack (bool inRack, juce::Rectangle<int> displayArea);
+    bool isRack() const noexcept { return rack; }
+
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
@@ -57,6 +72,7 @@ public:
     void removeBand (int band);
 
 private:
+    juce::Colour accent = ParagonColours::drive;
     using Knob = MarsModUi::Knob;
     using Choice = MarsModUi::Choice;
     using Switch = MarsModUi::Switch;
@@ -89,6 +105,14 @@ private:
     MarsSlotsView slotsView;
 
     juce::Rectangle<float> display;
+    bool rack = false;
+    juce::Rectangle<int> rackDisplay;                  // on the rack: where the rack's display is
+    juce::Rectangle<float> rackScreen;                 // on the rack: the screen drawn there (or across, on MOD / SLOTS)
+    juce::Colour inkColour;                            // the stamped names' colour, for the finish showing
+    mutable std::vector<juce::Rectangle<float>> glasses;
+    void layOutRack();
+    void styleForRack();
+    std::vector<juce::Label*> allLabels();
     juce::Rectangle<int> bandTitle;
     std::array<float, effects::Mars::maxBands> shownDrive {};
     float shownModulation = 0.0f;   // a sum of the knobs' offsets: when it moves, they're redrawn

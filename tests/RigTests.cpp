@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -97,7 +98,7 @@ TEST_CASE ("Rig files from before 0.3.0 load: the amp and cab are ignored, the D
     // Saved again, it's a current rig: no amp or cab, and not converted twice.
     const auto resaved = old->toXml();
     CHECK_FALSE (resaved->hasAttribute ("ampModel"));
-    CHECK (resaved->getIntAttribute ("parameterVersion") == 36);
+    CHECK (resaved->getIntAttribute ("parameterVersion") == 38);
 }
 
 TEST_CASE ("Files that aren't rigs, or are from a newer version, are refused", "[rigs]")
@@ -126,6 +127,18 @@ TEST_CASE ("Every factory rig is valid", "[rigs]")
             const auto range = parameter->getNormalisableRange();
             CHECK (value >= range.start);
             CHECK (value <= range.end);
+        }
+        // HARMONY's modulators: real controls and sources, in range.
+        const auto targets = ParamIDs::harmonyModTargets();
+        for (const auto& [target, slots] : rig.harmonyModSlots)
+        {
+            INFO (target);
+            CHECK (targets.contains (target));
+            for (const auto& slot : slots)
+            {
+                CHECK (juce::isPositiveAndBelow (slot.source, (int) effects::HarmonyModulation::numSources));
+                CHECK (std::abs (slot.depth) <= 1.0f);
+            }
         }
     }
 
@@ -198,6 +211,8 @@ TEST_CASE ("Every factory rig is for the voice, and plays at a sensible level", 
             continue;   // everything off: your own voice, before any compressor's make-up
         INFO (rigs[i].name << ": " << levels[i] << " dB, the median " << median << " dB");
         CHECK (std::abs (levels[i] - median) < 6.0);
+        if (std::getenv ("PARAGON_RIG_LEVELS") != nullptr)
+            std::cout << rigs[i].getSlotName() << " " << rigs[i].name << ": " << levels[i] - median << " dB from the median\n";
     }
 }
 
@@ -282,7 +297,7 @@ TEST_CASE ("Rigs are sorted by bank and number, and < > wrap round", "[rigs]")
     CHECK (library.step (&entries.front(), -1) == &entries.back());
     CHECK (library.step (nullptr, 1) == &entries.front());
 
-    CHECK (library.nextFreeNumber (0) == 9);   // factory rigs fill A01-A08
+    CHECK (library.nextFreeNumber (0) == 10);   // factory rigs fill A01-A09
 }
 
 TEST_CASE ("Saving and loading a rig restores the sound but not the global knobs", "[rigs]")
@@ -516,4 +531,94 @@ TEST_CASE ("Rigs saved with a pedal drive model load as MARS, the old knobs gone
     CHECK (p.at (ParamIDs::driveOn) > 0.5f);
     for (const auto* gone : { "driveModel", "driveGain", "driveTone", "driveLevel" })
         CHECK (p.count (gone) == 0);
+}
+
+TEST_CASE ("Bank G's modulators change each rig's sound", "[rigs][harmony][modulators]")
+{
+    // A sung line that moves (A3, then E4 a fifth up), so the note-by-note
+    // sources, PT and the envelopes all have something to follow.
+    constexpr double rate = 48000.0;
+    std::vector<float> line ((size_t) (3.0 * rate), 0.0f);
+    for (size_t i = 0; i < (size_t) (2.6 * rate); ++i)
+    {
+        const auto t = (double) i / rate;
+        const auto f0 = t < 1.3 ? 220.0 : 329.63;
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * f0 - 700.0) / 400.0, 2.0)) + 0.1;
+            line[i] += (float) (0.025 * shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+        }
+    }
+    const auto play = [&line] (const Rig& factory, bool withModulators)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (factory.name));
+        if (! withModulators)
+            for (int target = 0; target < ParamIDs::harmonyModTargets().size(); ++target)
+                for (int slot = 0; slot < effects::HarmonyModulation::slotsPerTarget; ++slot)
+                    r.processor.setHarmonyModSlot (target, slot, {});
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 256);
+        for (size_t start = 0; start + 256 <= line.size(); start += 256)
+        {
+            // The keyboard rig: a soft C and a hard G, then the pitch wheel up.
+            juce::MidiBuffer midi;
+            if (start == 0)
+            {
+                midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.3f), 0);
+                midi.addEvent (juce::MidiMessage::noteOn (1, 67, 1.0f), 0);
+            }
+            if (start == (size_t) (1.5 * rate) / 256 * 256)
+                midi.addEvent (juce::MidiMessage::pitchWheel (1, 16383), 0);
+            buffer.clear();
+            std::copy (line.begin() + (long) start, line.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+        return out;
+    };
+
+    auto count = 0;
+    for (const auto& factory : makeFactoryRigs())
+    {
+        if (factory.bank != 6)
+            continue;
+        ++count;
+        INFO (factory.name);
+        REQUIRE_FALSE (factory.harmonyModSlots.empty());
+        const auto moving = play (factory, true), still = play (factory, false);
+        double difference = 0.0, level = 0.0;
+        for (size_t i = 0; i < moving.size(); ++i)
+        {
+            difference += (double) (moving[i] - still[i]) * (moving[i] - still[i]);
+            level += (double) moving[i] * moving[i];
+        }
+        const auto db = 10.0 * std::log10 (difference / (level + 1.0e-12) + 1.0e-12);
+        CAPTURE (db);
+        CHECK (db > -20.0);   // the modulators' part is clearly there, not a rounding error
+    }
+    CHECK (count == 9);
+}
+
+TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Revival, old ones keep Classic", "[rigs]")
+{
+    ParagonX1AudioProcessor processor;
+    CHECK (juce::roundToInt (processor.getParameters().getRawParameterValue (ParamIDs::compType)->load()) == 2);   // Revival
+
+    // A rig saved before 0.41.0 that never mentioned the TYPE relied on Classic being the default.
+    juce::XmlElement old ("ParagonRig");
+    old.setAttribute ("version", 1);
+    old.setAttribute ("parameterVersion", 37);
+    old.setAttribute ("name", "Old Squeeze");
+    auto* on = old.createNewChildElement ("Param");
+    on->setAttribute ("id", ParamIDs::compOn);
+    on->setAttribute ("value", 1.0);
+    const auto loaded = Rig::fromXml (old);
+    REQUIRE (loaded.has_value());
+    CHECK (loaded->parameters.at (ParamIDs::compType) == 0.0f);
+
+    // Saved now, a rig without a TYPE is on the new default.
+    juce::XmlElement fresh (old);
+    fresh.setAttribute ("parameterVersion", 38);
+    CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }

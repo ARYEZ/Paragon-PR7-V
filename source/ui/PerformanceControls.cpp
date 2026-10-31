@@ -11,8 +11,9 @@ namespace
 {
     constexpr float screenSize = 7.0f / 11.0f;   // the assign screen's frame and bezel, relative to the main screen's
 
-    const char* pedalNames[] = { "VOLUME", "WAH / FILTER", "MORPH / FX", "PITCH / WHAMMY", "LO-FI", "WHAMMY-WAH", "GLITCH", "TALK BOX" };
-    constexpr int lastTarget = ExpressionTargets::talkBox;
+    const char* pedalNames[] = { "VOLUME", "WAH / FILTER", "MORPH / FX", "PITCH / WHAMMY", "LO-FI", "WHAMMY-WAH", "GLITCH", "TALK BOX",
+                                 "CYCLONE SPEED" };
+    constexpr int lastTarget = ExpressionTargets::cycloneSpeed;
     static_assert (std::size (pedalNames) == (size_t) lastTarget && ExpressionAssign::numTargets == lastTarget);
 
     juce::RangedAudioParameter& parameter (juce::AudioProcessorValueTreeState& state, const char* id)
@@ -34,17 +35,26 @@ namespace
         void paintButton (juce::Graphics& g, bool highlighted, bool down) override
         {
             const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
-            g.setColour (down ? ParagonColours::accentDim : juce::Colour (0xff151217));
-            g.fillRoundedRectangle (bounds, 4.0f);
-            g.setColour (highlighted && isEnabled() ? ParagonColours::accent.withAlpha (0.8f) : ParagonColours::panelEdge);
-            g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+            // On the rack, one of the unit's small keys with the arrow on it.
+            const auto key = (bool) getProperties()[ParagonLookAndFeel::rackKeyProperty];
+            if (key)
+            {
+                ParagonLookAndFeel::drawSmallKey (g, bounds, down, highlighted && isEnabled());
+            }
+            else
+            {
+                g.setColour (down ? ParagonColours::accentDim : juce::Colour (0xff151217));
+                g.fillRoundedRectangle (bounds, 4.0f);
+                g.setColour (highlighted && isEnabled() ? ParagonColours::accent.withAlpha (0.8f) : ParagonColours::panelEdge);
+                g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+            }
 
             const auto c = bounds.getCentre();
             const auto w = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.22f;
             juce::Path triangle;
             triangle.addTriangle (c.x - w, up ? c.y + w * 0.6f : c.y - w * 0.6f, c.x + w, up ? c.y + w * 0.6f : c.y - w * 0.6f,
                                   c.x, up ? c.y - w * 0.8f : c.y + w * 0.8f);
-            g.setColour (ParagonColours::accent.withAlpha (isEnabled() ? 1.0f : 0.25f));
+            g.setColour ((key ? (Finish::neonKeys() ? juce::Colours::white : ParagonColours::text) : ParagonColours::accent).withAlpha (isEnabled() ? 1.0f : 0.25f));
             g.fillPath (triangle);
         }
 
@@ -187,6 +197,13 @@ void ExpressionAssign::select (int target)
     // LO-FI fades the LO-FI block in, so switch it on.
     if (newTarget == ExpressionTargets::loFi)
         set (ParamIDs::lofiOn, 1.0f);
+
+    // CYCLONE SPEED sets the rotary speaker's speed: switch MOD on as one.
+    if (newTarget == ExpressionTargets::cycloneSpeed)
+    {
+        set (ParamIDs::modOn, 1.0f);
+        set (ParamIDs::modType, (float) effects::Modulation::Type::rotary);
+    }
 
     attachment.setValueAsCompleteGesture ((float) newTarget);
 }
@@ -778,8 +795,49 @@ void ExpressionPanel::updateRangeText()
     maxLabel.setText ("MAX   " + percent (range.getMaxValue()), juce::dontSendNotification);
 }
 
+void ExpressionPanel::setRack (bool inRack)
+{
+    if (rack == inRack)
+        return;
+    rack = inRack;
+    assign.setRack (inRack);
+    refinish();
+    resized();
+    repaint();
+}
+
+void ExpressionAssign::setRack (bool inRack)
+{
+    for (auto* button : { scrollUp.get(), scrollDown.get() })
+    {
+        button->getProperties().set (ParagonLookAndFeel::rackKeyProperty, inRack);
+        button->repaint();
+    }
+}
+
+void ExpressionPanel::refinish()
+{
+    for (auto* label : { &minLabel, &maxLabel })
+    {
+        label->setFont (juce::FontOptions (rack ? 11.0f : 13.0f, rack ? juce::Font::bold : juce::Font::plain));
+        label->setColour (juce::Label::textColourId, rack ? Finish::ink() : ParagonColours::textDim);
+    }
+    repaint();
+}
+
 void ExpressionPanel::paint (juce::Graphics& g)
 {
+    if (rack)
+    {
+        // Its name stamped on the face, with the unit's red line under it.
+        auto title = getLocalBounds().removeFromTop (30).toFloat();
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold | juce::Font::italic));
+        ParagonLookAndFeel::drawStampedText (g, "EXPRESSION", title.removeFromTop (19.0f), juce::Justification::bottomLeft, Finish::ink());
+        g.setColour (Finish::printedRed());
+        g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+        g.drawText ("PEDAL ASSIGN", title, juce::Justification::centredLeft, false);
+        return;
+    }
     const auto bounds = getLocalBounds().toFloat();
     g.setColour (ParagonColours::panel);
     g.fillRoundedRectangle (bounds, 8.0f);
@@ -795,14 +853,14 @@ void ExpressionPanel::resized()
 {
     // The screen takes everything but one row along the bottom: MIN, the
     // range slider, MAX.
-    auto area = getLocalBounds().reduced (16, 12);
-    area.removeFromTop (34);
+    auto area = rack ? getLocalBounds() : getLocalBounds().reduced (16, 12);
+    area.removeFromTop (rack ? 36 : 34);
     auto bottom = area.removeFromBottom (28);
     area.removeFromBottom (6);
     assign.setBounds (area);
 
-    minLabel.setBounds (bottom.removeFromLeft (76));
-    maxLabel.setBounds (bottom.removeFromRight (86));
+    minLabel.setBounds (bottom.removeFromLeft (rack ? 64 : 76));
+    maxLabel.setBounds (bottom.removeFromRight (rack ? 74 : 86));
     range.setBounds (bottom);
 }
 

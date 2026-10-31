@@ -1,3 +1,4 @@
+#include <map>
 #include "LedDisplay.h"
 
 #include "ParagonLookAndFeel.h"
@@ -122,13 +123,49 @@ void LedDisplay::drawDigit (juce::Graphics& g, juce::juce_wchar digit, juce::Rec
     g.strokePath (litPath, juce::PathStrokeType (t * 0.12f), juce::AffineTransform());
 }
 
+namespace
+{
+    // The frame's drop shadow, a blur, is slow to work out: screens that
+    // redraw often (meters, the faceplate's displays) spent much of the
+    // window's CPU on it. It's the same for every screen of a size, so each
+    // size's shadow is worked out once (at 2x, for sharp screens) and kept.
+    void drawFrameShadow (juce::Graphics& g, juce::Rectangle<float> bounds, float size)
+    {
+        const auto radius = juce::roundToInt (9.0f * size);
+        const auto offset = juce::roundToInt (3.0f * size);
+        const auto margin = (float) (radius + offset + 2);
+        const auto key = juce::String (juce::roundToInt (bounds.getWidth() * 4.0f)) + "x" + juce::String (juce::roundToInt (bounds.getHeight() * 4.0f))
+                       + "@" + juce::String (juce::roundToInt (size * 1000.0f));
+
+        static std::map<juce::String, juce::Image> cache;   // only painted on the message thread
+        auto found = cache.find (key);
+        if (found == cache.end())
+        {
+            if (cache.size() > 64)
+                cache.clear();
+            constexpr float scale = 2.0f;
+            const auto area = juce::Rectangle<float> (bounds.getWidth() + 2.0f * margin, bounds.getHeight() + 2.0f * margin);
+            juce::Image image (juce::Image::ARGB, juce::roundToInt (area.getWidth() * scale), juce::roundToInt (area.getHeight() * scale), true);
+            {
+                juce::Graphics shadow (image);
+                shadow.addTransform (juce::AffineTransform::scale (scale));
+                juce::Path frame;
+                frame.addRoundedRectangle (juce::Rectangle<float> (margin, margin, bounds.getWidth(), bounds.getHeight()).reduced (1.0f), 11.0f * size);
+                juce::DropShadow (juce::Colours::black.withAlpha (0.6f), radius, { 0, offset }).drawForPath (shadow, frame);
+            }
+            found = cache.emplace (key, image).first;
+        }
+        g.drawImage (found->second, bounds.expanded (margin));
+    }
+}
+
 juce::Rectangle<float> LedDisplay::paintScreen (juce::Graphics& g, juce::Rectangle<float> bounds, float size)
 {
     // A polished metal frame set into the face: chrome lit from above, with
     // a dark seam where it meets the black bezel inside it.
     juce::Path frame;
     frame.addRoundedRectangle (bounds.reduced (1.0f), 11.0f * size);
-    juce::DropShadow (juce::Colours::black.withAlpha (0.6f), juce::roundToInt (9.0f * size), { 0, juce::roundToInt (3.0f * size) }).drawForPath (g, frame);
+    drawFrameShadow (g, bounds, size);
     {
         juce::ColourGradient chrome (juce::Colour (0xfffaf3f6), 0.0f, bounds.getY(), juce::Colour (0xff5e4f57), 0.0f, bounds.getBottom(), false);
         chrome.addColour (0.12, juce::Colour (0xffcbbac3));

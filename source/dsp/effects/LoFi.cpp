@@ -18,10 +18,39 @@ namespace effects
         constexpr Speaker telephone { 250.0f, 500.0f, 3800.0f, 2400.0f, 1600.0f, 1.0f, 0.0f, 0.4f, 1.0f, 4.0f, true };
         constexpr Speaker amRadio   { 100.0f, 280.0f, 5500.0f, 3200.0f, 1400.0f, 1.2f, 0.3f, 1.0f, 1.0f, 2.5f, true };
         constexpr Speaker megaphone { 400.0f, 700.0f, 3200.0f, 2200.0f, 1100.0f, 2.5f, 0.8f, 2.5f, 3.0f, 14.0f, true };
+        // 0.36.0's: a phone's band (the codec does the rest), a handheld
+        // radio (narrow, driven hard), a gramophone's horn (with a second
+        // resonance higher up, `horn`).
+        constexpr Speaker cellPhone    { 300.0f, 400.0f, 3400.0f, 3000.0f, 1800.0f, 1.0f, 0.0f, 0.3f, 1.0f, 2.0f, true };
+        constexpr Speaker walkieTalkie { 500.0f, 750.0f, 2800.0f, 2100.0f, 1500.0f, 1.8f, 0.6f, 1.8f, 5.0f, 18.0f, true };
+        constexpr Speaker gramophone   { 220.0f, 380.0f, 3200.0f, 2200.0f, 850.0f, 3.0f, 1.2f, 2.5f, 1.3f, 2.5f, true };
 
         const Speaker& speakerFor (LoFi::Type type)
         {
-            return type == LoFi::Type::amRadio ? amRadio : type == LoFi::Type::megaphone ? megaphone : telephone;
+            switch (type)
+            {
+                case LoFi::Type::amRadio:      return amRadio;
+                case LoFi::Type::megaphone:    return megaphone;
+                case LoFi::Type::cellPhone:    return cellPhone;
+                case LoFi::Type::walkieTalkie: return walkieTalkie;
+                case LoFi::Type::gramophone:   return gramophone;
+                case LoFi::Type::telephone:
+                case LoFi::Type::cassette:
+                case LoFi::Type::bitcrusher:   break;
+            }
+            return telephone;
+        }
+
+        // A phone codec's companding (the mu-law curve): quiet sounds get
+        // more of the steps, so it stays clear but grainy. `steps` levels each side.
+        float muLaw (float x, float steps) noexcept
+        {
+            constexpr float mu = 255.0f;
+            const auto magnitude = juce::jlimit (0.0f, 1.0f, std::abs (x));
+            auto y = std::log1p (mu * magnitude) / std::log1p (mu);
+            y = std::round (y * steps) / steps;
+            const auto back = (std::pow (1.0f + mu, y) - 1.0f) / mu;
+            return x < 0.0f ? -back : back;
         }
 
         float lerp (float a, float b, float t) { return a + (b - a) * t; }
@@ -57,6 +86,24 @@ namespace effects
         }
         resonance.prepare (spec);
         resonance.setType (juce::dsp::StateVariableTPTFilterType::bandpass);
+        horn.prepare (spec);
+        horn.setType (juce::dsp::StateVariableTPTFilterType::bandpass);
+        horn.setCutoffFrequency (2300.0f);
+        horn.setResonance (3.0f);
+        for (auto& filter : codecFilter)
+        {
+            filter.prepare (spec);
+            filter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
+            filter.setCutoffFrequency (3400.0f);
+        }
+        quietFor = 0;
+        frameCountdown = 0;
+        frameLost = false;
+        lostGain = 1.0f;
+        voiceLevel = 0.0f;
+        talking = false;
+        squelchLeft = 0;
+        click = 0.0f;
         lastAmount = -1.0f;
 
         tape.setMaximumDelayInSamples ((int) std::ceil (0.02 * sampleRate) + 4);
@@ -126,6 +173,9 @@ namespace effects
                 case Type::megaphone:   processSpeaker (wet, settings); break;
                 case Type::cassette:    processCassette (wet, settings); break;
                 case Type::bitcrusher:  processBitcrusher (wet, settings); break;
+                case Type::cellPhone:    processCellPhone (wet, settings); break;
+                case Type::walkieTalkie: processWalkieTalkie (wet, settings); break;
+                case Type::gramophone:   processGramophone (wet, settings); break;
             }
         });
     }
@@ -242,6 +292,167 @@ namespace effects
                     heldSample[ch] = std::round (juce::jlimit (-1.0f, 1.0f, sample + noiseGain * nextNoise()) * steps) / steps;
                 sample = (sample * (1.0f - mixNow) + heldSample[ch] * mixNow) * gain;
             }
+        }
+    }
+
+    void LoFi::writeMono (juce::dsp::AudioBlock<float> block, size_t i, float x) noexcept
+    {
+        const auto mixNow = mix.getNextValue();
+        const auto gain = level.getNextValue();
+        for (size_t ch = 0; ch < block.getNumChannels(); ++ch)
+        {
+            auto& sample = block.getChannelPointer (ch)[i];
+            sample = (sample * (1.0f - mixNow) + x * mixNow) * gain;
+        }
+    }
+
+    void LoFi::processCellPhone (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    {
+        // The phone band, then the codec: an 8 kHz rate (4 kHz at AMOUNT 10)
+        // with 8-bit companded steps (4 bits at 10), then the band again to
+        // smooth the steps. NOISE: a bad signal, whole 20 ms moments lost
+        // (up to one in six at NOISE 10), faded in 3 ms so they don't click.
+        const auto t = juce::jlimit (0.0f, 10.0f, settings.amount) / 10.0f;
+        const auto steps = std::exp2 (lerp (7.0f, 3.0f, t));
+        const auto holdFor = juce::jmax (1, juce::roundToInt ((float) sampleRate / lerp (8000.0f, 4000.0f, t)));
+        const auto lossChance = 0.16f * juce::jlimit (0.0f, 10.0f, settings.noise) / 10.0f;
+        const auto frameLength = juce::jmax (1, (int) (frameSeconds * sampleRate));
+        const auto fade = 1.0f - std::exp (-1.0f / (0.003f * (float) sampleRate));
+        const auto numChannels = (int) block.getNumChannels();
+        for (auto& filter : codecFilter)
+            filter.setCutoffFrequency (juce::jmin (3400.0f, 0.42f * lerp (8000.0f, 4000.0f, t)));
+
+        for (size_t i = 0; i < block.getNumSamples(); ++i)
+        {
+            auto input = 0.0f;
+            for (int ch = 0; ch < numChannels; ++ch)
+                input += block.getChannelPointer ((size_t) ch)[i];
+            input /= (float) juce::jmax (1, numChannels);
+
+            if (--frameCountdown <= 0)
+            {
+                frameCountdown = frameLength;
+                frameLost = random.nextFloat() < lossChance;
+            }
+            lostGain += ((frameLost ? 0.0f : 1.0f) - lostGain) * fade;
+
+            // The codec hears only the phone band (up to 3.4 kHz, lower as
+            // its rate drops), so nothing above it folds down when sampled.
+            auto x = input;
+            for (auto& filter : lowCuts)
+                x = filter.processSample (0, x);
+            for (auto& filter : codecFilter)
+                x = filter.processSample (0, x);
+            if (--holdCountdown <= 0)
+            {
+                holdCountdown = holdFor;
+                heldSample[0] = muLaw (saturate (x, drive), steps);
+            }
+            x = heldSample[0];
+            for (auto& filter : highCuts)
+                x = filter.processSample (0, x);
+            writeMono (block, i, x * lostGain);
+        }
+    }
+
+    void LoFi::processWalkieTalkie (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    {
+        // Narrow and driven hard. While the voice is there, static under it
+        // (NOISE); when it stops, the squelch: a 140 ms burst of hiss
+        // through the same little speaker, as the receiver closes.
+        const auto noise = juce::jlimit (0.0f, 10.0f, settings.noise) / 10.0f;
+        const auto staticGain = maxNoise * 1.5f * noise;
+        const auto burstGain = 0.08f * (0.4f + 0.6f * noise);
+        const auto squelchLength = (int) (squelchSeconds * sampleRate);
+        const auto attack = 1.0f - std::exp (-1.0f / (0.005f * (float) sampleRate));
+        const auto release = 1.0f - std::exp (-1.0f / (0.03f * (float) sampleRate));
+        const auto hangOn = (int) (0.15 * sampleRate);       // a gap between words doesn't close it
+        constexpr float openAt = 0.01f, closeAt = 0.004f;   // about -40 and -48 dB
+        // Driven hard, then brought back so a sung line is about as loud as
+        // it went in: the loudest parts squashed, as a handheld radio does.
+        const auto makeUp = std::pow (drive, -0.4f);
+        const auto numChannels = (int) block.getNumChannels();
+
+        for (size_t i = 0; i < block.getNumSamples(); ++i)
+        {
+            auto input = 0.0f;
+            for (int ch = 0; ch < numChannels; ++ch)
+                input += block.getChannelPointer ((size_t) ch)[i];
+            input /= (float) juce::jmax (1, numChannels);
+
+            const auto heard = std::abs (input);
+            voiceLevel += (heard - voiceLevel) * (heard > voiceLevel ? attack : release);
+            quietFor = voiceLevel < closeAt ? quietFor + 1 : 0;
+            if (! talking && voiceLevel > openAt)
+            {
+                talking = true;
+                squelchLeft = 0;
+            }
+            else if (talking && quietFor > hangOn)
+            {
+                talking = false;
+                squelchLeft = squelchLength;
+            }
+
+            auto x = input;
+            if (talking)
+                x += staticGain * nextNoise();
+            if (squelchLeft > 0)
+            {
+                const auto left = (float) squelchLeft / (float) squelchLength;
+                x += burstGain * nextNoise() * std::sqrt (left);
+                --squelchLeft;
+            }
+            for (auto& filter : lowCuts)
+                x = filter.processSample (0, x);
+            x += resonance.processSample (0, x) * resonanceGain;
+            x = saturate (x, drive) * makeUp;
+            for (auto& filter : highCuts)
+                x = filter.processSample (0, x);
+            writeMono (block, i, x);
+        }
+    }
+
+    void LoFi::processGramophone (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
+    {
+        // A slow warble (the record a little off-centre), the horn's two
+        // resonances, gentle saturation, the narrow band; NOISE adds the
+        // surface: crackle (random clicks, up to about 25 a second) and hiss.
+        const auto t = juce::jlimit (0.0f, 10.0f, settings.amount) / 10.0f;
+        const auto noise = juce::jlimit (0.0f, 10.0f, settings.noise) / 10.0f;
+        const auto msToSamples = (float) sampleRate * 0.001f;
+        const auto warbleMs = 0.3f + 0.9f * t;
+        const auto clickChance = 25.0f * noise / (float) sampleRate;
+        const auto clickDecay = std::exp (-1.0f / (0.0004f * (float) sampleRate));
+        const auto hissGain = maxNoise * 0.6f * noise;
+        // The horn's peaks and the saturation make it louder: brought back level (measured, on the voice band).
+        const auto hornMakeUp = 0.45f / std::sqrt (drive);
+        const auto numChannels = (int) block.getNumChannels();
+
+        for (size_t i = 0; i < block.getNumSamples(); ++i)
+        {
+            auto input = 0.0f;
+            for (int ch = 0; ch < numChannels; ++ch)
+                input += block.getChannelPointer ((size_t) ch)[i];
+            input /= (float) juce::jmax (1, numChannels);
+
+            wowPhase += 0.75f / (float) sampleRate;   // 45 rpm
+            wowPhase -= std::floor (wowPhase);
+            tape.pushSample (0, input);
+            auto x = tape.popSample (0, (4.0f + warbleMs * std::sin (twoPi * wowPhase)) * msToSamples);
+
+            if (random.nextFloat() < clickChance)
+                click = (random.nextFloat() * 2.0f - 1.0f) * 0.35f * (0.3f + random.nextFloat());
+            click *= clickDecay;
+            x += click + hissGain * nextNoise();
+
+            for (auto& filter : lowCuts)
+                x = filter.processSample (0, x);
+            x += resonance.processSample (0, x) * resonanceGain + horn.processSample (0, x) * resonanceGain * 0.5f;
+            x = saturate (x, drive) * hornMakeUp;
+            for (auto& filter : highCuts)
+                x = filter.processSample (0, x);
+            writeMono (block, i, x);
         }
     }
 }

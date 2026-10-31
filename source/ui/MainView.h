@@ -4,6 +4,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/DockPanels.h"
+#include "ui/Faceplate.h"
 #include "ui/EffectPanel.h"
 #include "ui/Finish.h"
 #include "ui/GraphicEqPanel.h"
@@ -17,6 +18,7 @@
 #include "ui/PedalBody.h"
 #include "ui/PerformanceControls.h"
 #include "ui/RigBrowser.h"
+#include "ui/VocoderBandsView.h"
 #include "ui/SignalChain.h"
 
 // A side strip from the mockup: a title, a gain knob with its value
@@ -89,6 +91,16 @@ public:
     static constexpr int width = 1600;
     static constexpr int height = 900;
 
+    // HIDE RACK takes the rack's strip out (264 mockup pixels, from the
+    // rack's top to the SIGNAL CHAIN's) and the chain moves up under the
+    // floor unit, so the canvas, and the window, get shorter.
+    static constexpr int rackHeight = 253;
+    static constexpr int heightFor (bool rackShown) { return rackShown ? height : height - rackHeight; }
+
+    // Told after the rack is shown or hidden and the view has its new
+    // height, so the editor can resize the window to match.
+    std::function<void()> onHeightChanged;
+
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
@@ -96,15 +108,17 @@ public:
 private:
     // The blocks in signal-chain order; footswitches, the chain strip and
     // the summary cards select these to show their knobs.
-    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
+    enum Block { pitchBlock, compBlock, deEssBlock, filterPitchBlock, driveBlock, eqBlock, glitchBlock, vocoderBlock, doublerBlock, modBlock, delayBlock, reverbBlock, loFiBlock, numBlocks };
 
     enum class Page { processor, presets, settings };
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void applyFinish();   // colours the printed labels and redraws the unit in the current finish
+    void applyRackView(); // shows or hides the rack and sets the view's height to match
     void timerCallback() override;
 
     void selectBlock (int block);
+    void layoutDock();   // the faceplate and the selected block's controls (one rack unit, or side by side)
     void refreshPerformance();
     void toggleTuner();
     void tap();
@@ -157,19 +171,20 @@ private:
     int ticks = 0;
 
     // Dock and signal chain
-    RigNavigator rigNavigator;
-    SelectedRigPanel selectedRig;
+    Faceplate faceplate;   // the selected block as hardware, beside its knobs
     ExpressionPanel expressionPanel;
     std::array<std::unique_ptr<EffectPanel>, numBlocks> panels;   // empty at eqBlock: the EQ has its own panel
     GraphicEqPanel eqPanel;
-    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE (the
+    // PITCH's panel has two views: HARMONY (first) and OCTAVE / FREEZE / FORMANT (the
     // EffectPanel in panels[pitchBlock]), picked with these tabs in its header.
     HarmonyPanel harmonyPanel;
+    VocoderBandsView vocoderBands;   // the VOCODER's band display on the rack's display
     DoublerPanel doublerPanel;   // DOUBLER's own panel (panels[doublerBlock] is empty)
     MarsPanel marsPanel;         // SATURATION's own panel (panels[driveBlock] is empty)
-    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE" };
+    juce::TextButton harmonyView { "HARMONY" }, octaveView { "OCTAVE / FREEZE / FORMANT" };
     bool pitchShowsHarmony = true;
     juce::TextButton closePanel { "GRAPHIC EQ" };   // back to the EQ, the dock's default
+    juce::TextButton rackButton;                     // HIDE RACK / SHOW RACK, on the SIGNAL CHAIN strip
     SignalChain signalChain;
     int selectedBlock = eqBlock;
 

@@ -25,13 +25,12 @@ namespace effects
         float triangle (float phase) { phase -= std::floor (phase); return 4.0f * std::abs (phase - 0.5f) - 1.0f; }
     }
 
-    Modulation::Modulation() : delayLine (8192), hornDelay (2048), drumDelay (2048) {}
+    Modulation::Modulation() : delayLine (8192) {}
 
     void Modulation::prepare (double newSampleRate, int maxBlockSize)
     {
         sampleRate = newSampleRate;
         const juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, (juce::uint32) maxChannels };
-        const juce::dsp::ProcessSpec monoSpec { sampleRate, (juce::uint32) maxBlockSize, 1 };
 
         delayLine.setMaximumDelayInSamples ((int) std::ceil (maxDelayMs * 0.001 * sampleRate) + 4);
         delayLine.prepare (spec);
@@ -39,22 +38,13 @@ namespace effects
         phaser.setCentreFrequency (900.0f);
         phaser.setFeedback (0.5f);
 
-        for (auto* rotor : { &hornDelay, &drumDelay })
-        {
-            rotor->setMaximumDelayInSamples ((int) std::ceil (0.004 * sampleRate) + 4);
-            rotor->prepare (monoSpec);
-        }
-        rotaryCrossover.setCutoffFrequency (800.0f);   // a real Leslie's crossover frequency
-        rotaryCrossover.prepare (monoSpec);
         harmonicCrossover.setCutoffFrequency (900.0f);
         harmonicCrossover.prepare (spec);
 
         depth.reset (sampleRate, 0.05);
         mix.reset (sampleRate, 0.05);
-        lfoPhase = hornPhase = drumPhase = 0.0f;
-        hornHz = 0.8f;
-        drumHz = 0.7f;
-        hornTone = lampGlow = 0.0f;
+        lfoPhase = 0.0f;
+        lampGlow = 0.0f;
         std::fill (std::begin (feedbackSample), std::end (feedbackSample), 0.0f);
         std::fill (std::begin (dimensionTone), std::end (dimensionTone), 0.0f);
         for (auto& channel : vibeStages)
@@ -62,6 +52,7 @@ namespace effects
                 stage = {};
         bypass.prepare (sampleRate, maxBlockSize);
         aeon.prepare (sampleRate, maxBlockSize);
+        cyclone.prepare (sampleRate, maxBlockSize);
     }
 
     float Modulation::advanceLfo (float rateHz) noexcept
@@ -81,6 +72,9 @@ namespace effects
             // Switched to AEON: start with its delay empty, not holding old echoes.
             if (settings.type != lastType && settings.type == Type::flanger)
                 aeon.reset();
+            // Switched to Cyclone: its rotors start at speed, its delays empty.
+            if (settings.type != lastType && settings.type == Type::rotary)
+                cyclone.reset();
             lastType = settings.type;
 
             switch (settings.type)
@@ -110,7 +104,11 @@ namespace effects
                 case Type::tremolo:          processTremolo (wet, settings); break;
                 case Type::dimension:        processDimension (wet, settings); break;
                 case Type::uniVibe:          processUniVibe (wet, settings); break;
-                case Type::rotary:           processRotary (wet, settings); break;
+                case Type::rotary:
+                    cyclone.process (wet, settings.cyclone);
+                    depth.skip ((int) wet.getNumSamples());
+                    mix.skip ((int) wet.getNumSamples());
+                    break;
                 case Type::vibrato:          processVibrato (wet, settings); break;
                 case Type::harmonicTremolo:  processHarmonicTremolo (wet, settings); break;
                 case Type::autoPan:          processAutoPan (wet, settings); break;
@@ -245,68 +243,6 @@ namespace effects
                     wet = out;
                 }
                 samples[i] = dry * (1.0f - mixNow) + wet * mixNow;
-            }
-        }
-    }
-
-    void Modulation::processRotary (juce::dsp::AudioBlock<float> block, const Settings& settings) noexcept
-    {
-        // A Leslie speaker: the signal splits at 800 Hz into a treble horn and
-        // a bass drum, each spinning. As each turns towards and away from the
-        // two microphones its pitch shifts (Doppler: a delay that sweeps) and
-        // its level rises and falls. RATE sets the horn's speed; the drum
-        // turns a little slower. Both have inertia, the heavy drum far more
-        // than the horn, so changing RATE gives the classic ramp: the horn
-        // spins up first and the drum catches up seconds later.
-        const auto numChannels = (int) block.getNumChannels();
-        const auto msToSamples = (float) sampleRate * 0.001f;
-        const auto hornInertia = smoothing (sampleRate, 0.7f), drumInertia = smoothing (sampleRate, 3.0f);
-        const auto hornToneCoefficient = onePole (sampleRate, 5500.0f);
-        constexpr float micOffset = 0.3f;   // the right mic sits a third of a turn round from the left
-
-        for (size_t i = 0; i < block.getNumSamples(); ++i)
-        {
-            const auto intensity = 0.35f + 0.65f * depth.getNextValue();
-            const auto mixNow = mix.getNextValue();
-
-            hornHz += (settings.rateHz - hornHz) * hornInertia;
-            drumHz += (settings.rateHz * 0.86f - drumHz) * drumInertia;
-            hornPhase += hornHz / (float) sampleRate;
-            hornPhase -= std::floor (hornPhase);
-            drumPhase += drumHz / (float) sampleRate;
-            drumPhase -= std::floor (drumPhase);
-
-            // Both channels carry the same signal at this point in the chain.
-            float input = 0.0f;
-            for (int ch = 0; ch < numChannels; ++ch)
-                input += block.getChannelPointer ((size_t) ch)[i];
-            input /= (float) numChannels;
-
-            float bass = 0.0f, treble = 0.0f;
-            rotaryCrossover.processSample (0, input, bass, treble);
-            hornTone += (treble - hornTone) * hornToneCoefficient;   // the horn's own mellow top end
-            hornDelay.pushSample (0, hornTone);
-            drumDelay.pushSample (0, bass);
-
-            float out[maxChannels] {};
-            for (int ch = 0; ch < juce::jmin (numChannels, maxChannels); ++ch)
-            {
-                const auto hornAngle = twoPi * (hornPhase + micOffset * (float) ch);
-                const auto drumAngle = twoPi * (drumPhase + micOffset * (float) ch);
-                const auto last = ch == numChannels - 1;
-
-                const auto hornSample = hornDelay.popSample (0, (1.2f + 0.35f * intensity * std::sin (hornAngle)) * msToSamples, last);
-                const auto drumSample = drumDelay.popSample (0, (1.2f + 0.15f * intensity * std::sin (drumAngle)) * msToSamples, last);
-
-                const auto hornLevel = 1.0f - 0.55f * intensity * (0.5f - 0.5f * std::cos (hornAngle));
-                const auto drumLevel = 1.0f - 0.3f * intensity * (0.5f - 0.5f * std::cos (drumAngle));
-                out[ch] = hornSample * hornLevel + drumSample * drumLevel;
-            }
-
-            for (int ch = 0; ch < numChannels; ++ch)
-            {
-                auto& sample = block.getChannelPointer ((size_t) ch)[i];
-                sample = sample * (1.0f - mixNow) + out[juce::jmin (ch, maxChannels - 1)] * mixNow;
             }
         }
     }

@@ -13,10 +13,15 @@ namespace Scales
     inline const juce::StringArray keyNames { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
 
     enum class Scale { major, naturalMinor, harmonicMinor, melodicMinor, dorian, phrygian, lydian, mixolydian, locrian,
-                       majorPentatonic, minorPentatonic, blues, chromatic };
+                       majorPentatonic, minorPentatonic, blues, chromatic, custom };
     inline const juce::StringArray scaleNames { "Major", "Natural Minor", "Harmonic Minor", "Melodic Minor", "Dorian", "Phrygian",
                                                 "Lydian", "Mixolydian", "Locrian", "Major Pentatonic", "Minor Pentatonic", "Blues",
-                                                "Chromatic" };
+                                                "Chromatic", "Custom" };
+
+    // SCALE Custom (the Note Map Editor's Scale Editor, inspired by Waves
+    // Harmony's): for each note above the key, 0 = in the scale, +1 = goes
+    // up to the next note that is, -1 = down to the next one below.
+    using Custom = std::array<int, 12>;
 
     // The notes in each scale, as semitones above its key note.
     inline std::array<bool, 12> notesIn (Scale scale) noexcept
@@ -43,18 +48,42 @@ namespace Scales
             case Scale::minorPentatonic:  return make ({ 0, 3, 5, 7, 10 });
             case Scale::blues:            return make ({ 0, 3, 5, 6, 7, 10 });
             case Scale::chromatic:        break;
+            case Scale::custom:           break;   // see the Custom overloads below
         }
         return make ({ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
     }
 
-    inline bool isIn (int midiNote, int key, Scale scale) noexcept
+    inline int aboveKey (int midiNote, int key) noexcept { return ((midiNote - key) % 12 + 12) % 12; }
+
+    inline bool isIn (int midiNote, int key, Scale scale, const Custom* custom = nullptr) noexcept
     {
-        return notesIn (scale)[(size_t) (((midiNote - key) % 12 + 12) % 12)];
+        if (scale == Scale::custom)
+            return custom == nullptr || (*custom)[(size_t) aboveKey (midiNote, key)] == 0;
+        return notesIn (scale)[(size_t) aboveKey (midiNote, key)];
+    }
+
+    // A Custom scale's note for `midi`: itself if it's in, else the next
+    // in-scale note in its box's direction (or itself if none is in).
+    inline int customNote (double midi, int key, const Custom& custom) noexcept
+    {
+        const auto centre = (int) std::lround (midi);
+        const auto direction = custom[(size_t) aboveKey (centre, key)];
+        if (direction == 0)
+            return centre;
+        for (int distance = 1; distance <= 12; ++distance)
+        {
+            const auto candidate = centre + (direction > 0 ? distance : -distance);
+            if (custom[(size_t) aboveKey (candidate, key)] == 0)
+                return candidate;
+        }
+        return centre;
     }
 
     // The nearest note in the scale (MIDI note numbers; fractional input).
-    inline int nearest (double midi, int key, Scale scale) noexcept
+    inline int nearest (double midi, int key, Scale scale, const Custom* custom = nullptr) noexcept
     {
+        if (scale == Scale::custom)
+            return custom != nullptr ? customNote (midi, key, *custom) : (int) std::lround (midi);
         const auto centre = (int) std::lround (midi);
         for (int distance = 0; distance < 12; ++distance)
         {
@@ -87,9 +116,11 @@ namespace Scales
     // whose major third isn't in the key becomes its minor third, as a
     // singer would sing it, and a "+3" its major third. Otherwise, the
     // nearest in-scale note (the lower, if two are as near).
-    inline int harmonyNote (int sourceNote, int interval, int key, Scale scale) noexcept
+    inline int harmonyNote (int sourceNote, int interval, int key, Scale scale, const Custom* custom = nullptr) noexcept
     {
         const auto target = sourceNote + interval;
+        if (scale == Scale::custom)   // the Scale Editor's arrows decide
+            return custom != nullptr ? customNote (target, key, *custom) : target;
         if (isIn (target, key, scale))
             return target;
 

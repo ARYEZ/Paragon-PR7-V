@@ -2,6 +2,410 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.42.1
+
+- **Much lighter on the computer with the window open** (as PR7-G 0.58.1). With the plugin's window open and nothing happening, it used almost a whole processor core (about 91%, measured with software drawing on Linux). The sound itself was never the cost: with every effect off, the processing takes well under 1%. The window was the problem: it redrew the whole rack unit, shadows and all, 30 times a second even when nothing on it had changed.
+  - **Now it redraws only what changed.** A setting you change redraws the unit. A meter or a moving display (DELAY's light, MOD's wave, GLITCH's steps, a compressor's needle, the de-esser's meter) redraws only that display, with the unit behind it drawn from a stored picture. When nothing moves, nothing is redrawn.
+  - **PR7-V's own displays got the same treatment:** HARMONY's graph and its MODS page, and the VOCODER's band lights. They redrew constantly; now they redraw only when a voice, a note, a band or a setting on them moves.
+  - **Measured with the window open and idle,** with every block's controls shown in turn: **about 91% of a core before, about 5% after**, on every block.
+    - While something moves on screen, the drawing adds roughly 1 to 13% on top of the sound processing. That's DELAY, MOD or GLITCH switched on (about 13%), or MARS's lights while you sing (about 7%).
+  - **It looks the same.** I rendered every block, both finishes and the HARMONY, MARS and VOCODER pages, and compared them with 0.42.0 pixel by pixel. The only differences are the screens' shadows, at most 5 steps out of 255, which you can't see.
+  - **One small visible change:** with MOD switched off, its dimmed wave on the rack's display now stays still instead of scrolling (as on PR7-G). It moves again as soon as MOD is on.
+  - **What can't be checked here:** these numbers come from software drawing on a Linux test machine. Your DAW on Windows draws with the graphics card, so the numbers there will be lower and different, but the saving comes from the same place.
+
+## 0.42.0
+
+- **DAYBREAK has left DYNAMICS' TYPE menu too** (your call). The menu is now **Revival, Photon and Abyss**.
+  - **Your songs and rigs are safe**, as with Classic: one that uses Daybreak still loads and sounds exactly as it did, its TYPE showing "Daybreak (old)", until you pick another type.
+  - **Seven factory rigs used Daybreak and now use Photon:** B02 Grit Shout, B03 Garage Megaphone, F05 Metalcore Scream, F08 Prog Scream, F10 Grunge Double, F12 Nu-Metal Shout and F13 Deathcore Growl. Their COMP setting became Photon's INPUT (more COMP, more INPUT), with a medium ATTACK and RELEASE and 8:1 where they squeezed hardest; their levels were rebalanced to sit with the other rigs. They are punchier and a little grittier than before; if one of them no longer suits you, tell me which and how.
+- **Can't be checked here by ear:** the tests check that those rigs still compress and stay level with the rest, but whether Photon suits each style is for you to judge.
+
+## 0.41.0
+
+- **Two classic studio compressors join DYNAMICS' TYPE list: PHOTON and ABYSS.** You asked for them by their originals; the names are yours. Both follow the originals' published specifications, with our own design where those don't say (marked below).
+  - **PHOTON, a FET compressor inspired by the 1176:** fast, bright and in your face, the classic for rock and rap vocals.
+    - **INPUT** drives your voice into a fixed threshold (more INPUT, more compression); **OUTPUT** sets the level back.
+    - **ATTACK** and **RELEASE** run 1 to 7, as on the original (7 fastest): attack 800 to 20 microseconds, release 1.1 seconds to 50 ms. The screen shows the time.
+    - **RATIO** 4:1, 8:1, 12:1, 20:1 and **All**, the "all buttons in" trick: the loudest words get pushed below quieter ones, quicker and grittier.
+    - **Our design:** the FET's grit, which grows with how hard it's compressing (barely any at a light squeeze, the most on All), and the exact shape of All.
+  - **ABYSS, an optical leveller inspired by the LA-2A:** smooth and gentle, the classic for even pop and ballad vocals.
+    - **PEAK REDUCTION** (how much) and **GAIN**; **MODE** Compress (gentle) or Limit (firmer).
+    - **EMPHASIS** makes it react more to bright sounds and esses, like the original's rear trim.
+    - **The light cell's feel:** it grabs in about 10 ms, lets go half way in about 60 ms, then the rest over 1 to 5 seconds, more slowly the harder and longer it's been working.
+    - **Our guesses:** the ratios, that "memory", and a touch of valve warmth. The real cell isn't specified that precisely.
+  - Both keep the PR7's NOISE GATE. On the rack they show a gain-reduction needle.
+- **CLASSIC, the generic compressor, has left the TYPE menu** (your call: Revival, Photon and Abyss cover it). New rigs start on **Revival**.
+  - **Your songs and rigs are safe.** One that used Classic still loads and sounds exactly as it did, its TYPE showing "Classic (old)", until you pick another type. That includes rigs saved before this version that never set a TYPE and so relied on Classic being the default.
+  - The factory rig **A04 Intimate** used Classic; it now uses Abyss.
+- **Three new rigs:** **A09 Silky Lead** (Abyss), **B07 Punch Lead** (Photon 8:1), **B08 All-In Shout** (Photon on All).
+- **Can't be checked here by ear:** the tests check the sound (each RATIO's curve, All pushing the loudest peaks down, slow ATTACK letting a note's start through, fast RELEASE recovering in a quarter of a second, the grit growing with the squeeze, Abyss's quick-then-slow release and its memory, Limit firmer than Compress, EMPHASIS reacting to highs and not lows), but how they feel on your voice is yours to judge. If you can find the originals' manuals, I can check my numbers against them.
+
+## 0.40.0
+
+- **CYCLONE: a new rotary speaker, replacing MODULATION's old Rotary type** (as on PR7-G 0.55.0). It's our own design, inspired by the Neo Instruments Ventilator II, which simulates a model 122 rotary speaker cabinet.
+  - **Taken from the pedal's manual:**
+    - The rotor speeds: FAST SPEED and SLOW SPEED set both rotors, the bass drum turning a little slower than the treble horn. The defaults are an average 122's: fast horn 6.8 Hz and drum 6.5 Hz, slow horn 0.8 Hz and drum 0.76 Hz.
+    - How long they take to change speed (ACCELERATION). At its default the horn takes about 1 s to speed up and 1.6 s to slow down, and the heavy drum about 5.5 s either way.
+    - The 800 Hz split between horn and drum, and the stereo pair of mics on the horn with one mic on the drum.
+    - What every control does: SLOW / FAST, STOP (the rotors brake to a stop facing forward), BALANCE, DRIVE (the cabinet's valve amp, level-matched), MIX / DIST LO and HI (the first half mixes each rotor in, the second half moves its mics back for less wobble), MODE (GIT 1 neutral, GIT 2 brighter, KEY the 122's speakers) and LEVEL.
+  - **MODE starts on KEY** here (GIT 2 on the guitar PR7-G). The manual's GIT settings are for when a guitar amp follows; a voice goes straight to the mixer, so KEY, the cabinet's own speakers, is the natural start.
+  - **Our guesses**, as the manual doesn't say: the drive's curve, how strongly the sound swings as the rotors turn, the horn and drum sizes for the pitch wobble, the speaker and GIT 2 curves, BALANCE's range, and the curve of the expression pedal's speed sweep.
+  - **On the rack:** a ROTORS page (FAST, STOP, FAST SPEED, SLOW SPEED, ACCEL) and a TONE page. The display shows both rotors turning, with their real speeds.
+  - **Playing it live:**
+    - **Hold the MODULATION stomp (5)** to switch between SLOW and FAST; a tap still turns MOD on and off.
+    - **CYCLONE SPEED** on the expression pedal sets the speed, from SLOW SPEED at the heel to FAST SPEED at the toe, with the rotors catching up as a real cabinet's do.
+  - **Your saved rigs and projects** that used the old Rotary come in as Cyclone, set as close as it goes: its speed becomes SLOW or FAST at that speed, and its MIX and DEPTH set the MIX / DIST knobs. It won't sound identical. The factory rig Rotary Voice is set up for it.
+- On the MODULATION panel, RATE, DEPTH and MIX now leave the rack's face when they don't apply, rather than greying out (as on PR7-G).
+- A block's controls now show for the TYPE you've picked the moment its panel opens, not a moment later.
+
+## 0.39.0
+
+- **GRAPHIC EQ: the fader lights now light up like the PR7's other keys.** While the EQ is on, the light on each fader's cap (all nine bands and LEVEL) is the same bright neon bar as the lit ON key, with its white-hot core and glow. Before, it was a thin pink line that looked the same whether the EQ was on or off.
+  - While the EQ is off they show the dim red of an unlit key, so the faders also tell you at a glance whether the EQ is working.
+  - They follow ON however it changes: a click, the stomp, a rig or the DAW's automation.
+  - In every finish (Pearl White, White + Neon, Pearl Black) the caps stay black, so the dim light stays visible on them too.
+
+## 0.38.0
+
+- **HIDE RACK** (as on PR7-G and PR7-B): a button at the top right of the SIGNAL CHAIN strip hides the rack when you're not editing an effect, for a smaller, cleaner window.
+  - The SIGNAL CHAIN moves up under the floor unit and the window gets shorter by the rack's height. It keeps its width, so the floor unit stays the same size.
+  - **SHOW RACK** (the same button) brings it back, and so does clicking a block in the SIGNAL CHAIN, which opens the rack on that block. Footswitches don't open it.
+  - It's remembered on this computer, like the finish: every PR7-V you open afterwards starts with the rack shown or hidden, the way you left it.
+  - **Sized for the screen:** the DAW keeps the window's top left corner where it is, so the window grows downwards when the rack opens. If the full-width window wouldn't fit below where it is, it's made narrower, just enough to fit. Hiding the rack again goes back to your width. (It includes the fix from PR7-G 0.53.1, where Cubase made the window too big.)
+  - The PRESETS and SETTINGS pages fit the shorter window too.
+
+## 0.37.1
+
+- **The PITCH block's second view key is now "OCTAVE / FREEZE / FORMANT"** (it was "OCTAVE / FREEZE"), so FORMANT is easy to find. The key is a little wider to fit; nothing else moved.
+
+## 0.37.0
+
+- **FORMANT: chipmunk to giant, without changing your pitch.** It's in the PITCH block's second view (the OCTAVE / FREEZE / FORMANT key since 0.37.1), after FREEZE: **ON** and **SHIFT**, from -12 (bigger, darker: a giant) to +12 (smaller, brighter: a chipmunk). Your note stays exactly where you sing it; only the size of the voice changes. It works with HARMONY off, and together with TUNE VOICE.
+  - **How:** the same vocal "slices" TUNE VOICE uses. Each slice is read a little faster (smaller) or slower (bigger) and laid down at your own pitch.
+  - **The trade-off:** like TUNE VOICE, it needs your voice a moment ahead, so while FORMANT is on the plugin runs **40 ms late** and tells BeatMaker, which lines it back up on playback. TUNE VOICE and FORMANT share that one delay, so having both on still costs 40 ms. With FORMANT off there's no delay at all.
+  - The **PITCH stomp** switches it too, and its light shows when it's on.
+  - **Two new rigs in bank E:** **E30 Chipmunk** and **E31 Giant**.
+- **Fixed: a HARMONY voice's FORMANT raised a full octave made the voice jump an octave too.** At exactly double speed every slice held the same wave twice over. Each slice now always covers two of your vocal pulses, getting shorter as it's read faster, so the voice stays on its note. Nothing changes with a FORMANT at 0.
+- **Can't be checked here by ear:** the tests check the sound (your voice's resonance moves an octave while the note stays an A to within 5 cents, the level stays within 4 dB, the 40 ms delay is reported, and off leaves your voice untouched), but how it sounds on your voice is yours to judge. The most extreme settings on very low notes will sound the most processed.
+
+## 0.36.0
+
+- **Three new LO-FI types: voices through a device.** Telephone, AM Radio and Megaphone stay exactly as they were, so your saved rigs keep their sound. These are added after them, each our own design (not modelled on a particular product):
+  - **Cell Phone:** a digital call.
+    - The phone band (300 Hz to 3.4 kHz) through a phone codec's grainy, companded steps.
+    - **AMOUNT** takes the codec from a decent call (8 kHz, 8 bits) to a poor one (4 kHz, 4 bits).
+    - **NOISE** is a bad signal: whole moments of the call drop out (up to one in six at 10).
+  - **Walkie-Talkie:** a handheld radio. Narrow, driven hard and squashed, with **static under your voice while you talk** and **the squelch's "kssh" when you stop**, as the receiver closes. It waits 150 ms before closing, so gaps between words don't set it off. NOISE sets the static and how loud the squelch is.
+  - **Gramophone:** an old 78 record. A horn's two resonances, a slow warble (more with AMOUNT), and the record's **crackle and hiss** (NOISE).
+  - All three are mono, like the real things, and come out about as loud as they went in.
+- **Three new rigs in bank E:**
+  - **E27 Phone Call:** a call on a bad line.
+  - **E28 Radio Check:** a walkie-talkie, squelch and all.
+  - **E29 Old 78:** an old record in a little room.
+- **Can't be checked here by ear:** the tests check the sound (each type keeps the voice band and drops the lows and highs, the codec gets grittier with AMOUNT, NOISE drops moments of a call, the squelch bursts after the voice and stays silent when nothing's said, the record crackles in silence), but whether they sound right on your voice is yours to judge.
+
+## 0.35.0
+
+- **New block: VOCODER**, inspired by the Vocoder in iZotope VocalSynth 2 (the manual you sent). It's in the signal chain between GLITCH and DOUBLER. A vocoder splits your voice into frequency bands, measures how loud you are in each, and uses that to shape a synth: the robot voice. Your words and vowels, the synth's sound and pitch.
+  - **What the synth plays (PLAYS page):**
+    - **Auto:** the pitch you sing, exactly. Add up to three **INTERVAL** voices (a 2nd to an octave, up or down), kept in HARMONY's KEY and SCALE, for an instant vocoder choir. No keyboard needed.
+    - **MIDI:** your keyboard. **Mono** (one note, with GLIDE between notes) or **Poly** (up to 8 notes, for chords).
+  - **MAIN:**
+    - **MODE:** Smooth, Vintage or Hard (12, 20 or 32 bands, from soft and smooth to crisp and articulate).
+    - **SHIFT:** brighter or darker.
+    - **SCALE:** how fast it follows you, from soft pad to sharp consonants.
+    - **LEVEL**, and **DRY** (your voice underneath; off to start).
+  - **The synth:** two oscillators (Saw, Square, Sync Saw, Triangle, Saws: seven detuned saws), each with GAIN, COARSE, FINE, SHAPE and LFO amounts on pitch and shape. A NOISE with CRUSH (from a buzz at the note's pitch to white hiss), and an LFO.
+  - **MIX:** PAN, LOW CUT and HIGH CUT on what comes out.
+  - **The bands on the rack's display:** live LED bars show how loud your voice is in each band. Draw over them to set each band's **VOL** or **PAN** (spread the high bands right and the low ones left, or cut a range). RESET or a double-click flattens it.
+  - **Four new rigs in bank E:** **E23 Robot Voice**, **E24 Vocoder Choir** (your note plus a third, a fifth and an octave below), **E25 Deep Robot**, and **E26 Keys Vocoder** for a MIDI keyboard (your voice stays faintly underneath, so it's never silent without keys).
+- **Our design where the manual doesn't say:**
+  - the band counts;
+  - how each band's synth is levelled before your voice shapes it (this keeps the words clear whatever wave you pick);
+  - the oscillator shapes, the noise's CRUSH and the envelope speeds;
+  - Auto keeps your own note exactly (not snapped to the key) while the INTERVAL voices are in the key.
+- **Not in this release:** the manual's **Sidechain** mode (another track as the synth). It needs the plugin to take a second audio input, which changes how BeatMaker routes it, so it's a stage of its own. Also not here: synth presets, and the manual's round "anemone" display.
+- **Can't be checked here by ear:** the tests check the sound (the synth's harmonics follow your voice's shape, the pitch is the key's or your own, SHIFT, the bands' VOL and PAN, no sound without a voice, the level matches your voice), but how it sounds singing into it is yours to judge.
+
+## 0.34.0
+
+- **HARMONY stage 10: the rest of the MODULATORS**, inspired by the Waves Harmony guide's Modulators chapter. Stage 9 made the harmony move on its own; stage 10 makes **each note move on its own**, so a chord from GENERATE or your MIDI keyboard can swell, spread and bend note by note.
+  - **A1 and A2, envelopes:** each note that starts gets its own ATTACK, DECAY, SUSTAIN and RELEASE, with a CURVE for each stage (1 straight; lower starts slowly, higher starts quickly). Put one on NOTES LEVEL turned down and each new note swells in while the held ones stay put.
+  - **SP, the Spreader:** gives each note sounding its own value by its place in the chord. Outward: the lowest note -SPREAD, the highest +SPREAD. Inward: the other way round. Random. TRIGGER Retrigger works every note out again when one starts; Poly lets each note keep the value it began with. On GLOBAL PITCH at a small depth it detunes a chord outward; on NOTES WIDTH it spreads it.
+  - **MIDI sources:** Velocity, Keyboard (where the key is), Pitch Wheel, Mod Wheel and Aftertouch. In the knob menu they're in their own MIDI group.
+  - **Poly** (M1-M4's TRIGGER): each note runs its own cycle from when it started, so a vibrato isn't in step across the chord.
+  - **Drawn shapes** (M1-M4's SHAPE): draw your own shape on the MODS display (ERASE flattens it). Saved with your rig and project, and undoable.
+  - **Per note, where it matters:** a note-by-note source (A1, A2, SP, Velocity, Keyboard, a Poly M) moves each note voice separately on NOTES LEVEL, WIDTH and FORMANT and on GLOBAL PITCH and FORMANT. On other controls it uses the newest note. With no notes coming in (no GENERATE, no MIDI), A1, A2 and SP stay at 0, as in the guide.
+  - **SNAPSHOTS now store the modulators** on the controls a snapshot keeps (a voice's PITCH, PAN...), as the guide's do. Snapshots stored with 0.33.0 or earlier leave your modulators alone when recalled.
+  - **The MODS page** has tabs M1-M4, A1, A2, AM, PT, SP and MIDI: the envelope drawn with each note's level beside it, the Spreader's notes as dots, and MIDI's five as bars.
+- **New factory bank G, "Moving harmonies"** (9 rigs), one modulator idea each. Right-click a HARMONY knob or open MODS to see how each is built:
+  - **G01 Living Choir:** a five-voice choir where every voice has its own slow vibrato (Poly), so they never wobble together.
+  - **G02 Swell Stack:** each new harmony note swells in behind you (A1).
+  - **G03 Spread Gospel:** a wide gospel chord the Spreader opens out, low notes a touch flat and darker, high ones a touch sharp and brighter.
+  - **G04 Circling Thirds:** a third and a fifth that slowly circle you in the stereo, in opposite directions.
+  - **G05 Arp Harmony:** a harmony stepping octave, fifth, octave, tenth in eighth notes with the song (SEQ).
+  - **G06 Breathing Harmony:** push and the harmonies step back, sing softly and they come forward (AM).
+  - **G07 Gated Choir:** a rhythmic gate drawn into M1, locked to the bar.
+  - **G08 Rising Harmony:** the higher you sing, the bigger the harmony (PT).
+  - **G09 Keyboard Choir:** for a MIDI keyboard. Play the chord and sing the words: how hard you play sets each note's level, the mod wheel widens the chord, the pitch wheel bends it two semitones.
+  - All but G09 work from your voice alone. A test checks that each rig's modulators really change its sound, and that every rig sits within 6 dB of the others.
+- **Fixed:** a pitch depth showed as "+1.9992 st" in the knob menu and on the MODS page. Whole semitones now show as "+2 st".
+- **Our design where the guide doesn't say:** how the curves bend, an envelope that follows the notes as a whole for controls that aren't per note, how Random picks, and the Keyboard's range (two octaves either side of middle C).
+- **Can't be checked here by ear:** the tests check the sound itself (each note's pitch, level and pan, the envelopes' shape), but how it feels to play is yours to judge.
+
+## 0.33.0
+
+- **HARMONY stage 9: MODULATORS** (the first of two stages), inspired by the Modulators chapter of the Waves Harmony guide you sent. Modulators move HARMONY's controls on their own: vibrato, a wobble, voices drifting across the stereo, harmonies that duck while you sing loudly, or follow how high you sing.
+  - **Six modulators,** on the new **MODS** page (the MODS key beside GLOBAL):
+    - **M1-M4:** each an **LFO** (a repeating shape: Sine, Triangle, Saw Up, Saw Down, Square, Pulse, Stairs, Random Steps, Smooth Random, Bump; our own shapes) or a **SEQ**uencer (2 to 16 steps of -24 to +24; drag the bars). RATE in Hz or SYNCed to the song (8 bars down to 1/64), PHASE, WARP, SMOOTH, LEVEL, TRIGGER (Free, Sync, Retrigger, Legato) and PLAY (Loop, One Shot, Seesaw, Hold), as in the guide.
+    - **AM:** how loud you sing (ATTACK, RELEASE, LEVEL).
+    - **PT:** the pitch you sing (SMOOTH, OFFSET, LEVEL).
+  - **Putting one on a control:** right-click any HARMONY knob that can be modulated. A voice's PITCH, NOTE, FORMANT, DELAY, FEEDBACK and CUTOFF, the note voices' sound, the mix and GLOBAL PITCH and FORMANT can be; FINE can't, as in the guide. "Add a modulator" puts it in one of the knob's four slots, and each slot sets its own depth or is removed. A pitch control starts at a semitone either way (a vibrato), anything else at a quarter of its range.
+  - **Depth, as in the guide:** at 100% a modulator at full swing moves a control through its whole range, and a pitch two octaves either way. So a SEQ step of +7 at 100% is exactly a fifth up.
+  - **You can see it move:** a modulated knob gets a ring in its modulator's colour (white for several) with a dot where it is now. On the graph, a dim ghost dot shows where a voice's modulated pan and level have it. The MODS page shows each shape with a dot riding it, and what each modulator is on.
+  - **Saved with your rig and project,** and putting on, changing or removing one can be undone. The modulators' own settings can be automated from BeatMaker.
+  - **Smooth, not stepped:** while anything is modulated, HARMONY updates every 32 samples (under a millisecond). With nothing modulated it runs exactly as before.
+- **Our design where the guide doesn't say:** the shapes, how AM reads loudness (-60 dB to full scale), PT's middle (middle C, two octaves either way), and the menu instead of the guide's drag-and-drop (your choice).
+- **Coming in stage 10:** A1 and A2 (envelopes on each note), the Spreader (a value per note, to spread the note voices), the MIDI sources (velocity, keyboard, pitch wheel, mod wheel, aftertouch), Poly trigger, drawing your own shapes, and modulator slots stored in SNAPSHOTS (the guide stores them; ours don't yet).
+
+## 0.32.0
+
+- **HARMONY rebuilt for the rack, at full size** (the last of the four editors: now nothing on the rack is shrunk). In 0.28.0 it was scaled down into a screen in the rack.
+  - **The display** is HARMONY's own: KEY and SCALE on screens, the note you're singing on a screen under them (with TUNE VOICE's target), and the voice graph on the unit's screen beside them. You play the graph as before: click an empty spot to add a voice, drag one to move it, scroll over one for its interval, right-click to remove it. SNAPSHOTS sits in the graph's corner.
+  - **Along the top:** HARMONY / OCTAVE-FREEZE, then HARMONY's own key (on/off), GLOBAL and TUNE VOICE.
+  - **Then the voice keys 1-8** (a voice not in use is lettered dimmer), **NOTES** and **FX**.
+  - **Then the view's controls in one row,** at full size: the voice's ON, CORRECT and FLATTEN keys and its PITCH (or NOTE), FINE, FORMANT with the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT); or NOTES (GENERATE, CHORD with EDIT, MIDI and the note voices' eight knobs); or FX (DELAY, SYNC, FEEDBACK, FILTER, CUTOFF); or GLOBAL (GLIDE, SYNC, PITCH, FORMANT and the mix). The unit's big knobs, values on small screens, lists on screens.
+  - **The Note Map and SNAPSHOTS** open on one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
+## 0.31.0
+
+- **MARS (SATURATION) rebuilt for the rack, at full size** (the third of the four editors; HARMONY is last). In 0.28.0 it was shrunk into a screen in the rack.
+  - **The band display is now the rack's display:** on the unit's screen on the left, each band a column in its colour, its drive as a bar and how hard it's driven right now as a line. You play it as before: click a band to pick it, drag a crossover line to move it, drag up or down in a band for its DRIVE, double-click to split a band, right-click to remove one.
+  - **Along the top:** the BANDS, GLOBAL, MOD and SLOTS page keys, then ON and how many BANDS.
+  - **BANDS:** the picked band's name in its colour, its ON key and STYLE, then all ten of its knobs in one row (DRIVE, DYNAMICS, FEEDBACK, FB FREQ, MIX, BASS, MID, TREBLE, PRESENCE, LEVEL) as the unit's big knobs, each value on a small screen. Right-click a knob to modulate it, as before; a modulated knob still shows its coloured ring.
+  - **GLOBAL:** INPUT, OUTPUT, MIX, QUALITY, SLOPE and the three crossovers in one row; the band display stays on the left.
+  - **MOD and SLOTS** are full editors of their own (the XLFO steps, envelopes, the 16 slots), so each gets one wide screen across the display and the controls, at full size.
+  - Nothing changes in the sound or your settings.
+
+## 0.30.0
+
+- **The DOUBLER rebuilt for the rack, at full size** (the second of the four editors; MARS and HARMONY follow). In 0.28.0 it was shrunk into a screen in the rack; now it's laid out on the rack's face, its numbers larger than they've ever been.
+  - **The display** on the left shows the voices by pan and delay, as before.
+  - **The voice table:** a row per voice across the face (VOICE, GAIN, PAN, DELAY, FDBK, OCT, DETUNE, DEPTH, RATE, DRIFT), each number on a small orange screen, VOICE and OCT as the unit's keys (lit while on), the voice numbers printed in red. Drag a number up or down, or double-click it to reset, as before.
+  - **Beside it:** DIRECT (key, GAIN, PAN) and OUTPUT, the LOW and HIGH shelves on the doubles (key, GAIN, FREQ), and FB HIGH-PASS.
+  - **MOD RESET** is a key in the top row.
+  - Nothing changes in the sound or your settings.
+
+## 0.29.0
+
+- **The GRAPHIC EQ rebuilt for the rack, at full size** (the first of the four editors; the DOUBLER, MARS and HARMONY follow, in that order). In 0.28.0 it was shrunk to fit a screen in the rack; now it's laid out on the rack's face like the other blocks, nothing shrunk.
+  - **The display** on the left is the EQ's response curve, across the whole screen.
+  - **The faders** stand evenly spaced, as on a hardware graphic EQ, with LEVEL a little apart on the right. Each one's setting is on a small orange screen above it, its frequency stamped under it, and a printed +12 / +6 / 0 / -6 / -12 dB scale with a line at 0 dB runs beside them. Drag a fader, or double-click it for 0 dB, as before.
+  - **ON** and **FLAT** are the unit's keys; **PRESETS** is on a screen.
+  - Nothing changes in the sound or your settings: the same nine bands, LEVEL and presets.
+
+## 0.28.0
+
+- **The rack: one unit under the floorboard.** The faceplate, the controls beside it and EXPRESSION ASSIGN are now one wide PR7 rack unit: the "brain" to go with the floorboard processor. Your idea; the layout is ours.
+  - **On the left, the block's display:** the faceplate's screens, live as before (the delay's repeats, the reverb's shape, the compressor's needle or meter, MARS's tubes, the note you sing...). The knobs and keys it used to *draw* are gone, as the real ones are right beside it.
+  - **In the middle, the block's real controls,** in the PR7's own parts: the floorboard's big knobs with each value on a small orange screen, menus on screens, switches as small keys with a light stripe, pages (MAIN / STEREO / COLOUR...) as keys, names stamped on the face. Every one works as before (they're the same controls, with the same settings, automation and undo).
+  - **HARMONY, the GRAPHIC EQ, the DOUBLER and MARS** are whole editors (graphs, tables, faders), so each sits on a big screen set into the face. They're laid out as before, a little wider, then scaled to fit the rack (the text is about four-fifths its old size): nothing in them is squeezed or cut off.
+  - **At the right end, EXPRESSION ASSIGN:** its list screen, MIN / MAX, and its scroll arrows as the unit's keys.
+  - **Printed red lines** divide the three parts, as the lines on the floorboard do.
+  - **All three finishes:** Pearl White, Pearl White + Neon (neon knobs and keys) and Pearl Black.
+- **Readouts fit their screens:** big seven-segment numbers (6.0 kHz, 0.80 Hz...) now shrink to fit a narrow screen instead of running off its edge.
+
+## 0.27.0
+
+- **HARMONY's GLOBAL controls were meant to be 0.26.0.** That build stopped on Linux with a crash inside the plugin checker, so 0.26.0 was never published. They arrive in this release (see 0.26.0 below).
+- **HARMONY stage 8: SNAPSHOTS.** Inspired by the snapshots in Waves Harmony's guide: store up to 32 sets of harmony voices and switch between them instantly.
+  - **Opening them:** the **SNAPSHOTS** button in the top-right corner of the HARMONY graph opens the snapshot page.
+  - **The slots:** 32 of them, each showing the voices it holds (for example "+4 +7", or a flattened voice's note). The one in use is lit.
+  - **Click a stored slot** to bring it back.
+  - **STORE** saves the voices as they are now into the picked slot (the first empty one if none is picked).
+  - **COPY, PASTE and DELETE** work on the picked slot; right-click a slot for the same.
+- **What a snapshot holds** (as in the guide, "harmony controls only"):
+  - **Stored:** every voice's settings (on, pitch, fine, formant, correct, pan, level, FLATTEN, delay, feedback, filter) and the note voices' sound.
+  - **Left alone:** KEY, SCALE, the GLOBAL controls, the note generator and chord map, and the mix.
+- **Switch them from your DAW:** the new **SNAPSHOT** parameter (–, 1 to 32) can be automated or controlled by MIDI. Moving it brings that snapshot back, which is handy for changing harmonies between song sections. An empty slot does nothing.
+- **Saved with your rig and your project,** and storing, pasting or deleting can be undone.
+- **Our design where the guide doesn't say:**
+  - A recall switches straight to the stored settings.
+  - Recalling from the DAW happens within about a 30th of a second of the parameter moving, not on the exact sample.
+  - Loading a rig or project never recalls a snapshot by itself.
+- **Not built:** the guide's Snapshot Selection *knob* on the panel. Its job is done by the SNAPSHOT parameter from your DAW, and by clicking a slot.
+
+## 0.26.0
+
+- **HARMONY stage 7: GLOBAL controls.** Inspired by the Global Controls section of Waves Harmony's guide. The new **GLOBAL** button sits beside the HARMONY switch.
+- **The GLOBAL view** shows four new controls above the mix (SOURCE, HARMONY, SPREAD, CORR. FORMANT, which the guide also counts as global):
+  - **GLIDE:** how long the harmony voices take to move to a new note, from 1 ms (straight there, as before) to 1 second. **SYNC** sets it as a note length at the song's tempo instead.
+  - **PITCH:** moves every harmony voice up or down, up to an octave either way. It's applied after the key correction, so a third stays a third, an octave up.
+  - **FORMANT:** changes the character of every harmony voice at once (lower for a bigger singer, higher for a smaller one), on top of each voice's own FORMANT.
+- **GLOBAL\* tells you a global setting is changed,** like the guide's asterisk.
+- **Everything starts where it changes nothing,** so rigs and projects sound as before.
+- **Our design where the guide doesn't say:**
+  - **Your own voice:** PITCH and FORMANT move only the harmony voices, not yours. "The entire process" could be read either way, and leaving your lead alone seemed the musical choice.
+  - **What GLIDE smooths:** the whole pitch curve, so a long GLIDE also softens how closely the voices follow your vibrato.
+  - **How long a glide takes:** GLIDE is the time to reach the new note.
+  - **The note voices** keep their own quick 30 ms glide as a minimum.
+  - **SYNC values:** PR7-V's usual note lengths.
+- **Also:** the SINGING note on the HARMONY panel adapts to the space, showing the note and TUNE VOICE's target on one line if needed.
+
+## 0.25.0
+
+- **FACEPLATE stage 3: every block now has its own faceplate,** built from the same PR7 parts as the others.
+- **MODULATION** is named for its TYPE ("CHORUS", "UNI-VIBE", "ROTARY"…).
+  - A screen draws the wobble as a wave at its RATE and DEPTH, with a dot riding it. It keeps time with RATE, not the audio.
+  - RATE shows in seven-segment Hz, or as the note length while synced.
+  - DEPTH and MIX are on knobs.
+- **FILTER / PITCH** is named for its TYPE:
+  - Auto-Wah shows its filter's peak (sharper with RESONANCE), with SENS and MIX knobs.
+  - Talk Box shows its vowel filter, with RES and MIX knobs.
+  - Pitch Shifter shows its interval, with a MIX knob.
+  - Whammy-Wah shows its program, with a MIX knob.
+- **DE-ESSER:**
+  - A live meter of how much it's turning the esses down, and the band it works on.
+  - FREQUENCY in kHz.
+  - An AMOUNT knob and a LISTEN key.
+- **GLITCH** is named for its MODE.
+  - A 16-step pattern, with more steps active the higher DENSITY is, and a light stepping through it at LENGTH. It keeps time with LENGTH, not the audio. PRE or POST is marked.
+  - LENGTH in ms, or the note length.
+  - DENSITY and MIX knobs.
+- **DOUBLER:** its four voices on a screen, across by pan and down by delay (bigger when louder), with DIRECT marked, and a key per voice lit while it's on.
+- **GRAPHIC EQ:** the EQ's own response curve (the same calculation its panel draws), its LEVEL, and a LEVEL knob.
+- **LO-FI** is named for its TYPE. A wave shows what AMOUNT does (squashed, or stepped for Bitcrusher) and what NOISE adds, with AMOUNT and MIX knobs.
+- **Settings or audio:** DE-ESSER (like DYNAMICS and MARS) shows live audio. The others draw from their settings, so they change as you turn the controls.
+
+## 0.24.0
+
+- **FACEPLATE stage 2: DELAY, REVERB and PITCH get their own faceplates,** built from the same PR7 parts as the first ones.
+- **DELAY** is named for its TYPE ("TAPE ECHO", "ANALOG DELAY", "SHIMMER DELAY"…).
+  - A screen shows the repeats laid out in time, each as loud as FEEDBACK leaves it. With DUAL on there's a row for each side, and PING-PONG is marked.
+  - A light runs along the repeats at the delay time. It keeps time with your delay setting, not the audio itself.
+  - TIME shows in the main display's seven-segment digits, or as the note length while synced.
+  - FEEDBACK and MIX are on the unit's big knobs.
+- **REVERB** is named for its TYPE ("HALL", "PLATE", "SPRING"…).
+  - A screen draws its shape: the PRE-DELAY gap, the early reflections (as tall as EARLY), then the tail fading over the real decay time. SPRING ripples, and REVERSE swells up and cuts off.
+  - DECAY shows in seconds in seven-segment digits.
+  - SIZE and MIX are on knobs.
+- **PITCH (HARMONY)** has two screens and three keys:
+  - **Note screen:** the note you're singing, with TUNE VOICE's target beside it when it's on, and the KEY and SCALE.
+  - **Voices screen:** the harmony voices by pan and interval, like a small version of the HARMONY graph. A flattened voice sits at its note, and note voices show as rings.
+  - **Keys:** small keys for HARMONY, OCTAVE and FREEZE, lit while each is on.
+- **Still the shared rack unit:** MODULATION, FILTER / PITCH, DE-ESSER, GLITCH, DOUBLER, GRAPHIC EQ and LO-FI, until stage 3.
+
+## 0.23.1
+
+- **The faceplates are now part of the PR7 line** (the owner's request): every one is built from the PR7's own parts instead of their own looks.
+  - **The chassis:** each faceplate is a small PR7 unit, with the same pearl rim, satin face and glow, in your chosen finish (Pearl White, Pearl White + Neon or Pearl Black). It changes when you change the finish in SETTINGS.
+  - **Screens:** the unit's own LCD screens, with readings in its orange LED light. Classic's gain-reduction needle is drawn in that light on a screen. The meters are rows of LED bars like the tuner's, and MARS's tubes glow behind a screen.
+  - **Knobs, keys and faders:** Daybreak's COMP, DETAIL and MIX are the unit's big knobs (neon on the neon finishes). INTENSITY is one of the unit's small black keys, its light stripe lit while it's on. Revival's faders are the graphic EQ's.
+  - **Lights and lettering:** the ON light is the LED bar from above the footswitches. Names are in the PARAGON badge's lettering, with a red printed line under each, as "VOCAL MULTI-FX PROCESSOR" is printed on the unit. Labels are stamped in the unit's ink.
+- **Unchanged:** what each faceplate shows. The main unit looks exactly as before; it's now drawn by the same shared code as the faceplates, so the two always match.
+
+## 0.23.0
+
+- **The FACEPLATE** replaces the RIG BROWSER and SELECTED RIG panels under the unit. Both only repeated things available elsewhere: the PRESETS page, and the unit's own display and SAVE / SAVE AS buttons.
+- **It shows the block you select as a piece of hardware** beside its controls, following the block's TYPE, with live meters:
+  - **DYNAMICS, Classic:** a studio rack compressor with a VU-style needle showing gain reduction, and its THRESHOLD, RATIO and LEVEL in windows.
+  - **DYNAMICS, Daybreak:** a boutique pedal with a sunrise finish, its COMP, DETAIL and MIX knobs, the INTENSITY switch and an LED ladder for gain reduction.
+  - **DYNAMICS, Revival:** a vocal leveller that draws its GATE, COMPRESSION and GAIN as one input-to-output curve, with faders and a reduction meter.
+  - **SATURATION (MARS):** a valve unit with a tube for each band, glowing as hard as the band is driven, its STYLE underneath.
+  - **Every other block:** a rack unit with its icon, name, TYPE and an ON lamp, until it gets its own faceplate (DELAY, REVERB and PITCH/HARMONY are next).
+- **Our own designs:** all are drawn in code, in the PR7's colours. None copies a real product's look; Revival is only *inspired by* the vocal leveller it's modelled on.
+- **Unchanged:** the controls and EXPRESSION ASSIGN are where they were.
+
+## 0.22.0
+
+- **HARMONY stage 6: each voice gets its own DELAY, FEEDBACK and FILTER, and FLATTEN.** Inspired by the Harmony Panel and Notes Panel in Waves Harmony's guide.
+- **FLATTEN** (beside ON and CORRECT) holds a voice on one note, whatever you sing: a drone or pedal note under your melody.
+  - While it's on, the PITCH knob becomes **NOTE** (C1 to C5; it starts at C3, as in the guide).
+  - CORRECT still keeps that note in the key, and FINE still applies.
+  - On the graph, a flattened voice shows its note name (e.g. C3) instead of an interval.
+- **FX** (the new button after NOTES) swaps the controls under the tabs for the selected voice's:
+  - **DELAY:** brings the voice in later, from Off up to 1 second, or **SYNC**ed to a note length at the song's tempo (DELAY greys out while it is).
+  - **FEEDBACK:** repeats of the delayed voice, from none to almost endless.
+  - **FILTER:** low-pass, high-pass or band-pass, with **CUTOFF** from 20 Hz to 20 kHz.
+  - On the NOTES tab, FX sets the note voices' shared DELAY, FEEDBACK and FILTER. Their echoes carry on after you let go of a key.
+- **Everything starts switched off,** so your rigs and projects sound exactly as before.
+- **Our design where the guide doesn't say:**
+  - Each voice is filtered first, then delayed, so every repeat has the filtered tone.
+  - The filter is 12 dB per octave.
+  - DELAY can be Off (the guide starts at 1 ms).
+  - The longest echo is 2 seconds, even when synced. 1/1 is capped at 2 seconds below 120 BPM.
+  - At 100% FEEDBACK the repeats fade very slowly rather than building up forever.
+  - Choosing HIGH-PASS with CUTOFF at 20 kHz (or LOW-PASS at 20 Hz) would silence the voice, so CUTOFF moves to where you can hear it (20 Hz for high-pass, 1 kHz for band-pass).
+  - Turning a voice OFF stops its echoes too ("turns the harmony off completely", as the guide says).
+- **Not the guide's full range:** SYNC uses PR7-V's usual note lengths (1/1 down to 1/16, with dotted and triplet ones), not the guide's 1/64 triplet to 1 bar.
+- **Layout:** the HARMONY graph is a little narrower (196 rather than 212 points) so the voice row has room for FLATTEN with full-size knobs.
+
+## 0.21.2
+
+- **The SIGNAL CHAIN now matches the rest of the PR7 family** (as on the PR7-E and PR7-G). Every block is coloured by its place in the chain, along one red, hot pink and orange gradient: red at PITCH, hot pink in the middle (EQ, DOUBLER), orange at LO-FI. Before, each block had its own unrelated colour. Switched-off blocks still show their colour dimmed.
+- **The edit panels match their blocks:** each panel's header icon and the bars above its controls use its block's colour.
+  - The GRAPHIC EQ's faders and response curve take the EQ block's hot pink.
+  - PR7-V's own panels follow too:
+    - HARMONY's graph, voices and SINGING note take the PITCH block's red, while the NOTES tab's note voices stay blue so generated notes stand out.
+    - MARS's header icon matches SATURATION, while its bands keep their own colours so you can tell them apart.
+    - DOUBLER's voice numbers match its block.
+  - The knob rings and buttons keep the plugin's orange.
+- **Nothing changes in the sound.**
+
+## 0.21.1
+
+- **Fixed: PITCH wouldn't turn off once TUNE VOICE was on.** TUNE VOICE (HARMONY's pitch correction) works without HARMONY, but the PITCH stomp didn't switch it. With the stomp's light out, your voice stayed tuned and 40 ms late, so PITCH seemed stuck on.
+- **The PITCH stomp now switches TUNE VOICE too,** with HARMONY and the octaver. Off means your plain voice, with no delay. Pressing it again brings back exactly what was on, TUNE VOICE in the mode it had (Natural, Hard or Notes). The stomp's light, its hover text and the PITCH block in the signal chain all show when TUNE VOICE is on.
+- **Unchanged:** HARMONY's own switch in the panel still switches only the harmony voices. That way you can still use TUNE VOICE on its own, with no harmonies.
+
+## 0.21.0
+
+- **HARMONY stage 5: the Note Map Editor.** Inspired by Waves Harmony's Note Map Editor. Click **EDIT** beside CHORD on the NOTES tab to make your own map of what each note plays.
+  - **CHORD** gains a 19th map, **Custom**: yours. The first time you click EDIT it starts as a copy of the map you were using, so you change it rather than starting from nothing.
+  - **PLAYS:** pick a note (C to B), then click keys on the keyboard to add or remove what that note plays (a purple dot). Each note can play anything up to just under two octaves above or below, any number of notes. A sung note that's out of the key has its own row too, so it can have a different harmony.
+  - **SPREAD / FOLD:** SPREAD (to start) moves the harmony with the octave you sing in. FOLD keeps the notes where you set them on the keyboard, whatever octave you sing.
+  - **SCALE Custom** (a new scale): the SCALE row sets each note In, **>** (moved up to the next note in the scale) or **<** (moved down). It's kept relative to KEY, so it follows a key change. With any other scale, the row shows what that scale does.
+  - **FROM CHORD** starts from any built-in map, and **ERASE** clears the map. A blue ring shows each note as it will sound once the scale is applied. Keys held on a MIDI keyboard light up pink.
+  - Played MIDI keys set to **Through Chord** go through your map as well.
+- **Our design where the guide doesn't say:** the range (±23 semitones from the note), and that FOLD moves a note an octave nearer when it's more than two octaves from what you sing. That's the most a harmony voice can shift, and past it the note would come out wrong.
+- **Saved with your rig/project:** the map and SPREAD/FOLD. The Custom scale boxes are global, like KEY and SCALE, so changing rigs keeps your scale.
+- **Not built yet:** per-note velocity and level in the map, and named, saved maps.
+- **Also:** CHORD on the NOTES tab is a little narrower to make room for EDIT, so long map names are cut short in the box; the full names are in its list.
+
+## 0.20.0
+
+- **HARMONY stage 4: MIDI notes.** Inspired by Waves Harmony's MIDI keyboard input. Send MIDI to PR7-V (a MIDI track or keyboard routed to it in your DAW) and the keys you play become harmony voices made from your own voice.
+- **MIDI**, on the NOTES tab, decides how:
+  - **As Played** (to start): exactly the keys you hold, so a chord you play is the chord that's sung. Out-of-key keys stay as played.
+  - **Through Chord:** each key goes through the CHORD map and into the KEY and SCALE, as a generated note does.
+- **Velocity** sets each note's level: soft keys are quieter. The **sustain pedal** holds the notes.
+- **Played and generated notes share the eight note voices.** A voice keeps its note while it's still wanted, so a held key doesn't restart when another is added.
+- **TUNE VOICE: Notes** now follows the keyboard: your voice is tuned hard to the nearest held key (in whichever octave is nearest), the classic played tuned-vocal effect. With no keys held, it tunes to the generated note as before.
+- **A keyboard strip** along the bottom of the NOTES graph shows the keys held (pink) and the generated note (blue). The graph is narrower on the NOTES tab, to make room for its controls.
+- **Our design where the guide doesn't say:** As Played not correcting keys into the key, and the velocity curve (from 30% for the softest key to 100% for the hardest). MIDI works only with HARMONY on, except TUNE VOICE's Notes, which works either way.
+- **Check your DAW:** to play harmonies from a keyboard, route a MIDI track or input to PR7-V. How you do that depends on the DAW.
+
+## 0.19.0
+
+- **GENERATE NOTES and CHORD maps were meant to be 0.18.0,** but another 0.18.0 (AEON, below) was published first, so they arrive in this one, along with AEON.
+- **HARMONY stage 3: GENERATE NOTES and CHORD maps.** Inspired by Waves Harmony's Note Generator and Note Mapper. It's on the HARMONY panel's new **NOTES** tab, after voices 1-8.
+- **GENERATE NOTES** turns your singing into steady notes:
+  - A new note starts after a silence, or when your pitch moves more than **TOLERANCE** (cents) away for longer than **TIME**. Slides and quick embellishments don't make new notes.
+  - **TOLERANCE Off:** only a silence starts a new note.
+  - **MIN NOTE:** anything lower is ignored.
+- **CHORD** turns each note into harmonies, always kept in your KEY and SCALE (a third stays a third). There are 18 maps:
+  - **The same intervals on every note:** 3rd Above, 3rd Below, 5th Above, 3rd + 5th Above, 3rd Above + 4th Below, Octave Up, Octave Down, Octaves Up + Down, Power (5th + Octave), Three-Part Stack, Choir.
+  - **A chord from each note:** Triad Below (you sing the top), Seventh Chord, Sus2, Sus4, Add9, Open Fifths, Gospel Stack.
+- **Note voices** play their notes exactly, steady even if you drift a little. They come on top of the voices on the graph, which keep following you as before, and have their own **LEVEL**, **WIDTH** (low notes left, high right), **FORMANT**, **ATTACK** and **RELEASE**. They show on the graph in blue, with their note names, while they sound.
+- **TUNE VOICE: Notes** tunes your voice hard to the generated note, so held notes stay dead steady (and, like Natural and Hard, the plugin runs 40 ms late while it's on).
+- **New factory rig:** **Auto Choir** (E22): every note you sing becomes five, from an octave down to an octave up. Set KEY and SCALE first.
+- **Our design where the guide differs or doesn't say:**
+  - The 18 chord maps are ours.
+  - Note voices have their own eight voices rather than sharing eight with the graph's voices.
+  - TIME is in milliseconds (100 ms to start). Waves can sync it to the tempo and starts at a half note.
+- **Not built yet:** the per-key Note Map Editor (your own chord maps) and syncing TIME to the tempo.
+
 ## 0.18.0
 
 - **Everything in one build:** AEON, plus TUNE VOICE (0.17.0), MARS modulation, the vocal EQ presets and bank F (0.15.0 to 0.16.0).

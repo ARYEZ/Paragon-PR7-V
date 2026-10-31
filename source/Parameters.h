@@ -172,10 +172,130 @@ namespace ParamIDs
     inline constexpr auto harmonyLevel          = "harmonyLevel";          // dB: all the harmony voices
     inline constexpr auto harmonyCorrectFormant = "harmonyCorrectFormant"; // 0 to 1
     inline constexpr auto harmonySpread         = "harmonySpread";         // 0 to 1
-    inline constexpr auto harmonyCorrect        = "harmonyCorrect";        // version 38: CORRECT, Off / Natural / Hard
+    inline constexpr auto harmonyCorrect        = "harmonyCorrect";        // version 38: CORRECT, Off / Natural / Hard (/ Notes, 39)
+    // Version 39: GENERATE NOTES and CHORD maps, and the note voices.
+    inline constexpr auto harmonyGenerate       = "harmonyGenerate";
+    inline constexpr auto harmonyChord          = "harmonyChord";
+    inline constexpr auto harmonyMinNote        = "harmonyMinNote";        // MIDI note
+    inline constexpr auto harmonyTolerance      = "harmonyTolerance";      // cents (above 200: off)
+    inline constexpr auto harmonyToleranceTime  = "harmonyToleranceTime";  // ms
+    inline constexpr auto harmonyNoteLevel      = "harmonyNoteLevel";      // dB
+    inline constexpr auto harmonyNoteWidth      = "harmonyNoteWidth";      // 0 to 1
+    inline constexpr auto harmonyNoteFormant    = "harmonyNoteFormant";    // semitones
+    inline constexpr auto harmonyNoteAttack     = "harmonyNoteAttack";     // ms
+    inline constexpr auto harmonyNoteRelease    = "harmonyNoteRelease";    // ms
+    inline constexpr auto harmonyMidiMap        = "harmonyMidiMap";        // version 41: MIDI notes As Played / Through Chord
+    // Version 42: the Note Map Editor. CHORD Custom's map, a bit per note
+    // from 23 semitones below to 23 above, in three 16-bit parts per note
+    // ("harmonyMap1A" ... "harmonyMap12C", C to B); SPREAD/FOLD; and SCALE
+    // Custom's 12 boxes ("harmonyScaleNote1"..., above the key: In, Up, Down).
+    inline constexpr auto harmonyMapFold        = "harmonyMapFold";
+    inline juce::String harmonyMap (int note, int part) { return "harmonyMap" + juce::String (note + 1) + juce::String::charToString ((juce::juce_wchar) ('A' + part)); }
+    inline juce::String harmonyScaleNote (int note) { return "harmonyScaleNote" + juce::String (note + 1); }
+    inline const juce::StringArray scaleNoteChoices { "In", "Up", "Down" };
+    // Version 43: per-voice DELAY, FEEDBACK, FILTER and FLATTEN (HARMONY
+    // stage 6): the note voices' shared set here, the fixed voices' in
+    // harmonyVoiceParts (from "Flatten" on).
+    inline constexpr auto harmonyNoteDelay      = "harmonyNoteDelay";      // ms (0: none)
+    inline constexpr auto harmonyNoteSync       = "harmonyNoteSync";       // Delay::syncNames (0: Off, use ms)
+    inline constexpr auto harmonyNoteFeedback   = "harmonyNoteFeedback";   // 0 to 1
+    inline constexpr auto harmonyNoteFilter     = "harmonyNoteFilter";     // Harmony::filterNames
+    inline constexpr auto harmonyNoteCutoff     = "harmonyNoteCutoff";     // Hz
+    // Version 44: HARMONY's GLOBAL controls (stage 7).
+    inline constexpr auto harmonyGlide          = "harmonyGlide";          // ms
+    inline constexpr auto harmonyGlideSync      = "harmonyGlideSync";      // Delay::syncNames (0: Off, use ms)
+    inline constexpr auto harmonyGlobalPitch    = "harmonyGlobalPitch";    // semitones
+    inline constexpr auto harmonyGlobalFormant  = "harmonyGlobalFormant";  // semitones
+    // Version 45: HARMONY's SNAPSHOT selector (stage 8): 0 none, 1-32 the
+    // snapshot to recall (from the DAW or a MIDI controller as well as the
+    // panel). Not in rigs: it only picks which stored set to bring back.
+    inline constexpr auto harmonySnapshot       = "harmonySnapshot";
+    // What a snapshot stores (the guide: "Harmony controls only"): every
+    // part of the eight voices and the note voices' sound; not KEY/SCALE,
+    // GLOBAL, the note generator and chord map, or the mix.
+    juce::StringArray harmonySnapshotIds();
     // Each of the eight voices: "hv1Pitch", "hv2Pan"... (voice 1 to 8).
-    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level" };
+    // Saved by name; the processor reads them in this order: only add to the end.
+    inline const juce::StringArray harmonyVoiceParts { "Active", "On", "Pitch", "Fine", "Formant", "Correct", "Pan", "Level",
+                                                       "Flatten", "Note", "Delay", "Sync", "Feedback", "Filter", "Cutoff" };
     inline juce::String harmonyVoice (int voice, const juce::String& part) { return "hv" + juce::String (voice + 1) + part; }
+
+    // Version 46: HARMONY's modulators (stage 9, effects::HarmonyModulation).
+    // M1-M4: "hm1Type", "hm2Rate"... and their sequencer steps "hm1Step1"...
+    // Saved by name: only add to the end.
+    inline const juce::StringArray harmonyModParts { "Type", "Shape", "Rate", "Sync", "Phase", "Warp", "Smooth", "Level",
+                                                     "Trigger", "Play", "Steps" };
+    inline juce::String harmonyMod (int mod, const juce::String& part) { return "hm" + juce::String (mod + 1) + part; }
+    inline juce::String harmonyModStep (int mod, int step) { return harmonyMod (mod, "Step" + juce::String (step + 1)); }
+    inline constexpr auto harmonyAmAttack  = "harmonyAmAttack";    // ms
+    inline constexpr auto harmonyAmRelease = "harmonyAmRelease";   // ms
+    inline constexpr auto harmonyAmLevel   = "harmonyAmLevel";     // 0 to 2
+    inline constexpr auto harmonyPtSmooth  = "harmonyPtSmooth";    // ms
+    inline constexpr auto harmonyPtOffset  = "harmonyPtOffset";    // -1 to 1
+    inline constexpr auto harmonyPtLevel   = "harmonyPtLevel";     // 0 to 2
+    // Version 47 (stage 10): A1-A2 ("harmonyA1Attack"... in harmonyEnvelopeParts' order) and the Spreader.
+    inline const juce::StringArray harmonyEnvelopeParts { "Attack", "Decay", "Sustain", "Release", "AttackCurve", "DecayCurve", "ReleaseCurve" };
+    inline juce::String harmonyEnvelope (int envelope, const juce::String& part) { return "harmonyA" + juce::String (envelope + 1) + part; }
+    inline constexpr auto harmonySpMode    = "harmonySpMode";      // HarmonyModulation::spreadModeNames
+    inline constexpr auto harmonySpTrigger = "harmonySpTrigger";   // spreadTriggerNames
+    inline constexpr auto harmonySpSpread  = "harmonySpSpread";    // 0 to 1
+    inline constexpr auto harmonySpLevel   = "harmonySpLevel";     // 0 to 1
+
+    // Version 49: FORMANT on the singer's own voice (PITCH's second view):
+    // chipmunk to giant without moving the pitch (HARMONY's slices, as TUNE VOICE).
+    inline constexpr auto formantOn    = "formantOn";
+    inline constexpr auto formantShift = "formantShift";   // semitones, -12 to +12
+
+    // Version 50: CYCLONE's controls (the MOD block's rotary speaker,
+    // inspired by the Neo Ventilator II).
+    inline constexpr auto modCycFast      = "modCycFast";        // SLOW / FAST: on is fast
+    inline constexpr auto modCycStop      = "modCycStop";        // STOP: the rotors brake to a stop, facing forward
+    inline constexpr auto modCycFastSpeed = "modCycFastSpeed";   // FAST SPEED: the horn's, Hz
+    inline constexpr auto modCycSlowSpeed = "modCycSlowSpeed";   // SLOW SPEED: the horn's, Hz
+    inline constexpr auto modCycAccel     = "modCycAccel";       // ACCELERATION, 0 to 10
+    inline constexpr auto modCycBalance   = "modCycBalance";     // BALANCE, 0 to 10, 5 even
+    inline constexpr auto modCycDrive     = "modCycDrive";       // DRIVE, 0 to 10
+    inline constexpr auto modCycLow       = "modCycLow";         // MIX / DIST LO, 0 to 10
+    inline constexpr auto modCycHigh      = "modCycHigh";        // MIX / DIST HI, 0 to 10
+    inline constexpr auto modCycMode      = "modCycMode";        // MODE: GIT 1, GIT 2, KEY
+    inline constexpr auto modCycLevel     = "modCycLevel";       // LEVEL, 0 to 10, 5 about the bypassed level
+
+    // Version 48: the VOCODER (effects::Vocoder, inspired by VocalSynth 2's).
+    inline constexpr auto vocoderOn            = "vocOn";
+    inline constexpr auto vocoderMode          = "vocMode";           // Vocoder::modeNames
+    inline constexpr auto vocoderShift         = "vocShift";          // semitones
+    inline constexpr auto vocoderScale         = "vocScale";          // 0 to 1
+    inline constexpr auto vocoderLevel         = "vocLevel";          // dB
+    inline constexpr auto vocoderDry           = "vocDry";            // dB
+    inline constexpr auto vocoderCarrier       = "vocCarrier";        // Vocoder::carrierNames
+    inline constexpr auto vocoderVoicing       = "vocVoicing";        // Vocoder::voicingNames
+    inline constexpr auto vocoderGlide         = "vocGlide";          // ms
+    inline constexpr auto vocoderIntervalLevel = "vocIntervalLevel";  // dB
+    inline constexpr auto vocoderNoiseOn       = "vocNoiseOn";
+    inline constexpr auto vocoderNoiseGain     = "vocNoiseGain";      // dB
+    inline constexpr auto vocoderNoiseCrush    = "vocNoiseCrush";     // 0 to 1
+    inline constexpr auto vocoderNoiseCrushMod = "vocNoiseCrushMod";  // -1 to 1
+    inline constexpr auto vocoderNoiseModSource = "vocNoiseModSource"; // Vocoder::noiseModNames
+    inline constexpr auto vocoderLfoShape      = "vocLfoShape";       // Vocoder::lfoShapeNames
+    inline constexpr auto vocoderLfoRate       = "vocLfoRate";        // Hz
+    inline constexpr auto vocoderPan           = "vocPan";            // -1 to 1
+    inline constexpr auto vocoderLowCut        = "vocLowCut";         // Hz (20: off)
+    inline constexpr auto vocoderHighCut       = "vocHighCut";        // Hz (20000: off)
+    inline juce::String vocoderInterval (int i) { return "vocInterval" + juce::String (i + 1); }   // Vocoder::intervalNames
+    // Each oscillator's parts, in this order: "vocOsc1On", "vocOsc1Wave"...
+    inline const juce::StringArray vocoderOscParts { "On", "Wave", "Gain", "Coarse", "Fine", "PitchMod", "Shape", "ShapeMod" };
+    inline juce::String vocoderOsc (int osc, const juce::String& part) { return "vocOsc" + juce::String (osc + 1) + part; }
+    // The bands' VOL (dB) and PAN curves: 32 points each across the range.
+    inline juce::String vocoderBandVol (int point) { return "vocBandVol" + juce::String (point + 1); }
+    inline juce::String vocoderBandPan (int point) { return "vocBandPan" + juce::String (point + 1); }
+    // The HARMONY controls a modulator can move (the guide's "most
+    // controls"; FINE can't be, as in the guide), by parameter ID. Their
+    // modulation slots are saved by these IDs, not as parameters. The
+    // processor reads them in this order: only add to the end.
+    juce::StringArray harmonyModTargets();
+    // A pitch control (a voice's PITCH or NOTE, GLOBAL PITCH): moved in
+    // semitones, two octaves either way at 100%, rather than through its range.
+    bool isHarmonyPitchTarget (const juce::String& id);
 
     // Version 30: the four-voice DOUBLER (inspired by Waves Doubler).
     inline constexpr auto doublerDirectOn   = "doublerDirectOn";
@@ -195,6 +315,17 @@ namespace ParamIDs
     inline constexpr auto revivalGate        = "revivalGate";
     inline constexpr auto revivalCompression = "revivalCompression";
     inline constexpr auto revivalGain        = "revivalGain";
+    // Version 51: the compressor's PHOTON (FET, 1176-style) and ABYSS (optical,
+    // LA-2A-style) TYPEs.
+    inline constexpr auto photonInput          = "photonInput";          // dB, 0 to 40
+    inline constexpr auto photonOutput         = "photonOutput";         // dB
+    inline constexpr auto photonAttack         = "photonAttack";         // 1 (slow) to 7 (fast)
+    inline constexpr auto photonRelease        = "photonRelease";        // 1 (slow) to 7 (fast)
+    inline constexpr auto photonRatio          = "photonRatio";          // CompGate::photonRatioNames
+    inline constexpr auto abyssPeakReduction  = "abyssPeakReduction";  // 0 to 100
+    inline constexpr auto abyssGain           = "abyssGain";           // dB
+    inline constexpr auto abyssMode           = "abyssMode";           // CompGate::abyssModeNames
+    inline constexpr auto abyssEmphasis       = "abyssEmphasis";       // 0 to 1
     // Version 33: the delay's controls inspired by Waves H-Delay.
     inline constexpr auto delayDual       = "delayDual";
     inline constexpr auto delayTimeRight  = "delayTimeRight";
@@ -267,15 +398,23 @@ namespace ParamIDs
     // LIMITER goes with OUTPUT, for the same reason. HARMONY's KEY and SCALE
     // belong to the song, not the sound, so a rig change keeps them (as
     // Waves Harmony's lock does).
-    inline const juce::StringArray notInRigs { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
-                                               harmonyKey, harmonyScale };
+    // SCALE Custom's boxes go with the SCALE.
+    inline const juce::StringArray notInRigs = []
+    {
+        juce::StringArray ids { inputGain, outputGain, bypass, tunerOn, tunerMute, expression, inputLowCut, outputLimiter,
+                                harmonyKey, harmonyScale, harmonySnapshot };
+        for (int note = 0; note < 12; ++note)
+            ids.add (harmonyScaleNote (note));
+        return ids;
+    }();
 }
 
 namespace ExpressionTargets
 {
     // Saved by number: only ever add to the end.
-    enum { off, volume, wah, morph, pitch, loFi, whammyWah, glitch, talkBox };
-    inline const juce::StringArray names { "Off", "Volume", "Wah / Filter", "Morph FX", "Pitch / Whammy", "Lo-Fi", "Whammy-Wah", "Glitch", "Talk Box" };
+    enum { off, volume, wah, morph, pitch, loFi, whammyWah, glitch, talkBox, cycloneSpeed };
+    inline const juce::StringArray names { "Off", "Volume", "Wah / Filter", "Morph FX", "Pitch / Whammy", "Lo-Fi", "Whammy-Wah", "Glitch", "Talk Box",
+                                           "Cyclone Speed" };
 }
 
 namespace ParamRanges
@@ -313,3 +452,10 @@ void keepDoublerAsSaved (const std::function<std::optional<float> (const juce::S
 
 void convertOldDoubler (const std::function<std::optional<float> (const juce::String&)>& get,
                         const std::function<void (const juce::String&, float)>& set);
+
+// Settings saved before 0.40.0 with MODULATION on the original rotary
+// speaker: CYCLONE (which took its place) set as close to it as it goes,
+// RATE picking SLOW or FAST at that speed, MIX then DEPTH setting the MIX /
+// DIST knobs (see effects::Cyclone::fromOldRotary). Close, not identical.
+void convertOldRotary (const std::function<std::optional<float> (const juce::String&)>& get,
+                       const std::function<void (const juce::String&, float)>& set);

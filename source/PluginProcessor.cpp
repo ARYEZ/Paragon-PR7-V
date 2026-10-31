@@ -20,7 +20,7 @@ namespace
     // Which plugin version's parameters a project was saved with, as for
     // rigs (see Rig.cpp). Projects from before 0.3.0 don't say: 0.
     const juce::Identifier parameterVersionKey { "parameterVersion" };
-    constexpr int parameterVersion = 36;
+    constexpr int parameterVersion = 37;   // 37: CYCLONE replaced the original rotary (convertOldRotary)
 }
 
 ParagonX1AudioProcessor::ParagonX1AudioProcessor()
@@ -40,9 +40,38 @@ ParagonX1AudioProcessor::ParagonX1AudioProcessor()
         for (int part = 0; part < ParamIDs::marsBandParts.size(); ++part)
             marsBandParameters[(size_t) band].parts[part] = parameters.getRawParameterValue (ParamIDs::marsBand (band, ParamIDs::marsBandParts[part]));
     marsModulationParameters.bind (parameters);
+    for (int note = 0; note < 12; ++note)
+    {
+        for (int part = 0; part < 3; ++part)
+            harmonyMapParameters[(size_t) note][(size_t) part] = parameters.getRawParameterValue (ParamIDs::harmonyMap (note, part));
+        harmonyScaleNoteParameters[(size_t) note] = parameters.getRawParameterValue (ParamIDs::harmonyScaleNote (note));
+    }
     for (int voice = 0; voice < effects::Doubler::numVoices; ++voice)
         for (int part = 0; part < ParamIDs::doublerVoiceParts.size(); ++part)
             doublerVoiceParameters[(size_t) voice].parts[part] = parameters.getRawParameterValue (ParamIDs::doublerVoice (voice, ParamIDs::doublerVoiceParts[part]));
+    // HARMONY's modulators and the controls they can move.
+    harmonyModParameters.bind (parameters);
+    for (int o = 0; o < 2; ++o)
+        for (int part = 0; part < ParamIDs::vocoderOscParts.size(); ++part)
+            vocoderParameters.osc[(size_t) o][(size_t) part] = parameters.getRawParameterValue (ParamIDs::vocoderOsc (o, ParamIDs::vocoderOscParts[part]));
+    for (int point = 0; point < effects::Vocoder::curvePoints; ++point)
+    {
+        vocoderParameters.bandVol[(size_t) point] = parameters.getRawParameterValue (ParamIDs::vocoderBandVol (point));
+        vocoderParameters.bandPan[(size_t) point] = parameters.getRawParameterValue (ParamIDs::vocoderBandPan (point));
+    }
+    for (int i = 0; i < effects::Vocoder::numIntervals; ++i)
+        vocoderParameters.intervals[(size_t) i] = parameters.getRawParameterValue (ParamIDs::vocoderInterval (i));
+    {
+        const auto ids = ParamIDs::harmonyModTargets();
+        for (const auto& id : ids)
+        {
+            auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameters.getParameter (id));
+            jassert (ranged != nullptr);   // a typo in ParamIDs::harmonyModTargets
+            harmonyModTargets.push_back ({ parameters.getRawParameterValue (id), ranged->getNormalisableRange(), ParamIDs::isHarmonyPitchTarget (id) });
+        }
+        harmonyModSlots = std::make_unique<std::array<HarmonyModSlotState, 4>[]> ((size_t) ids.size());
+        harmonyModShown = std::make_unique<std::atomic<float>[]> ((size_t) ids.size());
+    }
 
     rigLibrary = std::make_unique<RigLibrary>();
 
@@ -101,11 +130,15 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     graphicEq.prepare (sampleRate, preparedBlockSize);
     doubler.prepare (sampleRate, preparedBlockSize);
     harmony.prepare (sampleRate, preparedBlockSize);
+    harmonyModulation.prepare (sampleRate);
+    lastGeneratedNote = -1;
     cleanVoice.setSize (1, preparedBlockSize);
     modulation.prepare (sampleRate, preparedBlockSize);
     delay.prepare (sampleRate, preparedBlockSize);
     reverb.prepare (sampleRate, preparedBlockSize);
     loFi.prepare (sampleRate, preparedBlockSize);
+    vocoder.prepare (sampleRate, preparedBlockSize);
+    vocoderVoice.setSize (1, preparedBlockSize);
     glitch.prepare (sampleRate, preparedBlockSize);
     pitchBlock.prepare (sampleRate, preparedBlockSize);
     talkBox.prepare (sampleRate, preparedBlockSize);
@@ -116,15 +149,16 @@ void ParagonX1AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     expressionVolume.setCurrentAndTargetValue (1.0f);
     tunerOpen.reset (sampleRate, gainRampSeconds);
     tunerOpen.setCurrentAndTargetValue (isOn (ParamIDs::tunerOn) && isOn (ParamIDs::tunerMute) ? 0.0f : 1.0f);
-    // Nothing in the chain looks ahead, except HARMONY's CORRECT while it's on.
+    // Nothing in the chain looks ahead, except HARMONY's CORRECT and FORMANT while they're on.
     correctLatency = wantedLatency();
     setLatencySamples (correctLatency.load());
 }
 
 int ParagonX1AudioProcessor::wantedLatency() const noexcept
 {
+    // TUNE VOICE and FORMANT both need the voice's slices ahead of time: one shared delay.
     const auto correcting = juce::roundToInt (param (ParamIDs::harmonyCorrect)) != (int) effects::Harmony::Correct::off;
-    return correcting ? juce::roundToInt (effects::Harmony::correctLatencySeconds * getSampleRate()) : 0;
+    return correcting || isOn (ParamIDs::formantOn) ? juce::roundToInt (effects::Harmony::correctLatencySeconds * getSampleRate()) : 0;
 }
 
 void ParagonX1AudioProcessor::updateLatency()
@@ -327,6 +361,41 @@ void ParagonX1AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     readMidiExpression (midi);
     marsMidi.read (midi);
+    // HARMONY's modulators restart on a new note (Retrigger, Legato).
+    {
+        auto held = false;
+        for (const auto velocity : harmonyMidi.velocity)
+            held = held || velocity > 0.0f;
+        for (const auto metadata : midi)
+            if (metadata.getMessage().isNoteOn())
+            {
+                harmonyMidiNoteStarted = true;
+                harmonyMidiHeldBefore = held;
+                break;
+            }
+    }
+    // ...and the MIDI sources: the last key's velocity and place, the wheels, aftertouch.
+    for (const auto metadata : midi)
+    {
+        const auto message = metadata.getMessage();
+        if (message.isNoteOn())
+        {
+            harmonyModMidi.velocity = message.getFloatVelocity();
+            harmonyModMidi.keyboard = juce::jlimit (-1.0f, 1.0f, ((float) message.getNoteNumber() - 60.0f) / effects::HarmonyModulation::pitchSpan);
+        }
+        else if (message.isPitchWheel())
+            harmonyModMidi.pitchWheel = juce::jlimit (-1.0f, 1.0f, (float) (message.getPitchWheelValue() - 8192) / 8192.0f);
+        else if (message.isControllerOfType (1))
+            harmonyModMidi.modWheel = (float) message.getControllerValue() / 127.0f;
+        else if (message.isChannelPressure())
+            harmonyModMidi.aftertouch = (float) message.getChannelPressureValue() / 127.0f;
+        else if (message.isAftertouch())
+            harmonyModMidi.aftertouch = (float) message.getAfterTouchValue() / 127.0f;
+    }
+    harmonyMidi.read (midi);
+    vocoder.handleMidi (midi);
+    for (size_t key = 0; key < shownMidiKeys.size(); ++key)
+        shownMidiKeys[key].store (harmonyMidi.velocity[key]);
 
     if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0)
         return;
@@ -382,11 +451,21 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     const auto pedal = expressionAmount();
     wah.process (monoBlock, expressionTarget == ExpressionTargets::wah, pedal);
 
-    compGate.process (monoBlock, { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
-                                   param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
-                                   (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
-                                   param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
-                                   param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) });
+    effects::CompGate::Settings compSettings { isOn (ParamIDs::compOn), param (ParamIDs::compThreshold), param (ParamIDs::compRatio),
+                                               param (ParamIDs::compLevel), param (ParamIDs::gateThreshold),
+                                               (effects::CompGate::Type) (int) param (ParamIDs::compType), param (ParamIDs::compAmount),
+                                               param (ParamIDs::compDetail), param (ParamIDs::compMix), isOn (ParamIDs::compIntensity),
+                                               param (ParamIDs::revivalGate), param (ParamIDs::revivalCompression), param (ParamIDs::revivalGain) };
+    compSettings.photonInputDb = param (ParamIDs::photonInput);
+    compSettings.photonOutputDb = param (ParamIDs::photonOutput);
+    compSettings.photonAttack = param (ParamIDs::photonAttack);
+    compSettings.photonRelease = param (ParamIDs::photonRelease);
+    compSettings.photonRatio = juce::roundToInt (param (ParamIDs::photonRatio));
+    compSettings.abyssPeakReduction = param (ParamIDs::abyssPeakReduction);
+    compSettings.abyssGainDb = param (ParamIDs::abyssGain);
+    compSettings.abyssMode = juce::roundToInt (param (ParamIDs::abyssMode));
+    compSettings.abyssEmphasis = param (ParamIDs::abyssEmphasis);
+    compGate.process (monoBlock, compSettings);
     // The de-esser after the compressor, whose make-up gain brings esses up.
     deEsser.process (monoBlock, { isOn (ParamIDs::deessOn), param (ParamIDs::deessFreq), param (ParamIDs::deessAmount),
                                   isOn (ParamIDs::deessListen) });
@@ -465,6 +544,9 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (! glitchPre)
         glitch.process (monoBlock, glitchSettings, getTempoBpm(), songBeats);
 
+    // The voice as it leaves the mono part: what talks through the VOCODER.
+    vocoderVoice.copyFrom (0, 0, buffer, 0, start, numSamples);
+
     // From here on, stereo: the doubler, modulation, delay and reverb spread
     // the sound across both speakers.
     for (int channel = 1; channel < numOutputChannels; ++channel)
@@ -490,7 +572,45 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     harmonySettings.correctFormant = param (ParamIDs::harmonyCorrectFormant);
     harmonySettings.spread = param (ParamIDs::harmonySpread);
     harmonySettings.correct = (effects::Harmony::Correct) juce::roundToInt (param (ParamIDs::harmonyCorrect));
+    harmonySettings.voiceFormant = isOn (ParamIDs::formantOn) ? param (ParamIDs::formantShift) : 0.0f;
     harmonySettings.latency = correctLatency.load();
+    auto& notes = harmonySettings.notes;
+    notes.generate = isOn (ParamIDs::harmonyGenerate);
+    notes.chord = juce::roundToInt (param (ParamIDs::harmonyChord));
+    notes.minNote = param (ParamIDs::harmonyMinNote);
+    notes.toleranceCents = param (ParamIDs::harmonyTolerance);
+    notes.toleranceMs = param (ParamIDs::harmonyToleranceTime);
+    notes.levelDb = param (ParamIDs::harmonyNoteLevel);
+    notes.width = param (ParamIDs::harmonyNoteWidth);
+    notes.formant = param (ParamIDs::harmonyNoteFormant);
+    notes.attackMs = param (ParamIDs::harmonyNoteAttack);
+    notes.releaseMs = param (ParamIDs::harmonyNoteRelease);
+    notes.midiMap = juce::roundToInt (param (ParamIDs::harmonyMidiMap));
+    harmonySettings.midi = &harmonyMidi;
+    // The Note Map Editor's Custom map and scale.
+    for (int note = 0; note < 12; ++note)
+    {
+        std::uint64_t bits = 0;
+        for (int part = 0; part < 3; ++part)
+            bits |= (std::uint64_t) juce::jlimit (0, 65535, juce::roundToInt (harmonyMapParameters[(size_t) note][(size_t) part]->load())) << (16 * part);
+        notes.customMap[(size_t) note] = bits;
+        const auto box = juce::roundToInt (harmonyScaleNoteParameters[(size_t) note]->load());
+        harmonySettings.customScale[(size_t) note] = box == 1 ? 1 : box == 2 ? -1 : 0;
+    }
+    notes.fold = isOn (ParamIDs::harmonyMapFold);
+    // GLOBAL: GLIDE (a synced one as ms at the tempo now), PITCH and FORMANT.
+    {
+        const auto sync = juce::roundToInt (param (ParamIDs::harmonyGlideSync));
+        const auto syncs = (int) std::size (effects::Delay::syncBeats);
+        harmonySettings.glideMs = sync > 0 && sync < syncs
+                                      ? (float) (effects::Delay::syncBeats[sync] * 60000.0 / juce::jmax (20.0, getTempoBpm()))
+                                      : param (ParamIDs::harmonyGlide);
+        harmonySettings.pitch = param (ParamIDs::harmonyGlobalPitch);
+        harmonySettings.formant = param (ParamIDs::harmonyGlobalFormant);
+    }
+    notes.fx = harmonyFx (param (ParamIDs::harmonyNoteDelay), juce::roundToInt (param (ParamIDs::harmonyNoteSync)),
+                          param (ParamIDs::harmonyNoteFeedback), juce::roundToInt (param (ParamIDs::harmonyNoteFilter)),
+                          param (ParamIDs::harmonyNoteCutoff));
     for (size_t v = 0; v < harmonySettings.voices.size(); ++v)
     {
         const auto& parts = harmonyVoiceParameters[v].parts;   // in harmonyVoiceParts' order
@@ -503,8 +623,19 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
         voice.correct = parts[5]->load() > 0.5f;
         voice.pan = parts[6]->load();
         voice.levelDb = parts[7]->load();
+        voice.flatten = parts[8]->load() > 0.5f;
+        voice.note = parts[9]->load();
+        voice.fx = harmonyFx (parts[10]->load(), juce::roundToInt (parts[11]->load()), parts[12]->load(),
+                              juce::roundToInt (parts[13]->load()), parts[14]->load());
     }
-    harmony.process (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings);
+    processHarmony (stereoBlock, cleanVoice.getReadPointer (0), harmonySettings, songBeats);
+
+    // VOCODER: the synth shaped by the voice, over what came in (DRY).
+    effects::Vocoder::Settings vocoderSettings;
+    readVocoder (vocoderSettings, harmonySettings.customScale);
+    vocoderSettings.key = harmonySettings.key;
+    vocoderSettings.scaleType = harmonySettings.scale;
+    vocoder.process (stereoBlock, vocoderVoice.getReadPointer (0), cleanVoice.getReadPointer (0), vocoderSettings);
 
     // DOUBLER: MORPH fades its voices in from the heel.
     effects::Doubler::Settings doublerSettings;
@@ -547,10 +678,18 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
     if (const auto sync = (int) param (ParamIDs::modSync); sync > 0 && sync < (int) std::size (effects::Delay::syncBeats))
         modRate = juce::jlimit (0.02f, 20.0f, (float) (getTempoBpm() / 60.0) / effects::Delay::syncBeats[sync]);
 
-    modulation.process (stereoBlock, { isOn (ParamIDs::modOn), modType, modRate,
-                                       param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
-                                       param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph),
-                                       param (ParamIDs::modManual), param (ParamIDs::modRes) });
+    effects::Modulation::Settings modSettings { isOn (ParamIDs::modOn), modType, modRate,
+                                                param (ParamIDs::modDepth) * (morphsDepth ? morph : 1.0f),
+                                                param (ParamIDs::modMix) * (morphsDepth ? 1.0f : morph),
+                                                param (ParamIDs::modManual), param (ParamIDs::modRes) };
+    // CYCLONE: its own controls. MORPH FX fades it in over the dry sound;
+    // the pedal on CYCLONE SPEED sets the rotors' speed.
+    modSettings.cyclone = { param (ParamIDs::modCycFast) > 0.5f, param (ParamIDs::modCycStop) > 0.5f,
+                            param (ParamIDs::modCycFastSpeed), param (ParamIDs::modCycSlowSpeed), param (ParamIDs::modCycAccel),
+                            param (ParamIDs::modCycBalance), param (ParamIDs::modCycDrive), param (ParamIDs::modCycLow), param (ParamIDs::modCycHigh),
+                            (effects::Cyclone::Mode) (int) param (ParamIDs::modCycMode), param (ParamIDs::modCycLevel),
+                            expressionTarget == ExpressionTargets::cycloneSpeed ? pedal : -1.0f, morph };
+    modulation.process (stereoBlock, modSettings);
     effects::Delay::Settings delaySettings;
     delaySettings.on = isOn (ParamIDs::delayOn);
     delaySettings.timeMs = param (ParamIDs::delayTime);
@@ -657,8 +796,474 @@ void ParagonX1AudioProcessor::processChunk (juce::AudioBuffer<float>& buffer, in
 void ParagonX1AudioProcessor::timerCallback()
 {
     syncMidiExpressionToParameter();
+    followSnapshotParameter();
     recordCheckpointIfReady();
     updateLatency();
+}
+
+//==============================================================================
+void ParagonX1AudioProcessor::HarmonyModParameters::bind (juce::AudioProcessorValueTreeState& state)
+{
+    for (int m = 0; m < effects::HarmonyModulation::numMods; ++m)
+    {
+        for (int part = 0; part < ParamIDs::harmonyModParts.size(); ++part)
+            mods[(size_t) m].parts[part] = state.getRawParameterValue (ParamIDs::harmonyMod (m, ParamIDs::harmonyModParts[part]));
+        for (int step = 0; step < effects::HarmonyModulation::maxSteps; ++step)
+            mods[(size_t) m].steps[(size_t) step] = state.getRawParameterValue (ParamIDs::harmonyModStep (m, step));
+    }
+    amAttack = state.getRawParameterValue (ParamIDs::harmonyAmAttack);
+    amRelease = state.getRawParameterValue (ParamIDs::harmonyAmRelease);
+    amLevel = state.getRawParameterValue (ParamIDs::harmonyAmLevel);
+    ptSmooth = state.getRawParameterValue (ParamIDs::harmonyPtSmooth);
+    ptOffset = state.getRawParameterValue (ParamIDs::harmonyPtOffset);
+    ptLevel = state.getRawParameterValue (ParamIDs::harmonyPtLevel);
+    for (int e = 0; e < effects::HarmonyModulation::numEnvelopes; ++e)
+        for (int part = 0; part < ParamIDs::harmonyEnvelopeParts.size(); ++part)
+            envelopes[(size_t) e][(size_t) part] = state.getRawParameterValue (ParamIDs::harmonyEnvelope (e, ParamIDs::harmonyEnvelopeParts[part]));
+    spMode = state.getRawParameterValue (ParamIDs::harmonySpMode);
+    spTrigger = state.getRawParameterValue (ParamIDs::harmonySpTrigger);
+    spSpread = state.getRawParameterValue (ParamIDs::harmonySpSpread);
+    spLevel = state.getRawParameterValue (ParamIDs::harmonySpLevel);
+}
+
+void ParagonX1AudioProcessor::HarmonyModParameters::read (effects::HarmonyModulation::Settings& settings) const noexcept
+{
+    for (size_t m = 0; m < mods.size(); ++m)
+    {
+        const auto& parts = mods[m].parts;   // in harmonyModParts' order
+        auto& mod = settings.mods[m];
+        mod.type = juce::roundToInt (parts[0]->load());
+        mod.shape = juce::roundToInt (parts[1]->load());
+        mod.rateHz = parts[2]->load();
+        mod.sync = juce::roundToInt (parts[3]->load());
+        mod.phase = parts[4]->load();
+        mod.warp = parts[5]->load();
+        mod.smoothMs = parts[6]->load();
+        mod.level = parts[7]->load();
+        mod.trigger = juce::roundToInt (parts[8]->load());
+        mod.play = juce::roundToInt (parts[9]->load());
+        mod.steps = juce::roundToInt (parts[10]->load());
+        for (size_t step = 0; step < mod.stepValues.size(); ++step)
+            mod.stepValues[step] = mods[m].steps[step]->load();
+    }
+    settings.am = { amAttack->load(), amRelease->load(), amLevel->load() };
+    settings.pt = { ptSmooth->load(), ptOffset->load(), ptLevel->load() };
+    for (size_t e = 0; e < envelopes.size(); ++e)
+    {
+        const auto& parts = envelopes[e];
+        settings.envelopes[e] = { parts[0]->load(), parts[1]->load(), parts[2]->load(), parts[3]->load(), parts[4]->load(), parts[5]->load(), parts[6]->load() };
+    }
+    settings.spreader = { juce::roundToInt (spMode->load()), juce::roundToInt (spTrigger->load()), spSpread->load(), spLevel->load() };
+}
+
+int ParagonX1AudioProcessor::harmonyModTarget (const juce::String& parameterId)
+{
+    static const auto ids = ParamIDs::harmonyModTargets();
+    return ids.indexOf (parameterId);
+}
+
+Rig::HarmonyModSlot ParagonX1AudioProcessor::getHarmonyModSlot (int target, int slot) const
+{
+    if (! juce::isPositiveAndBelow (target, (int) harmonyModTargets.size()) || ! juce::isPositiveAndBelow (slot, 4))
+        return {};
+    const auto& state = harmonyModSlots[(size_t) target][(size_t) slot];
+    return { state.source.load(), state.depth.load() };
+}
+
+void ParagonX1AudioProcessor::setHarmonyModSlot (int target, int slot, Rig::HarmonyModSlot value)
+{
+    if (! juce::isPositiveAndBelow (target, (int) harmonyModTargets.size()) || ! juce::isPositiveAndBelow (slot, 4))
+        return;
+    auto& state = harmonyModSlots[(size_t) target][(size_t) slot];
+    state.depth = juce::jlimit (-1.0f, 1.0f, value.depth);
+    state.source = juce::jlimit (0, (int) effects::HarmonyModulation::numSources - 1, value.source);
+    rigModified = true;
+    requestCheckpoint();
+}
+
+float ParagonX1AudioProcessor::getHarmonyModOffset (int target) const noexcept
+{
+    return juce::isPositiveAndBelow (target, (int) harmonyModTargets.size()) ? harmonyModShown[(size_t) target].load() : 0.0f;
+}
+
+std::array<float, 32> ParagonX1AudioProcessor::getHarmonyModShape (int mod) const
+{
+    std::array<float, 32> points {};
+    if (juce::isPositiveAndBelow (mod, (int) harmonyModShapes.size()))
+        for (size_t i = 0; i < points.size(); ++i)
+            points[i] = harmonyModShapes[(size_t) mod][i].load();
+    return points;
+}
+
+void ParagonX1AudioProcessor::setHarmonyModShape (int mod, const std::array<float, 32>& points)
+{
+    if (! juce::isPositiveAndBelow (mod, (int) harmonyModShapes.size()))
+        return;
+    // Kept to 1/10000 (finer than any drawing), so a rig or project saves
+    // and reloads exactly the same points.
+    for (size_t i = 0; i < points.size(); ++i)
+        harmonyModShapes[(size_t) mod][i] = (float) (std::round ((double) juce::jlimit (-1.0f, 1.0f, points[i]) * 10000.0) / 10000.0);
+    rigModified = true;
+    requestCheckpoint();
+}
+
+Rig::HarmonyModSlots ParagonX1AudioProcessor::captureHarmonyModSlots() const
+{
+    Rig::HarmonyModSlots slots;
+    const auto ids = ParamIDs::harmonyModTargets();
+    for (int target = 0; target < ids.size(); ++target)
+        for (int slot = 0; slot < 4; ++slot)
+            if (const auto value = getHarmonyModSlot (target, slot); value.source != 0)
+                slots[ids[target]][(size_t) slot] = value;
+    return slots;
+}
+
+void ParagonX1AudioProcessor::restoreHarmonyModSlots (const Rig::HarmonyModSlots& slots)
+{
+    const auto ids = ParamIDs::harmonyModTargets();
+    for (int target = 0; target < ids.size(); ++target)
+    {
+        const auto found = slots.find (ids[target]);
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            const auto value = found != slots.end() ? found->second[(size_t) slot] : Rig::HarmonyModSlot {};
+            auto& state = harmonyModSlots[(size_t) target][(size_t) slot];
+            state.depth = value.depth;
+            state.source = value.source;
+        }
+    }
+}
+
+bool ParagonX1AudioProcessor::harmonyModInUse() const noexcept
+{
+    for (size_t target = 0; target < harmonyModTargets.size(); ++target)
+        for (const auto& slot : harmonyModSlots[target])
+            if (effects::HarmonyModulation::isBuilt (slot.source.load()) && std::abs (slot.depth.load()) > 1.0e-4f)
+                return true;
+    return false;
+}
+
+void ParagonX1AudioProcessor::applyHarmonyModulation (effects::Harmony::Settings& settings, const effects::HarmonyModulation::Settings& modSettings) noexcept
+{
+    // Each modulated control: its own setting moved by its slots' sources
+    // times their depths (through its range; a pitch control in semitones).
+    const auto& ids = harmonyModTargets;
+    constexpr int voiceParts = 8;   // Pitch, Note, Formant, Pan, Level, Delay, Feedback, Cutoff (ParamIDs::harmonyModTargets)
+    const auto voiceTargets = effects::Harmony::numVoices * voiceParts;
+    std::array<bool, effects::Harmony::numVoices + 1> fxMoved {};   // the voices' (and, last, the note voices') DELAY, FEEDBACK or CUTOFF
+    std::array<std::array<float, 3>, effects::Harmony::numVoices + 1> fx {};   // their delay, feedback, cutoff as moved
+    for (int v = 0; v < effects::Harmony::numVoices; ++v)
+        fx[(size_t) v] = { harmonyVoiceParameters[(size_t) v].parts[10]->load(), harmonyVoiceParameters[(size_t) v].parts[12]->load(),
+                           harmonyVoiceParameters[(size_t) v].parts[14]->load() };
+    fx.back() = { param (ParamIDs::harmonyNoteDelay), param (ParamIDs::harmonyNoteFeedback), param (ParamIDs::harmonyNoteCutoff) };
+
+    for (int t = 0; t < (int) ids.size(); ++t)
+    {
+        auto amount = 0.0f;
+        auto perNote = false;   // a note-by-note source (each note voice its own value, even when the one value is 0)
+        for (const auto& slot : harmonyModSlots[(size_t) t])
+            if (const auto source = slot.source.load(); effects::HarmonyModulation::isBuilt (source) && std::abs (slot.depth.load()) > 1.0e-6f)
+            {
+                amount += harmonyModulation.getValue (source) * slot.depth.load();
+                perNote = perNote || harmonyModulation.isPerNote (source, modSettings);
+            }
+        if (std::abs (amount) < 1.0e-6f && ! perNote)
+        {
+            harmonyModShown[(size_t) t] = 0.0f;
+            continue;
+        }
+        const auto& target = ids[(size_t) t];
+        const auto base = target.value->load();
+        const auto span = juce::jmax (1.0e-6f, target.range.end - target.range.start);
+        const auto from = target.range.convertTo0to1 (juce::jlimit (target.range.start, target.range.end, base));
+        const auto moveBy = [&target, base, from] (float by)
+        {
+            return target.pitch ? base + by * effects::HarmonyModulation::pitchSpan
+                                : target.range.convertFrom0to1 (juce::jlimit (0.0f, 1.0f, from + by));
+        };
+        const auto moved = moveBy (amount);
+        harmonyModShown[(size_t) t] = target.pitch ? amount * effects::HarmonyModulation::pitchSpan / span
+                                                   : juce::jlimit (0.0f, 1.0f, from + amount) - from;
+
+        // Stage 10: a note-by-note source on the note voices' LEVEL, WIDTH,
+        // FORMANT (or GLOBAL PITCH / FORMANT, for them): each note voice its
+        // own offset from `moved`.
+        const auto voiceTarget = t - voiceTargets;
+        if (voiceTarget == 0 || voiceTarget == 1 || voiceTarget == 2 || voiceTarget == 10 || voiceTarget == 11)
+        {
+            if (perNote)
+                for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+                {
+                    auto own = 0.0f;
+                    for (const auto& slot : harmonyModSlots[(size_t) t])
+                        if (const auto source = slot.source.load(); effects::HarmonyModulation::isBuilt (source))
+                            own += harmonyModulation.getVoiceValue (source, v) * slot.depth.load();
+                    const auto offset = moveBy (own) - moved;
+                    auto& voiceMod = settings.notes.voiceMods[(size_t) v];
+                    switch (voiceTarget)
+                    {
+                        case 0:  voiceMod.levelDb = offset; break;
+                        case 1:  voiceMod.width = offset; break;
+                        case 10: voiceMod.pitch = offset; break;
+                        default: voiceMod.formant += offset; break;
+                    }
+                }
+        }
+
+        if (t < voiceTargets)
+        {
+            auto& voice = settings.voices[(size_t) (t / voiceParts)];
+            switch (t % voiceParts)
+            {
+                case 0: voice.semitones = moved; break;
+                case 1: voice.note = moved; break;
+                case 2: voice.formant = moved; break;
+                case 3: voice.pan = moved; break;
+                case 4: voice.levelDb = moved; break;
+                default: fx[(size_t) (t / voiceParts)][(size_t) (t % voiceParts - 5)] = moved; fxMoved[(size_t) (t / voiceParts)] = true; break;
+            }
+            continue;
+        }
+        switch (t - voiceTargets)
+        {
+            case 0:  settings.notes.levelDb = moved; break;
+            case 1:  settings.notes.width = moved; break;
+            case 2:  settings.notes.formant = moved; break;
+            case 3:  fx.back()[0] = moved; fxMoved.back() = true; break;
+            case 4:  fx.back()[1] = moved; fxMoved.back() = true; break;
+            case 5:  fx.back()[2] = moved; fxMoved.back() = true; break;
+            case 6:  settings.sourceDb = moved; break;
+            case 7:  settings.harmonyDb = moved; break;
+            case 8:  settings.spread = moved; break;
+            case 9:  settings.correctFormant = moved; break;
+            case 10: settings.pitch = moved; break;
+            case 11: settings.formant = moved; break;
+            default: break;
+        }
+    }
+
+    // DELAY, FEEDBACK and CUTOFF moved: their echo and filter again.
+    for (int v = 0; v < effects::Harmony::numVoices; ++v)
+        if (fxMoved[(size_t) v])
+        {
+            const auto& parts = harmonyVoiceParameters[(size_t) v].parts;
+            settings.voices[(size_t) v].fx = harmonyFx (fx[(size_t) v][0], juce::roundToInt (parts[11]->load()), fx[(size_t) v][1],
+                                                        juce::roundToInt (parts[13]->load()), fx[(size_t) v][2]);
+        }
+    if (fxMoved.back())
+        settings.notes.fx = harmonyFx (fx.back()[0], juce::roundToInt (param (ParamIDs::harmonyNoteSync)), fx.back()[1],
+                                       juce::roundToInt (param (ParamIDs::harmonyNoteFilter)), fx.back()[2]);
+}
+
+void ParagonX1AudioProcessor::readVocoder (effects::Vocoder::Settings& settings, const Scales::Custom& custom) const noexcept
+{
+    settings.on = isOn (ParamIDs::vocoderOn);
+    settings.mode = (effects::Vocoder::Mode) juce::roundToInt (param (ParamIDs::vocoderMode));
+    settings.shift = param (ParamIDs::vocoderShift);
+    settings.scale = param (ParamIDs::vocoderScale);
+    settings.levelDb = param (ParamIDs::vocoderLevel);
+    settings.dryDb = param (ParamIDs::vocoderDry);
+    settings.carrier = (effects::Vocoder::Carrier) juce::roundToInt (param (ParamIDs::vocoderCarrier));
+    settings.voicing = (effects::Vocoder::Voicing) juce::roundToInt (param (ParamIDs::vocoderVoicing));
+    settings.glideMs = param (ParamIDs::vocoderGlide);
+    for (size_t i = 0; i < settings.intervals.size(); ++i)
+        settings.intervals[i] = juce::roundToInt (vocoderParameters.intervals[i]->load());
+    settings.intervalDb = param (ParamIDs::vocoderIntervalLevel);
+    settings.custom = &custom;
+    for (size_t o = 0; o < 2; ++o)
+    {
+        const auto& parts = vocoderParameters.osc[o];   // in vocoderOscParts' order
+        auto& osc = settings.osc[o];
+        osc.on = parts[0]->load() > 0.5f;
+        osc.wave = juce::roundToInt (parts[1]->load());
+        osc.gainDb = parts[2]->load();
+        osc.coarse = parts[3]->load();
+        osc.fineCents = parts[4]->load();
+        osc.pitchMod = parts[5]->load();
+        osc.shape = parts[6]->load();
+        osc.shapeMod = parts[7]->load();
+    }
+    settings.noise.on = isOn (ParamIDs::vocoderNoiseOn);
+    settings.noise.gainDb = param (ParamIDs::vocoderNoiseGain);
+    settings.noise.crush = param (ParamIDs::vocoderNoiseCrush);
+    settings.noise.crushMod = param (ParamIDs::vocoderNoiseCrushMod);
+    settings.noise.modSource = juce::roundToInt (param (ParamIDs::vocoderNoiseModSource));
+    settings.lfoShape = juce::roundToInt (param (ParamIDs::vocoderLfoShape));
+    settings.lfoRateHz = param (ParamIDs::vocoderLfoRate);
+    settings.pan = param (ParamIDs::vocoderPan);
+    settings.lowCutHz = param (ParamIDs::vocoderLowCut);
+    settings.highCutHz = param (ParamIDs::vocoderHighCut);
+    for (size_t p = 0; p < settings.bandDb.size(); ++p)
+    {
+        settings.bandDb[p] = vocoderParameters.bandVol[p]->load();
+        settings.bandPan[p] = vocoderParameters.bandPan[p]->load();
+    }
+}
+
+void ParagonX1AudioProcessor::processHarmony (juce::dsp::AudioBlock<float> block, const float* clean, const effects::Harmony::Settings& base,
+                                              double songBeats)
+{
+    effects::HarmonyModulation::Settings modSettings;
+    harmonyModParameters.read (modSettings);
+    for (size_t m = 0; m < modSettings.mods.size(); ++m)
+        for (size_t point = 0; point < modSettings.mods[m].drawn.size(); ++point)
+            modSettings.mods[m].drawn[point] = harmonyModShapes[m][point].load();
+    const auto numSamples = (int) block.getNumSamples();
+    const auto inUse = harmonyModInUse();
+
+    // While nothing is modulated, the modulators still run (the MODS page
+    // shows them moving), once for the whole block, and HARMONY as before.
+    // While something is, every 32 samples (under a millisecond): the
+    // modulators move on, then HARMONY runs with their offsets.
+    const auto chunk = inUse ? 32 : numSamples;
+    for (int offset = 0; offset < numSamples; offset += chunk)
+    {
+        const auto length = juce::jmin (chunk, numSamples - offset);
+        effects::HarmonyModulation::Context context;
+        context.bpm = getTempoBpm();
+        context.songBeats = songBeats >= 0.0 ? songBeats + (double) offset / getSampleRate() * context.bpm / 60.0 : -1.0;
+        const auto generated = harmony.getGeneratedNote();
+        context.newNote = harmonyMidiNoteStarted || (generated >= 0 && generated != lastGeneratedNote);
+        context.heldBefore = harmonyMidiNoteStarted ? harmonyMidiHeldBefore : lastGeneratedNote >= 0;
+        harmonyMidiNoteStarted = false;
+        lastGeneratedNote = generated;
+        context.sungNote = harmony.getSungNote();
+        context.midi = harmonyModMidi;
+        for (int v = 0; v < effects::Harmony::numNoteVoices; ++v)
+            context.noteVoices[(size_t) v] = { harmony.getNoteVoiceTarget (v), harmony.getNoteVoiceVelocity (v) };
+        harmonyModulation.advance (modSettings, context, clean + offset, length);
+
+        if (! inUse)
+        {
+            for (size_t t = 0; t < harmonyModTargets.size(); ++t)
+                harmonyModShown[t] = 0.0f;
+            harmony.process (block, clean, base);
+            return;
+        }
+        auto settings = base;
+        applyHarmonyModulation (settings, modSettings);
+        harmony.process (block.getSubBlock ((size_t) offset, (size_t) length), clean + offset, settings);
+    }
+}
+
+//==============================================================================
+std::optional<Rig::HarmonySnapshot> ParagonX1AudioProcessor::getHarmonySnapshot (int slot) const
+{
+    const std::scoped_lock lock (harmonySnapshotsLock);
+    return slot >= 0 && slot < Rig::numHarmonySnapshots ? harmonySnapshots[(size_t) slot] : std::nullopt;
+}
+
+void ParagonX1AudioProcessor::setHarmonySnapshot (int slot, std::optional<Rig::HarmonySnapshot> snapshot)
+{
+    if (slot < 0 || slot >= Rig::numHarmonySnapshots)
+        return;
+    {
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots[(size_t) slot] = std::move (snapshot);
+    }
+    rigModified = true;
+    requestCheckpoint();
+}
+
+void ParagonX1AudioProcessor::storeHarmonySnapshot (int slot)
+{
+    Rig::HarmonySnapshot snapshot;
+    for (const auto& id : ParamIDs::harmonySnapshotIds())
+        if (auto* parameter = parameters.getParameter (id))
+            snapshot[id] = parameter->convertFrom0to1 (parameter->getValue());
+    // Stage 10: the modulator slots on the same controls, as the guide's
+    // snapshots store "Modulator assignments" (not the modulators' settings).
+    snapshot["mod:stored"] = 1.0f;
+    const auto ids = ParamIDs::harmonyModTargets();
+    const auto stored = ParamIDs::harmonySnapshotIds();
+    for (int target = 0; target < ids.size(); ++target)
+        if (stored.contains (ids[target]))
+            for (int s = 0; s < effects::HarmonyModulation::slotsPerTarget; ++s)
+                if (const auto found = getHarmonyModSlot (target, s); found.source != 0)
+                {
+                    const auto key = "mod:" + ids[target] + ":" + juce::String (s) + ":";
+                    snapshot[key + "source"] = (float) found.source;
+                    snapshot[key + "depth"] = found.depth;
+                }
+    setHarmonySnapshot (slot, std::move (snapshot));
+    // The one just stored is the one in use (without recalling it).
+    appliedSnapshot = slot + 1;
+    if (auto* selector = parameters.getParameter (ParamIDs::harmonySnapshot))
+    {
+        selector->beginChangeGesture();
+        selector->setValueNotifyingHost (selector->convertTo0to1 ((float) appliedSnapshot));
+        selector->endChangeGesture();
+    }
+}
+
+void ParagonX1AudioProcessor::applyHarmonySnapshot (const Rig::HarmonySnapshot& snapshot)
+{
+    // Every stored setting (one the snapshot doesn't have, from an older
+    // version, goes back to its default), as one edit.
+    for (const auto& id : ParamIDs::harmonySnapshotIds())
+    {
+        auto* parameter = parameters.getParameter (id);
+        if (parameter == nullptr)
+            continue;
+        const auto found = snapshot.find (id);
+        const auto normalised = found != snapshot.end()
+                                    ? parameter->convertTo0to1 (parameter->getNormalisableRange().snapToLegalValue (found->second))
+                                    : parameter->getDefaultValue();
+        if (juce::approximatelyEqual (normalised, parameter->getValue()))
+            continue;
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (normalised);
+        parameter->endChangeGesture();
+    }
+
+    // The modulator slots on those controls (a snapshot stored before stage
+    // 10 has none: the slots stay as they are).
+    if (snapshot.find ("mod:stored") == snapshot.end())
+        return;
+    const auto ids = ParamIDs::harmonyModTargets();
+    const auto stored = ParamIDs::harmonySnapshotIds();
+    for (int target = 0; target < ids.size(); ++target)
+    {
+        if (! stored.contains (ids[target]))
+            continue;
+        for (int s = 0; s < effects::HarmonyModulation::slotsPerTarget; ++s)
+        {
+            const auto key = "mod:" + ids[target] + ":" + juce::String (s) + ":";
+            const auto source = snapshot.find (key + "source"), depth = snapshot.find (key + "depth");
+            const Rig::HarmonyModSlot wanted { source != snapshot.end() ? juce::roundToInt (source->second) : 0,
+                                               depth != snapshot.end() ? depth->second : 0.0f };
+            if (! (getHarmonyModSlot (target, s) == wanted))
+                setHarmonyModSlot (target, s, wanted);
+        }
+    }
+}
+
+void ParagonX1AudioProcessor::recallHarmonySnapshot (int slot)
+{
+    const auto snapshot = getHarmonySnapshot (slot);
+    if (! snapshot.has_value())
+        return;
+    applyHarmonySnapshot (*snapshot);
+    appliedSnapshot = slot + 1;
+    if (auto* selector = parameters.getParameter (ParamIDs::harmonySnapshot))
+    {
+        selector->beginChangeGesture();
+        selector->setValueNotifyingHost (selector->convertTo0to1 ((float) appliedSnapshot));
+        selector->endChangeGesture();
+    }
+}
+
+void ParagonX1AudioProcessor::followSnapshotParameter()
+{
+    // SNAPSHOT moved by the DAW (automation) or a MIDI controller: bring
+    // that snapshot back (an empty slot does nothing).
+    const auto wanted = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());
+    if (wanted == appliedSnapshot)
+        return;
+    appliedSnapshot = wanted;
+    if (wanted > 0)
+        if (const auto snapshot = getHarmonySnapshot (wanted - 1))
+            applyHarmonySnapshot (*snapshot);
 }
 
 //==============================================================================
@@ -748,6 +1353,19 @@ void ParagonX1AudioProcessor::useRigFolder (const juce::File& folder)
     rigBroadcaster.sendChangeMessage();
 }
 
+effects::Harmony::Fx ParagonX1AudioProcessor::harmonyFx (float delayMs, int sync, float feedback, int filter, float cutoffHz) const noexcept
+{
+    effects::Harmony::Fx fx;
+    const auto syncs = (int) std::size (effects::Delay::syncBeats);
+    if (sync > 0 && sync < syncs)
+        delayMs = (float) (effects::Delay::syncBeats[sync] * 60000.0 / juce::jmax (20.0, getTempoBpm()));
+    fx.delayMs = juce::jlimit (0.0f, (float) (effects::Harmony::maxEchoSeconds * 1000.0), delayMs);
+    fx.feedback = feedback;
+    fx.filter = filter;
+    fx.cutoffHz = cutoffHz;
+    return fx;
+}
+
 Rig ParagonX1AudioProcessor::captureRig() const
 {
     Rig rig;
@@ -756,6 +1374,11 @@ Rig ParagonX1AudioProcessor::captureRig() const
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
             if (! ParamIDs::notInRigs.contains (ranged->paramID))
                 rig.parameters[ranged->paramID] = ranged->convertFrom0to1 (ranged->getValue());
+    rig.harmonyModSlots = captureHarmonyModSlots();
+    for (int m = 0; m < effects::HarmonyModulation::numMods; ++m)
+        rig.harmonyModShapes[(size_t) m] = getHarmonyModShape (m);
+    const std::scoped_lock lock (harmonySnapshotsLock);
+    rig.harmonySnapshots = harmonySnapshots;
     return rig;
 }
 
@@ -776,6 +1399,16 @@ void ParagonX1AudioProcessor::applyRig (const Rig& rig)
                                   : ranged->getDefaultValue();
         ranged->setValueNotifyingHost (normalised);
     }
+
+    {
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots = rig.harmonySnapshots;
+    }
+    restoreHarmonyModSlots (rig.harmonyModSlots);
+    for (size_t m = 0; m < harmonyModShapes.size(); ++m)
+        for (size_t i = 0; i < harmonyModShapes[m].size(); ++i)
+            harmonyModShapes[m][i] = rig.harmonyModShapes[m][i];
+    appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 
     applyingRig = false;
     rigModified = false;
@@ -919,6 +1552,24 @@ void ParagonX1AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty (expressionCcKey, expressionCc.load(), nullptr);
     state.setProperty (tunerReferenceKey, tunerReferenceHz.load(), nullptr);
 
+    {
+        // HARMONY's snapshots, beside the parameters.
+        juce::XmlElement snapshots ("HarmonySnapshots");
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        Rig::writeSnapshots (harmonySnapshots, snapshots);
+        state.appendChild (juce::ValueTree::fromXml (snapshots), nullptr);
+    }
+    {
+        // HARMONY's modulation slots, likewise.
+        juce::XmlElement slots ("HarmonyModulation");
+        Rig::writeModSlots (captureHarmonyModSlots(), slots);
+        Rig::HarmonyModShapes shapes {};
+        for (int m = 0; m < effects::HarmonyModulation::numMods; ++m)
+            shapes[(size_t) m] = getHarmonyModShape (m);
+        Rig::writeModShapes (shapes, slots);
+        state.appendChild (juce::ValueTree::fromXml (slots), nullptr);
+    }
+
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -930,6 +1581,38 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
         return;
 
     auto state = juce::ValueTree::fromXml (*xml);
+    // HARMONY's snapshots (none in a project saved before they existed).
+    {
+        auto saved = state.getChildWithName ("HarmonySnapshots");
+        Rig::HarmonySnapshots loaded;
+        if (saved.isValid())
+        {
+            if (auto snapshotsXml = saved.createXml())
+                loaded = Rig::readSnapshots (*snapshotsXml);
+            state.removeChild (saved, nullptr);
+        }
+        const std::scoped_lock lock (harmonySnapshotsLock);
+        harmonySnapshots = loaded;
+    }
+    // HARMONY's modulation slots (none in a project saved before they existed).
+    {
+        auto saved = state.getChildWithName ("HarmonyModulation");
+        Rig::HarmonyModSlots loaded;
+        Rig::HarmonyModShapes shapes {};
+        if (saved.isValid())
+        {
+            if (auto slotsXml = saved.createXml())
+            {
+                loaded = Rig::readModSlots (*slotsXml);
+                shapes = Rig::readModShapes (*slotsXml);
+            }
+            state.removeChild (saved, nullptr);
+        }
+        restoreHarmonyModSlots (loaded);
+        for (size_t m = 0; m < harmonyModShapes.size(); ++m)
+            for (size_t i = 0; i < harmonyModShapes[m].size(); ++i)
+                harmonyModShapes[m][i] = shapes[m][i];
+    }
 
     // Parameters whose default changed: a project saved before they existed
     // gets the setting it had then, so it sounds the same.
@@ -944,6 +1627,7 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     };
     addIfMissing (ParamIDs::driveModel, 0);   // before the drive had a MODEL: the original (Classic), for convertOldDrive
     addIfMissing (ParamIDs::reverbType, (int) effects::Reverb::Type::classic);    // before the reverb had a TYPE
+    addIfMissing (ParamIDs::compType, (int) effects::CompGate::Type::classic);    // before 0.41.0 the compressor started on Classic
 
     const auto get = [&state] (const juce::String& id) -> std::optional<float>
     {
@@ -974,7 +1658,11 @@ void ParagonX1AudioProcessor::setStateInformation (const void* data, int sizeInB
     // Saved with a pedal drive model: now MARS, set up to sound close to it.
     if (savedWith < 36)
         convertOldDrive (get, set);
+    // Saved with the original rotary speaker: now CYCLONE, set to match.
+    if (savedWith < 37)
+        convertOldRotary (get, set);
     parameters.replaceState (state);
+    appliedSnapshot = juce::roundToInt (parameters.getRawParameterValue (ParamIDs::harmonySnapshot)->load());   // loading isn't a recall
 
     // Restoring the project changed parameters, which marked the rig as
     // modified; put back what was saved instead.
