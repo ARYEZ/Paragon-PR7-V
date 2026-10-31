@@ -2,6 +2,14 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.42.2
+
+- **The screens' shadows look as they did before 0.42.1.** 0.42.1's CPU fix keeps each screen's soft drop shadow as a saved picture instead of working it out every time. In a few places that saved picture came out fainter, so the thin dark line under a screen's metal frame was lighter: up to 38 parts in 255 under the small LEVEL readout, and slightly on the OCTAVE / FREEZE view. There were two causes, the same ones found and fixed in PR7-B and PR7-G:
+  - **It was saved at double size and shrunk to fit**, which softened its edge. It's now made exactly the way the drawing toolkit (JUCE) makes a shadow, so it comes out the same.
+  - **The drawing toolkit draws a saved picture at the strength of the last colour used.** When something half-transparent was drawn just before a screen, its shadow came out faded. It's now always drawn at full strength.
+- **Checked pixel by pixel against 0.42.0:** every block (all 13) in all three finishes, MARS's four pages, DELAY's and REVERB's pages, HARMONY's views, OCTAVE / FREEZE and the rigs and settings pages all match to within 2 parts in 255, rounding you can't see. The only larger differences are the TAP light blinking and MOD's wave, which follow the clock.
+- **Still light on the CPU:** with the window open and idle it measures 5.7% of a core, in line with 0.42.1.
+
 ## 0.42.1
 
 - **Much lighter on the computer with the window open** (as PR7-G 0.58.1). With the plugin's window open and nothing happening, it used almost a whole processor core (about 91%, measured with software drawing on Linux). The sound itself was never the cost: with every effect off, the processing takes well under 1%. The window was the problem: it redrew the whole rack unit, shadows and all, 30 times a second even when nothing on it had changed.
