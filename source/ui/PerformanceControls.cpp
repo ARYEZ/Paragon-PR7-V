@@ -54,7 +54,7 @@ namespace
             juce::Path triangle;
             triangle.addTriangle (c.x - w, up ? c.y + w * 0.6f : c.y - w * 0.6f, c.x + w, up ? c.y + w * 0.6f : c.y - w * 0.6f,
                                   c.x, up ? c.y - w * 0.8f : c.y + w * 0.8f);
-            g.setColour ((key ? (Finish::neonKeys() ? juce::Colours::white : ParagonColours::text) : ParagonColours::accent).withAlpha (isEnabled() ? 1.0f : 0.25f));
+            g.setColour ((key ? ParagonColours::text : ParagonColours::accent).withAlpha (isEnabled() ? 1.0f : 0.25f));
             g.fillPath (triangle);
         }
 
@@ -449,32 +449,31 @@ namespace
             // Set into the plate: a dark shadow line round it, deepest along the top.
             g.setColour (juce::Colours::black.withAlpha (0.55f));
             g.strokePath (pad, juce::PathStrokeType (fw * 0.014f), juce::AffineTransform::translation (0.0f, -1.0f));
-            // Black rubber, or on the pearl black unit the neon of its keys,
-            // lit at the top of each pad and shaded towards the bottom.
-            const auto neon = Finish::neonKeys();
-            if (neon)
-            {
-                g.setGradientFill (Finish::neonGradient (0.0f, fw));
-                g.fillPath (pad);
-                g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack, 0.0f, pad.getBounds().getY(),
-                                                         juce::Colours::black.withAlpha (0.4f), 0.0f, pad.getBounds().getBottom(), false));
-            }
-            else
-            {
-                g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1a1618), 0.0f, pad.getBounds().getY(),
-                                                         juce::Colour (0xff090708), 0.0f, pad.getBounds().getBottom(), false));
-            }
+            // Black rubber, lit at the top of each pad and shaded towards the bottom.
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1a1618), 0.0f, pad.getBounds().getY(),
+                                                     juce::Colour (0xff090708), 0.0f, pad.getBounds().getBottom(), false));
             g.fillPath (pad);
 
             // Ribs across it, each with a lit top edge and a shadow under it.
             juce::Graphics::ScopedSaveState clip (g);
             g.reduceClipRegion (pad);
             const auto pitch = fh * 0.0125f;
+            // On pearl black and white + neon each rib's top carries the neon,
+            // pink to red to orange across (like the keys' rings).
+            const auto neonRibs = Finish::neonRings();
             for (auto y = pad.getBounds().getY() + pitch * 0.5f; y < pad.getBounds().getBottom(); y += pitch)
             {
-                g.setColour (juce::Colours::white.withAlpha (neon ? 0.05f : 0.07f));
+                if (neonRibs)
+                {
+                    g.setGradientFill (Finish::neonGradient (0.0f, fw));
+                    g.fillRect (0.0f, y, fw, pitch * 0.3f);
+                    g.setColour (juce::Colours::black.withAlpha (0.5f));
+                    g.fillRect (0.0f, y + pitch * 0.3f, fw, pitch * 0.2f);
+                    continue;
+                }
+                g.setColour (juce::Colours::white.withAlpha (0.07f));
                 g.fillRect (0.0f, y, fw, pitch * 0.18f);
-                g.setColour (juce::Colours::black.withAlpha (neon ? 0.35f : 0.45f));
+                g.setColour (juce::Colours::black.withAlpha (0.45f));
                 g.fillRect (0.0f, y + pitch * 0.18f, fw, pitch * 0.22f);
             }
 
@@ -690,12 +689,7 @@ void ExpressionPedal::paint (juce::Graphics& g)
             const auto face = roundedOutline (topZ);
             const auto amount = tilt / maxTilt;   // +1 toe down (heel up), -1 heel down (toe up)
             const auto toeEnd = corner (0.5f, 0.0f, topZ), heelEnd = corner (0.5f, 1.0f, topZ);
-            // On the neon grips white light reads as a milky haze, so there
-            // the raised end isn't lightened; the end tipping away still darkens.
-            // (Transparent black, not transparent white: the gradient blends
-            // between its ends, and from white it would pass through grey.)
-            const auto lit = Finish::neonKeys() ? juce::Colours::transparentBlack
-                                                : juce::Colours::white.withAlpha (0.10f * std::abs (amount));
+            const auto lit = juce::Colours::white.withAlpha (0.10f * std::abs (amount));
             const auto shaded = Finish::isBlack() ? juce::Colours::black.withAlpha (0.45f * std::abs (amount))
                                                   : juce::Colour (0xff4a2034).withAlpha (0.28f * std::abs (amount));   // rose, not black, so the pearl doesn't go grey
             g.setGradientFill (juce::ColourGradient (amount < 0.0f ? lit : shaded, toeEnd,

@@ -70,8 +70,8 @@ SettingsPage::SettingsPage (ParagonX1AudioProcessor& p)
     };
 
     pearlWhite.setTooltip ("The original pearl white unit with black keys and knobs");
-    pearlWhiteNeon.setTooltip ("The pearl white unit with neon pink-to-orange keys and knobs");
-    pearlBlack.setTooltip ("A pearl black unit with neon pink-to-orange keys and knobs");
+    pearlWhiteNeon.setTooltip ("The pearl white unit with black keys and knobs in neon pink-to-orange rings");
+    pearlBlack.setTooltip ("A pearl black unit with black keys and knobs in neon pink-to-orange rings");
     pearlWhite.onClick = [] { Finish::set (Finish::Type::pearlWhite); };
     pearlWhiteNeon.onClick = [] { Finish::set (Finish::Type::pearlWhiteNeon); };
     pearlBlack.onClick = [] { Finish::set (Finish::Type::pearlBlack); };
@@ -122,7 +122,7 @@ void SettingsPage::paint (juce::Graphics& g)
              "A MIDI expression pedal moves the on-screen pedal. Pick the MIDI controller it sends "
              "(most send CC 11), and route the MIDI track to Paragon PR7-V in your DAW.");
     section (finishArea, "FINISH",
-             "The unit's colour: pearl white with black keys, or pearl white or pearl black with neon pink-to-orange keys. "
+             "The unit's colour: pearl white with chrome rings, or pearl white or pearl black with neon pink-to-orange rings round the black keys and knobs. "
              "Saved on this computer, so every Paragon PR7-V you open uses it.");
     section (rigsArea, "RIGS", "Your rigs are files in this folder, so you can back them up or share them:\n"
                                + processor.getRigLibrary().getFolder().getFullPathName());

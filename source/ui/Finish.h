@@ -2,10 +2,14 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// The unit's finish: the original pearl white with black keys, or pearl
-// white or pearl black with neon keys and knobs (pink to red to orange). Only the unit itself changes (its chassis, the expression
-// pedal's plate, the lettering printed on it, its keys and knobs); the
-// screens, the neon and the dark panels round it stay as they are.
+// The unit's finish: pearl white, pearl black, or pearl white + neon. The
+// keys and knobs are black on every finish; on pearl black and pearl
+// white + neon the rings round them (the footswitches' and slot buttons'
+// bezels, the small keys' surrounds, the knobs' rings) and the expression
+// pedal's ribs carry the neon (pink to red to orange); on pearl white they
+// are chrome and plain red. Only the unit itself changes (its chassis, the
+// pedal's plate, the lettering printed on it, its rings); the screens, the
+// neon and the dark panels round it stay as they are.
 //
 // It's a preference of the person, not part of a project or a rig: kept in a
 // small settings file in the user's application data folder, so every
@@ -21,7 +25,7 @@ namespace Finish
     // `remember` saves it to the settings file (off for tests and snapshots).
     void set (Type, bool remember = true);
     inline bool isBlack() { return get() == Type::pearlBlack; }          // the chassis colour
-    inline bool neonKeys() { return get() != Type::pearlWhite; }         // the keys, knobs and pedal grips
+    inline bool neonRings() { return get() != Type::pearlWhite; }        // the rings round keys and knobs, and the pedal's ribs
 
     // Told whenever the finish changes, to repaint.
     juce::ChangeBroadcaster& changes();

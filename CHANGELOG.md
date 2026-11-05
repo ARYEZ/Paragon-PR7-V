@@ -2,6 +2,18 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.43.0
+
+- **A new look for Pearl Black and Pearl White + Neon** (your design, as on PR7-G 0.59.0): every key and knob is now **black**, as on Pearl White, and the neon's pink-to-red-to-orange moves to the **rings around them**.
+  - **The big keys** (the seven stomps): their rings are the neon instead of chrome, still lit along the top and darker at the front like the chrome was.
+  - **The small keys** (UNDO, TUNER, the rack's keys, HARMONY's voice keys and the rest): their surrounds are the neon too.
+  - **The knobs:** black, with their glowing ring running through the neon colours, a little brighter because it's a light. On Pearl White the ring stays plain red.
+  - **The expression pedal:** black rubber, with the neon running along its ribs.
+  - **Lettering stays readable:** the small keys' names keep the unit's ink (white on Pearl Black, dark on White + Neon). HARMONY's voice keys that aren't in use are still lettered dimmer.
+  - **PR7-V's own panels** (HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ, the rack's keys and knobs) draw their keys and knobs the same way as the unit, so they all follow the new look.
+- **Pearl White doesn't change at all.** I rendered nine views of it (DYNAMICS, HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ, DELAY, SETTINGS and the expression pedal) before and after, and compared them pixel by pixel. They're identical, apart from the TAP light, which blinks with the tempo, and the new FINISH description and version number on SETTINGS.
+- **SETTINGS > FINISH** and the finish buttons' tooltips describe the new look.
+
 ## 0.42.2
 
 - **The screens' shadows look as they did before 0.42.1.** 0.42.1's CPU fix keeps each screen's soft drop shadow as a saved picture instead of working it out every time. In a few places that saved picture came out fainter, so the thin dark line under a screen's metal frame was lighter: up to 38 parts in 255 under the small LEVEL readout, and slightly on the OCTAVE / FREEZE view. There were two causes, the same ones found and fixed in PR7-B and PR7-G:
