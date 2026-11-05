@@ -101,6 +101,14 @@ public:
     // height, so the editor can resize the window to match.
     std::function<void()> onHeightChanged;
 
+    // The rack (the strip under the floor unit with the selected block's
+    // display and controls). Every window opens with it hidden, to start
+    // small and clean; HIDE RACK / SHOW RACK on the SIGNAL CHAIN strip
+    // switches it, and clicking a block in the chain shows it. Each window
+    // has its own: it isn't saved, and isn't shared with other PR7-V windows.
+    bool isRackShown() const noexcept { return rackShown; }
+    void setRackShown (bool shown);
+
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
@@ -193,6 +201,7 @@ private:
     SettingsPage settingsPage;
     std::vector<juce::Component*> processorPage;
     Page page = Page::processor;
+    bool rackShown = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainView)
 };

@@ -177,10 +177,12 @@ descriptions below still talk about guitar.
   and reverb in from the heel), **PITCH / WHAMMY** (bends the pitch shifter from no shift at the heel to its
   INTERVAL at the toe), **LO-FI** (fades the lo-fi effect in: full band at the heel, lo-fi at the toe) or
   **WHAMMY-WAH** (plays the FILTER / PITCH block's Whammy-Wah). MIN and MAX set where the heel and toe land. The assignment and range
-  are saved with each rig.
+  are saved with each rig. A new copy of the plugin starts with the pedal half way; a project keeps where it was.
 - **The rack** (under the floorboard): one wide PR7 unit, the "brain" to go with the floorboard (same chassis,
   screens, knobs, keys and lights, in your finish), for the block you pick (click a signal-chain block or a
-  footswitch name); **GRAPHIC EQ** goes back to the EQ.
+  footswitch name); **GRAPHIC EQ** goes back to the EQ. Every window opens with the rack hidden, small and clean:
+  **SHOW RACK** on the signal-chain strip, or clicking a block, opens it (and HIDE RACK puts it away). Each window
+  has its own; it isn't remembered.
   - **On the left, its display**, following its TYPE, with live readings: DYNAMICS with a gain-reduction needle
     (Photon, Abyss, and the retired Classic), a meter (the retired Daybreak) or its curve and meter (Revival); SATURATION as MARS, a glowing tube per band;
     DELAY with its repeats and TIME; REVERB with its shape and DECAY; PITCH with the note you sing and the harmony
@@ -190,7 +192,9 @@ descriptions below still talk about guitar.
     MARS are whole editors, shown on a big screen in the face.
   - **At the right end, EXPRESSION ASSIGN.**
   Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
-- **SETTINGS:** the tuner's reference pitch, mute while tuning, and the expression pedal's MIDI CC.
+- **SETTINGS:** the tuner's reference pitch, mute while tuning, the expression pedal's MIDI CC, and the unit's
+  **FINISH**: **OBSIDIAN** (pearl black, the default) or **AURORA** (pearl white), both with black keys and knobs in
+  neon pink-to-orange rings. The finish is saved on your computer, so every PR7-V you open uses it.
 - The paths of the loaded files are saved in your DAW project. If a file is missing when the project
   opens, the slot says so and keeps the path, so moving the file back fixes it.
 

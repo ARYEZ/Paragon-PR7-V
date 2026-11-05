@@ -119,7 +119,7 @@ void Footswitch::paint (juce::Graphics& g)
         g.fillRoundedRectangle (lens.reduced (2.0f).withHeight (lens.getHeight() * 0.3f), 1.5f);
     }
 
-    // The pad: a big black piano key standing in a raised bezel (chrome, or the neon on pearl black and white + neon), the
+    // The pad: a big black piano key standing in a raised neon bezel, the
     // way a real floor unit's footswitch is mounted. The bezel casts a
     // shadow on the panel, is lit along its top and darker at the front,
     // and holds the key in a dark well.

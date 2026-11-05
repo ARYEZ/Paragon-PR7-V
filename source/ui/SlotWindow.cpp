@@ -88,8 +88,8 @@ namespace SlotWindow
 
     void drawButton (juce::Graphics& g, juce::Rectangle<int> areaInt, bool hover, bool highlight)
     {
-        // A plain black piano key in a bezel (chrome, or the neon on pearl
-        // black and white + neon), exactly like the footswitches: no icon, the title
+        // A plain black piano key in a neon bezel, exactly like the
+        // footswitches: no icon, the title
         // above and caption below say what it is.
         const auto bezel = areaInt.toFloat();
         ParagonLookAndFeel::drawChromeBezel (g, bezel, 11.0f);

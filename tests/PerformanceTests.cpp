@@ -221,7 +221,10 @@ TEST_CASE ("Expression pedal as a volume pedal, within its MIN and MAX", "[expre
     const auto full = rig.play (0.3);
 
     rig.turn (ParamIDs::expressionTarget, (float) ExpressionTargets::volume);
-    CHECK (rig.play (0.2) < 1.0e-4f);                       // heel down by default: silent, as a real volume pedal
+    CHECK_THAT (rig.play (0.2), WithinAbs (full * 0.25, 0.01));   // half way by default: -12 dB (the audio taper below)
+
+    rig.turn (ParamIDs::expression, 0.0f);
+    CHECK (rig.play (0.2) < 1.0e-4f);                       // heel down: silent, as a real volume pedal
 
     rig.turn (ParamIDs::expression, 1.0f);
     CHECK_THAT (rig.play (0.2), WithinAbs (full, 0.005));   // toe down: full volume
@@ -237,7 +240,7 @@ TEST_CASE ("Expression pedal as a volume pedal, within its MIN and MAX", "[expre
 TEST_CASE ("MIDI CC 11 moves the expression pedal", "[expression]")
 {
     TestRig rig;
-    const auto full = rig.play (0.3);   // before assigning VOLUME: the pedal starts heel down, which would be silent
+    const auto full = rig.play (0.3);   // before assigning VOLUME: the pedal starts half way, which would be quieter
     rig.turn (ParamIDs::expressionTarget, (float) ExpressionTargets::volume);
 
     juce::MidiBuffer midi;

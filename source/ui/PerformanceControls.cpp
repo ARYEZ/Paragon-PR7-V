@@ -458,23 +458,14 @@ namespace
             juce::Graphics::ScopedSaveState clip (g);
             g.reduceClipRegion (pad);
             const auto pitch = fh * 0.0125f;
-            // On pearl black and white + neon each rib's top carries the neon,
-            // pink to red to orange across (like the keys' rings).
-            const auto neonRibs = Finish::neonRings();
+            // Each rib's top carries the neon, pink to red to orange across
+            // (like the keys' rims), with a shadow under it.
             for (auto y = pad.getBounds().getY() + pitch * 0.5f; y < pad.getBounds().getBottom(); y += pitch)
             {
-                if (neonRibs)
-                {
-                    g.setGradientFill (Finish::neonGradient (0.0f, fw));
-                    g.fillRect (0.0f, y, fw, pitch * 0.3f);
-                    g.setColour (juce::Colours::black.withAlpha (0.5f));
-                    g.fillRect (0.0f, y + pitch * 0.3f, fw, pitch * 0.2f);
-                    continue;
-                }
-                g.setColour (juce::Colours::white.withAlpha (0.07f));
-                g.fillRect (0.0f, y, fw, pitch * 0.18f);
-                g.setColour (juce::Colours::black.withAlpha (0.45f));
-                g.fillRect (0.0f, y + pitch * 0.18f, fw, pitch * 0.22f);
+                g.setGradientFill (Finish::neonGradient (0.0f, fw));
+                g.fillRect (0.0f, y, fw, pitch * 0.3f);
+                g.setColour (juce::Colours::black.withAlpha (0.5f));
+                g.fillRect (0.0f, y + pitch * 0.3f, fw, pitch * 0.2f);
             }
 
             // The unit's red glow caught along the pad's edge.

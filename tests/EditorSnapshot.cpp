@@ -8,7 +8,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "ui/Finish.h"
-#include "ui/RackView.h"
+#include "ui/MainView.h"
 
 namespace
 {
@@ -51,10 +51,10 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 
     const auto showPresets = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_PAGE", {}) == "presets";
 
-    // PARAGON_SNAPSHOT_FINISH=black or =neon: the pearl black unit, or pearl
-    // white + neon (not saved as the preference).
+    // PARAGON_SNAPSHOT_FINISH=aurora (or neon, white): the Aurora finish;
+    // otherwise Obsidian, the default (not saved as the preference).
     const auto finish = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_FINISH", {});
-    Finish::set (finish == "black" ? Finish::Type::pearlBlack : finish == "neon" ? Finish::Type::pearlWhiteNeon : Finish::Type::pearlWhite, false);
+    Finish::set (finish == "aurora" || finish == "neon" || finish == "white" ? Finish::Type::aurora : Finish::Type::obsidian, false);
     const auto rigFolder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("ParagonX1SnapshotRigs");
     rigFolder.deleteRecursively();
     processor.useRigFolder (rigFolder);
@@ -165,10 +165,10 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         }
     }
 
-    // PARAGON_SNAPSHOT_RACK=hidden: the rack hidden (HIDE RACK), the window shorter.
-    RackView::setShown (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_RACK", {}) != "hidden", false);
-
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    // The rack shown (a window opens with it hidden, as PARAGON_SNAPSHOT_RACK=hidden draws it).
+    if (auto* view = findType<MainView> (*editor))
+        view->setRackShown (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_RACK", {}) != "hidden");
     if (loud)
         for (int i = 0; i < 3; ++i)   // let the light's and meters' timers read it
         {

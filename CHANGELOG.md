@@ -2,6 +2,17 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.44.0
+
+- **The finishes have new names, and the unit opens black** (your decisions, as on PR7-G 0.60.0):
+  - **OBSIDIAN** (named after the volcanic glass) is the pearl black unit, until now Pearl Black. It's the default.
+  - **AURORA** is the pearl white unit with neon rings, until now Pearl White + Neon.
+  - **Pearl White** (chrome rings) is gone. If you'd picked Aurora, it stays Aurora; if you were on Pearl White, or never picked a finish, PR7-V opens in Obsidian.
+  - SETTINGS > FINISH has two buttons, OBSIDIAN and AURORA. Both have black keys and knobs in neon pink-to-orange rings.
+- **The rack opens hidden** in every new window, so the plugin starts small and clean. SHOW RACK on the signal-chain strip, or clicking a block in the chain, opens it, as before. It isn't remembered, and each window has its own: showing it in one PR7-V doesn't change another.
+- **The expression pedal starts half way** instead of heel down. Its assignment starts on OFF, so this changes nothing in the sound until you assign it (on VOLUME, half way is -12 dB). Your projects keep the pedal where you left it.
+- **PR7-V's own editors in both finishes:** I rendered HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ and DYNAMICS in Obsidian and Aurora to check they look right.
+
 ## 0.43.0
 
 - **A new look for Pearl Black and Pearl White + Neon** (your design, as on PR7-G 0.59.0): every key and knob is now **black**, as on Pearl White, and the neon's pink-to-red-to-orange moves to the **rings around them**.
