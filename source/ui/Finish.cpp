@@ -24,11 +24,12 @@ namespace Finish
             {
                 // Read once, the first time anything is drawn.
                 juce::PropertiesFile file (settingsOptions());
-                const auto saved = file.getIntValue (settingKey, 0);
-                type = saved == (int) Type::pearlBlack || saved == (int) Type::pearlWhiteNeon ? (Type) saved : Type::pearlWhite;
+                // Aurora if chosen; otherwise (nothing saved yet, or the
+                // retired Pearl White) Obsidian, the default.
+                type = file.getIntValue (settingKey, (int) Type::obsidian) == (int) Type::aurora ? Type::aurora : Type::obsidian;
             }
 
-            Type type = Type::pearlWhite;
+            Type type = Type::obsidian;
             juce::ChangeBroadcaster broadcaster;
         };
 

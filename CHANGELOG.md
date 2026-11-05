@@ -2,6 +2,37 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.44.0
+
+- **The finishes have new names, and the unit opens black** (your decisions, as on PR7-G 0.60.0):
+  - **OBSIDIAN** (named after the volcanic glass) is the pearl black unit, until now Pearl Black. It's the default.
+  - **AURORA** is the pearl white unit with neon rings, until now Pearl White + Neon.
+  - **Pearl White** (chrome rings) is gone. If you'd picked Aurora, it stays Aurora; if you were on Pearl White, or never picked a finish, PR7-V opens in Obsidian.
+  - SETTINGS > FINISH has two buttons, OBSIDIAN and AURORA. Both have black keys and knobs in neon pink-to-orange rings.
+- **The rack opens hidden** in every new window, so the plugin starts small and clean. SHOW RACK on the signal-chain strip, or clicking a block in the chain, opens it, as before. It isn't remembered, and each window has its own: showing it in one PR7-V doesn't change another.
+- **The expression pedal starts half way** instead of heel down. Its assignment starts on OFF, so this changes nothing in the sound until you assign it (on VOLUME, half way is -12 dB). Your projects keep the pedal where you left it.
+- **PR7-V's own editors in both finishes:** I rendered HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ and DYNAMICS in Obsidian and Aurora to check they look right.
+
+## 0.43.0
+
+- **A new look for Pearl Black and Pearl White + Neon** (your design, as on PR7-G 0.59.0): every key and knob is now **black**, as on Pearl White, and the neon's pink-to-red-to-orange moves to the **rings around them**.
+  - **The big keys** (the seven stomps): their rings are the neon instead of chrome, still lit along the top and darker at the front like the chrome was.
+  - **The small keys** (UNDO, TUNER, the rack's keys, HARMONY's voice keys and the rest): their surrounds are the neon too.
+  - **The knobs:** black, with their glowing ring running through the neon colours, a little brighter because it's a light. On Pearl White the ring stays plain red.
+  - **The expression pedal:** black rubber, with the neon running along its ribs.
+  - **Lettering stays readable:** the small keys' names keep the unit's ink (white on Pearl Black, dark on White + Neon). HARMONY's voice keys that aren't in use are still lettered dimmer.
+  - **PR7-V's own panels** (HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ, the rack's keys and knobs) draw their keys and knobs the same way as the unit, so they all follow the new look.
+- **Pearl White doesn't change at all.** I rendered nine views of it (DYNAMICS, HARMONY, MARS, the VOCODER, the DOUBLER, the GRAPHIC EQ, DELAY, SETTINGS and the expression pedal) before and after, and compared them pixel by pixel. They're identical, apart from the TAP light, which blinks with the tempo, and the new FINISH description and version number on SETTINGS.
+- **SETTINGS > FINISH** and the finish buttons' tooltips describe the new look.
+
+## 0.42.2
+
+- **The screens' shadows look as they did before 0.42.1.** 0.42.1's CPU fix keeps each screen's soft drop shadow as a saved picture instead of working it out every time. In a few places that saved picture came out fainter, so the thin dark line under a screen's metal frame was lighter: up to 38 parts in 255 under the small LEVEL readout, and slightly on the OCTAVE / FREEZE view. There were two causes, the same ones found and fixed in PR7-B and PR7-G:
+  - **It was saved at double size and shrunk to fit**, which softened its edge. It's now made exactly the way the drawing toolkit (JUCE) makes a shadow, so it comes out the same.
+  - **The drawing toolkit draws a saved picture at the strength of the last colour used.** When something half-transparent was drawn just before a screen, its shadow came out faded. It's now always drawn at full strength.
+- **Checked pixel by pixel against 0.42.0:** every block (all 13) in all three finishes, MARS's four pages, DELAY's and REVERB's pages, HARMONY's views, OCTAVE / FREEZE and the rigs and settings pages all match to within 2 parts in 255, rounding you can't see. The only larger differences are the TAP light blinking and MOD's wave, which follow the clock.
+- **Still light on the CPU:** with the window open and idle it measures 5.7% of a core, in line with 0.42.1.
+
 ## 0.42.1
 
 - **Much lighter on the computer with the window open** (as PR7-G 0.58.1). With the plugin's window open and nothing happening, it used almost a whole processor core (about 91%, measured with software drawing on Linux). The sound itself was never the cost: with every effect off, the processing takes well under 1%. The window was the problem: it redrew the whole rack unit, shadows and all, 30 times a second even when nothing on it had changed.

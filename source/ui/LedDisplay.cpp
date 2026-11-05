@@ -128,13 +128,19 @@ namespace
     // The frame's drop shadow, a blur, is slow to work out: screens that
     // redraw often (meters, the faceplate's displays) spent much of the
     // window's CPU on it. It's the same for every screen of a size, so each
-    // size's shadow is worked out once (at 2x, for sharp screens) and kept.
+    // size's shadow is worked out once and kept. JUCE works a shadow out at
+    // the window's own (unscaled) size and pastes it on whole pixels; the
+    // kept one is made the same way, with the frame at the same fraction of
+    // a pixel, and pasted at the same place, so it comes out the same.
     void drawFrameShadow (juce::Graphics& g, juce::Rectangle<float> bounds, float size)
     {
         const auto radius = juce::roundToInt (9.0f * size);
         const auto offset = juce::roundToInt (3.0f * size);
-        const auto margin = (float) (radius + offset + 2);
-        const auto key = juce::String (juce::roundToInt (bounds.getWidth() * 4.0f)) + "x" + juce::String (juce::roundToInt (bounds.getHeight() * 4.0f))
+        const auto margin = radius + offset + 2;
+        const auto originX = (int) std::floor (bounds.getX()), originY = (int) std::floor (bounds.getY());
+        const auto fractionX = bounds.getX() - (float) originX, fractionY = bounds.getY() - (float) originY;
+        const auto key = juce::String (juce::roundToInt (bounds.getWidth() * 64.0f)) + "x" + juce::String (juce::roundToInt (bounds.getHeight() * 64.0f))
+                       + "+" + juce::String (juce::roundToInt (fractionX * 64.0f)) + "+" + juce::String (juce::roundToInt (fractionY * 64.0f))
                        + "@" + juce::String (juce::roundToInt (size * 1000.0f));
 
         static std::map<juce::String, juce::Image> cache;   // only painted on the message thread
@@ -143,19 +149,21 @@ namespace
         {
             if (cache.size() > 64)
                 cache.clear();
-            constexpr float scale = 2.0f;
-            const auto area = juce::Rectangle<float> (bounds.getWidth() + 2.0f * margin, bounds.getHeight() + 2.0f * margin);
-            juce::Image image (juce::Image::ARGB, juce::roundToInt (area.getWidth() * scale), juce::roundToInt (area.getHeight() * scale), true);
+            juce::Image image (juce::Image::ARGB, (int) std::ceil (bounds.getWidth()) + 2 * margin + 1,
+                               (int) std::ceil (bounds.getHeight()) + 2 * margin + 1, true);
             {
                 juce::Graphics shadow (image);
-                shadow.addTransform (juce::AffineTransform::scale (scale));
                 juce::Path frame;
-                frame.addRoundedRectangle (juce::Rectangle<float> (margin, margin, bounds.getWidth(), bounds.getHeight()).reduced (1.0f), 11.0f * size);
+                frame.addRoundedRectangle (juce::Rectangle<float> ((float) margin + fractionX, (float) margin + fractionY,
+                                                                   bounds.getWidth(), bounds.getHeight()).reduced (1.0f), 11.0f * size);
                 juce::DropShadow (juce::Colours::black.withAlpha (0.6f), radius, { 0, offset }).drawForPath (shadow, frame);
             }
             found = cache.emplace (key, image).first;
         }
-        g.drawImage (found->second, bounds.expanded (margin));
+        // An image is drawn at the current colour's opacity: whatever the
+        // caller drew last (a half-clear orange, say) mustn't fade it.
+        g.setOpacity (1.0f);
+        g.drawImageAt (found->second, originX - margin, originY - margin);
     }
 }
 

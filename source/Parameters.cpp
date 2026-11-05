@@ -151,7 +151,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // at its "off" end (MORPH dry, WAH at the heel, PITCH unshifted, LO-FI full
     // band). Assigned to VOLUME it's silent until rocked forward, as a real
     // volume pedal is.
-    layout.add (makeFloat (ParamIDs::expression, "Expression", { 0.0f, 1.0f, 0.001f }, 0.0f, v6, asPercent));
+    // Starts half way (0.60.0; it was the heel). Projects keep their own position.
+    layout.add (makeFloat (ParamIDs::expression, "Expression", { 0.0f, 1.0f, 0.001f }, 0.5f, v6, asPercent));
     layout.add (makeChoice (ParamIDs::expressionTarget, "Expression Target", v6, ExpressionTargets::names, ExpressionTargets::off));
     layout.add (makeFloat (ParamIDs::expressionMin, "Expression Min", { 0.0f, 1.0f, 0.01f }, 0.0f, v6, asPercent));
     layout.add (makeFloat (ParamIDs::expressionMax, "Expression Max", { 0.0f, 1.0f, 0.01f }, 1.0f, v6, asPercent));

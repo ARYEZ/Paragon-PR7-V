@@ -22,9 +22,9 @@
 #include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
+#include "ui/LedDisplay.h"
 #include "ui/ParagonLookAndFeel.h"
 #include "ui/PerformanceControls.h"
-#include "ui/RackView.h"
 #include "ui/SignalChain.h"
 
 using Catch::Matchers::WithinAbs;
@@ -81,31 +81,34 @@ TEST_CASE ("The window lays out cleanly at every size", "[ui]")
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
 
-    for (const auto width : { 960, 1280, 1920 })
-    {
-        DYNAMIC_SECTION (width << " wide")
+    // With the rack shown (its displays and controls) and hidden (as a window opens).
+    for (const auto rackShown : { true, false })
+        for (const auto width : { 960, 1280, 1920 })
         {
-            editor->setSize (width, width * 9 / 16);
-            REQUIRE (editor->getWidth() == width);
+            DYNAMIC_SECTION (width << " wide, rack " << (rackShown ? "shown" : "hidden"))
+            {
+                auto* view = dynamic_cast<MainView*> (editor->getChildComponent (0));
+                REQUIRE (view != nullptr);
+                view->setRackShown (rackShown);
+                editor->setSize (width, rackShown ? width * 9 / 16 : width * MainView::heightFor (false) / MainView::width);
+                REQUIRE (editor->getWidth() == width);
 
-            // The view is scaled, not re-laid-out: its transform matches the window.
-            auto* view = editor->getChildComponent (0);
-            REQUIRE (view != nullptr);
-            CHECK_THAT (view->getTransform().mat00, WithinAbs ((float) width / (float) MainView::width, 0.001));
+                // The view is scaled, not re-laid-out: its transform matches the window.
+                CHECK_THAT (view->getTransform().mat00, WithinAbs ((float) width / (float) MainView::width, 0.001));
 
-            checkLayout (*view, "view");
+                checkLayout (*view, "view");
+            }
         }
-    }
 }
 
 TEST_CASE ("HIDE RACK takes the rack away and shortens the window; a block clicked in the chain brings it back", "[ui][rack]")
 {
-    RackView::setShown (true, false);
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    editor->setSize (1280, 720);
-    auto* view = editor->getChildComponent (0);
+    auto* view = dynamic_cast<MainView*> (editor->getChildComponent (0));
     REQUIRE (view != nullptr);
+    view->setRackShown (true);
+    editor->setSize (1280, 720);
 
     auto* rackButton = dynamic_cast<juce::TextButton*> (view->findChildWithID ("rackButton"));
     REQUIRE (rackButton != nullptr);
@@ -134,7 +137,7 @@ TEST_CASE ("HIDE RACK takes the rack away and shortens the window; a block click
     // up under the floor unit and the window keeps its width but gets
     // shorter by the rack's height (the view keeps its scale).
     rackButton->onClick();
-    CHECK_FALSE (RackView::isShown());
+    CHECK_FALSE (view->isRackShown());
     CHECK (rackButton->getButtonText() == "SHOW RACK");
     CHECK_FALSE (faceplates[0]->isVisible());
     CHECK_FALSE (anyPanelShowing());
@@ -166,11 +169,11 @@ TEST_CASE ("HIDE RACK takes the rack away and shortens the window; a block click
                     CHECK (child->getBottom() <= chains[0]->getY());   // nothing runs into the chain
             }
     }
-    CHECK_FALSE (RackView::isShown());
+    CHECK_FALSE (view->isRackShown());
 
     // Clicking a block in the chain opens the rack on that block, at full height again.
     chains[0]->onSelect (3);
-    CHECK (RackView::isShown());
+    CHECK (view->isRackShown());
     CHECK (rackButton->getButtonText() == "HIDE RACK");
     CHECK (faceplates[0]->isVisible());
     CHECK (effectPanels[3]->isVisible());
@@ -181,7 +184,7 @@ TEST_CASE ("HIDE RACK takes the rack away and shortens the window; a block click
     // And the button brings it back too.
     rackButton->onClick();
     rackButton->onClick();
-    CHECK (RackView::isShown());
+    CHECK (view->isRackShown());
     CHECK (editor->getHeight() == 720);
     CHECK (effectPanels[3]->isVisible());
 }
@@ -209,10 +212,10 @@ TEST_CASE ("HIDE RACK / SHOW RACK: each new window size already fits the shape a
         juce::StringArray misfits;
     };
 
-    RackView::setShown (true, false);
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    editor->setSize (1706, 959);   // the opening size on a 1080p screen
+    dynamic_cast<MainView&> (*editor->getChildComponent (0)).setRackShown (true);
+    editor->setSize (1706, 959);   // the opening size on a 1080p screen, with the rack shown
     HostCheck host;
     editor->addComponentListener (&host);
     auto* rackButton = dynamic_cast<juce::TextButton*> (editor->getChildComponent (0)->findChildWithID ("rackButton"));
@@ -235,7 +238,6 @@ TEST_CASE ("HIDE RACK / SHOW RACK: each new window size already fits the shape a
     INFO ("sizes the DAW would have changed: " << host.misfits.joinIntoString (", "));
     CHECK (host.misfits.isEmpty());
     editor->removeComponentListener (&host);
-    RackView::setShown (true, false);
 }
 
 TEST_CASE ("SHOW RACK never runs the window off the bottom of the screen", "[ui][rack]")
@@ -276,13 +278,13 @@ TEST_CASE ("The window opens as big as fits above the taskbar, up to 1824 x 1026
     CHECK (Editor::openingSize ({ 800, 600 }).x == 960);   // never below the smallest size
 }
 
-TEST_CASE ("PEARL BLACK recolours the unit's printing, and every open window follows", "[ui]")
+TEST_CASE ("OBSIDIAN and AURORA recolour the unit's printing, and every open window follows", "[ui]")
 {
-    Finish::set (Finish::Type::pearlWhite, false);
+    Finish::set (Finish::Type::aurora, false);
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> first (processor.createEditor()), second (processor.createEditor());
 
-    // RIG LEVEL is printed on the unit: ink on white, light on black.
+    // RIG LEVEL is printed on the unit: ink on Aurora's pearl white, light on Obsidian's black.
     const auto rigLevelColour = [] (juce::Component& editor)
     {
         std::vector<juce::Label*> labels;
@@ -292,36 +294,66 @@ TEST_CASE ("PEARL BLACK recolours the unit's printing, and every open window fol
                 return label->findColour (juce::Label::textColourId);
         return juce::Colour();
     };
+    CHECK (! Finish::isBlack());
     CHECK (rigLevelColour (*first) == ParagonColours::ink);
 
     // Chosen in one window (here, without saving the preference), it shows in both.
-    Finish::set (Finish::Type::pearlBlack, false);
+    Finish::set (Finish::Type::obsidian, false);
     CHECK (Finish::isBlack());
     CHECK (rigLevelColour (*first) == Finish::ink());
     CHECK (rigLevelColour (*second) == Finish::ink());
     CHECK (Finish::ink().getPerceivedBrightness() > 0.8f);
 
-    // Pearl white with neon keys: the white unit's ink, the black unit's keys.
-    Finish::set (Finish::Type::pearlWhiteNeon, false);
-    CHECK (! Finish::isBlack());
-    CHECK (Finish::neonKeys());
-    CHECK (rigLevelColour (*first) == ParagonColours::ink);
+    // SETTINGS offers just the two (Pearl White is retired).
+    std::vector<juce::TextButton*> buttons;
+    findAll (*first, buttons);
+    juce::StringArray finishes;
+    for (auto* button : buttons)
+        if (button->getButtonText().containsIgnoreCase ("PEARL") || button->getButtonText() == "OBSIDIAN" || button->getButtonText() == "AURORA")
+            finishes.add (button->getButtonText());
+    CHECK (finishes.joinIntoString (",") == "OBSIDIAN,AURORA");
 
-    // The key and knob drawing still works in every finish.
-    for (const auto type : { Finish::Type::pearlBlack, Finish::Type::pearlWhiteNeon, Finish::Type::pearlWhite })
+    // The key and knob drawing works in both.
+    for (const auto type : { Finish::Type::aurora, Finish::Type::obsidian })
     {
         Finish::set (type, false);
         first->setSize (1280, 720);
         const auto image = first->createComponentSnapshot (first->getLocalBounds());
         CHECK (image.isValid());
     }
-    CHECK (rigLevelColour (*first) == ParagonColours::ink);
+    CHECK (rigLevelColour (*first) == Finish::ink());   // left on Obsidian, the default
+}
+
+TEST_CASE ("A new window opens with the rack hidden and the expression pedal half way", "[ui][rack]")
+{
+    ParagonX1AudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    auto* view = dynamic_cast<MainView*> (editor->getChildComponent (0));
+    REQUIRE (view != nullptr);
+    CHECK_FALSE (view->isRackShown());
+    CHECK (view->getHeight() == MainView::heightFor (false));
+    CHECK (std::abs (editor->getHeight() - editor->getWidth() * MainView::heightFor (false) / MainView::width) <= 1);
+    std::vector<Faceplate*> faceplates;
+    findAll (*editor, faceplates);
+    REQUIRE (faceplates.size() == 1);
+    CHECK_FALSE (faceplates[0]->isVisible());
+
+    // Shown in one window, a second window still opens hidden: each has its own.
+    view->setRackShown (true);
+    std::unique_ptr<juce::AudioProcessorEditor> second (processor.createEditor());
+    CHECK_FALSE (dynamic_cast<MainView&> (*second->getChildComponent (0)).isRackShown());
+    CHECK (view->isRackShown());
+
+    // The pedal starts in the middle of its travel.
+    CHECK_THAT (processor.getParameters().getParameter (ParamIDs::expression)->getValue(), WithinAbs (0.5, 1.0e-6));
+    CHECK_THAT (processor.getExpressionPosition(), WithinAbs (0.5, 1.0e-3));
 }
 
 TEST_CASE ("The chain and footswitches pick which block's knobs show; the graphic EQ is the default", "[ui]")
 {
     ParagonX1AudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    dynamic_cast<MainView&> (*editor->getChildComponent (0)).setRackShown (true);   // a window opens with it hidden
 
     // The knob panels in signal-chain order: ten EffectPanels, with
     // SATURATION's own (MARS) as block 4, the graphic EQ's as 5 and
@@ -1755,7 +1787,7 @@ TEST_CASE ("A faceplate display redrawn on its own matches the whole unit drawn 
     // A scale between whole pixels, as in a resized window, where the
     // display-only redraw uses the chassis's picture.
     const auto startFinish = Finish::get();
-    for (const auto finish : { Finish::Type::pearlWhite, Finish::Type::pearlBlack })
+    for (const auto finish : { Finish::Type::aurora, Finish::Type::obsidian })
     {
         Finish::set (finish, false);
         plate.resized();   // as the finish's change message does
@@ -1786,4 +1818,27 @@ TEST_CASE ("A faceplate display redrawn on its own matches the whole unit drawn 
         CHECK (worst <= 6);   // out of 255: the grain's sub-pixel difference, not a visible seam
     }
     Finish::set (startFinish, false);
+}
+
+TEST_CASE ("A screen draws the same whatever colour was set before it (its kept shadow isn't faded)", "[ui]")
+{
+    // The frame's shadow is kept as a picture, and JUCE draws a picture at
+    // the current colour's opacity: a half-clear colour left by whatever was
+    // drawn before (the faceplate's INPUT meter, for one) faded it.
+    const juce::Rectangle<float> bounds (20.3f, 30.6f, 180.0f, 70.0f);
+    const auto render = [&] (juce::Colour before)
+    {
+        juce::Image image (juce::Image::ARGB, 240, 140, true);
+        juce::Graphics g (image);
+        g.fillAll (juce::Colours::white);
+        g.setColour (before);
+        LedDisplay::paintScreen (g, bounds, 1.0f);
+        return image;
+    };
+    const auto opaque = render (juce::Colours::black), faint = render (juce::Colours::orange.withAlpha (0.3f));
+    int worst = 0;
+    for (int y = 0; y < opaque.getHeight(); ++y)
+        for (int x = 0; x < opaque.getWidth(); ++x)
+            worst = juce::jmax (worst, std::abs ((int) opaque.getPixelAt (x, y).getRed() - (int) faint.getPixelAt (x, y).getRed()));
+    CHECK (worst == 0);
 }

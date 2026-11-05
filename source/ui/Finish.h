@@ -2,10 +2,13 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// The unit's finish: the original pearl white with black keys, or pearl
-// white or pearl black with neon keys and knobs (pink to red to orange). Only the unit itself changes (its chassis, the expression
-// pedal's plate, the lettering printed on it, its keys and knobs); the
-// screens, the neon and the dark panels round it stay as they are.
+// The unit's finish: Obsidian (a pearl black unit, the default) or Aurora
+// (pearl white). On both the keys and knobs are black, in neon rings (pink to
+// red to orange): the footswitches' and slot buttons' bezels, the small keys'
+// surrounds, the knobs' rings and the expression pedal's ribs. Only the unit
+// itself changes (its chassis, the pedal's plate, the lettering printed on
+// it); the screens, the neon and the dark panels round it stay as they are.
+// (0.59.0 and before also had Pearl White, with chrome rings: retired.)
 //
 // It's a preference of the person, not part of a project or a rig: kept in a
 // small settings file in the user's application data folder, so every
@@ -13,15 +16,14 @@
 // window repaints when it changes.
 namespace Finish
 {
-    // Saved by number: only ever add to the end.
-    enum class Type { pearlWhite, pearlBlack, pearlWhiteNeon };
-    inline const juce::StringArray names { "Pearl White", "Pearl Black", "Pearl White + Neon" };
+    // Saved by number: only ever add to the end. retiredPearlWhite (0) is
+    // only ever read from an old settings file, and opens as Obsidian.
+    enum class Type { retiredPearlWhite, obsidian, aurora };
 
     Type get();
     // `remember` saves it to the settings file (off for tests and snapshots).
     void set (Type, bool remember = true);
-    inline bool isBlack() { return get() == Type::pearlBlack; }          // the chassis colour
-    inline bool neonKeys() { return get() != Type::pearlWhite; }         // the keys, knobs and pedal grips
+    inline bool isBlack() { return get() == Type::obsidian; }            // the chassis colour
 
     // Told whenever the finish changes, to repaint.
     juce::ChangeBroadcaster& changes();
@@ -37,8 +39,8 @@ namespace Finish
     // On black the flecks show more, as they do in a real black pearl paint.
     juce::Image makeSatinGrain (int width, int height, int seed);
 
-    // The pearl black unit's keys, knobs and pedal grips: hot pink at the
-    // left through red to orange at the right (the reference swatch's
+    // The neon of the rings round the keys and knobs and of the pedal's ribs:
+    // hot pink at the left through red to orange at the right (the reference swatch's
     // colours, 25% darker), across `left` to `right`. Lighting is drawn over it.
     juce::ColourGradient neonGradient (float left, float right);
 

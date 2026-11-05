@@ -1,6 +1,6 @@
 # Paragon PR7-V: notes for Claude
 
-This repository starts as a copy of **Paragon PR7-G** (the guitar processor, repo `ARYEZ/Paragon-X1`), full history included, at PR7-G **0.32.1**. It is to become **Paragon PR7-V**, the **vocal** processor. A third sibling, **Paragon PR7-B** (bass, repo `ARYEZ/Paragon-PR7-B`), started the same way.
+This repository starts as a copy of **Paragon PR7-G** (the guitar processor, repo `ARYEZ/Paragon-PR7-G`), full history included, at PR7-G **0.32.1**. It is to become **Paragon PR7-V**, the **vocal** processor. A third sibling, **Paragon PR7-B** (bass, repo `ARYEZ/Paragon-PR7-B`), started the same way.
 
 Everything below describes how the project is built, tested and released, and how the owner likes to work.
 
@@ -19,7 +19,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 2. **Rigs folder** (`source/rigs/RigLibrary.cpp`): "Paragon PR7-V".
    - Remove the carry-over from the old guitar folders. Vocal users shouldn't inherit guitar rigs.
    - Update the rename test in `tests/RigTests.cpp` to match.
-3. **Settings file** (`source/ui/Finish.cpp`): `applicationName` becomes "Paragon PR7-V", so PR7-V remembers its own finish (Pearl White, White + Neon or Pearl Black).
+3. **Settings file** (`source/ui/Finish.cpp`): `applicationName` becomes "Paragon PR7-V", so PR7-V remembers its own finish (Obsidian or Aurora since 0.44.0).
 4. **Logo** (`source/ui/Logo.cpp`): the mark's "-G" becomes "-V", drawn in the same slanted, speed-cut lettering.
 5. **Text:** the About text and MIDI hint in `source/ui/DockPanels.cpp`, the loader thread name in `PluginProcessor.h`, and `README.md` all say PR7-V.
 6. **Release workflow** (`.github/workflows/build.yml`, `.github/release-install.md`):
@@ -32,7 +32,9 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 ## The project
 
 - An AGPLv3 **JUCE VST3** plugin: a vocal multi-effects chain, drawn as a floor processor with an expression pedal. No amp or cabinet: PR7-G's NAM amp and IR loader (and the NAM, Eigen and AudioDSPTools dependencies) were removed in 0.3.0 at the owner's request. JUCE is the only dependency. No latency, except while HARMONY's CORRECT (TUNE VOICE) is on: then a fixed 40 ms, reported to the host (the owner's choice).
-  - Three finishes in SETTINGS → FINISH: Pearl White, Pearl White + Neon, Pearl Black (see `source/ui/Finish.h`).
+  - Two finishes in SETTINGS → FINISH (0.44.0, from PR7-G 0.60.0, the owner's choice): **OBSIDIAN** (pearl black, the default) and **AURORA** (pearl white). `Finish::Type { retiredPearlWhite, obsidian, aurora }` keeps the saved numbers 0/1/2; Finish.cpp opens a saved Aurora as Aurora and anything else (old Pearl White, nothing saved) as Obsidian. Keys and knobs are black, in `Finish::neonGradient` rings: `drawChromeBezel` (big keys, lit top / dark front overlay), `drawSmallKey`'s surround, `drawPedalKnob`'s ring (each colour `.brighter (0.35f)`), the expression pedal's ribs (`makeTreadleFace`). Pearl White (chrome rings, 0.43.0 and before) and `neonRings()` are gone; the cluster labels always use `Finish::ink()`.
+  - **The rack opens hidden** in every new window (0.44.0, the owner's choice): `MainView::isRackShown` / `setRackShown`, per window, not saved (the old shared, saved `RackView` is gone). SHOW RACK or a block clicked in the chain shows it. Tests that need the rack call `setRackShown (true)` first; snapshots show it unless `PARAGON_SNAPSHOT_RACK=hidden`.
+  - **The expression pedal starts half way** (0.44.0): `expression`'s default is 0.5. Its target defaults to OFF, so nothing changes in the sound until it's assigned (VOLUME half way is -12 dB); projects keep their position.
 - **The chain:** INPUT → LOW CUT → PITCH → (WAH pedal) → DYNAMICS (comp/gate) → DE-ESSER → FILTER/PITCH → GLITCH (Pre) → SATURATION (drive) → PRESENCE → TALK BOX → GRAPHIC EQ → GLITCH (Post) → HARMONY → VOCODER → DOUBLER → MOD → DELAY → REVERB → LO-FI → OUTPUT (+ volume pedal) → LIMITER. Mono up to the EQ, stereo from the DOUBLER on. LOW CUT (under INPUT) and LIMITER (under OUTPUT) are global like INPUT and OUTPUT.
 - **The seven stomps** (the owner's order): top row **1 DYNAMICS, 2 SATURATION, 3 DOUBLER**; bottom row **4 PITCH, 5 MODULATION, 6 DELAY, 7 REVERB**. PITCH stays first in the *sound* (it tracks the clean voice best) though its stomp is 4; its stomp switches HARMONY, the octaver and TUNE VOICE (`harmonyCorrect`; since 0.21.1: TUNE VOICE works without HARMONY, so without this the stomp's light went out while the voice stayed tuned and 40 ms late, and PITCH seemed stuck on). `Footswitch` remembers each parameter's value (0-1), not just on/off, so TUNE VOICE comes back in its mode. FREEZE has its own switch. The DYNAMICS stomp switches the compressor and the de-esser (`compOn`, `deessOn`); the de-esser has its own DE-ESS block and panel in the strip (the DYNAMICS panel had no room). The other blocks (FILTER/PITCH, GLITCH, EQ, LO-FI) are in the signal-chain strip only. The display names are the owner's; parameter IDs keep their PR7-G names (`compOn`, `driveOn`...), as IDs never change.
 - **Master LIMITER** (0.4.0): under OUTPUT, not a stomp; no look-ahead, so still no latency. Keep it that way.
@@ -72,7 +74,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
   - `PARAGON_SNAPSHOT_BLOCK=n` (open block n's panel; 0 = PITCH, which opens on HARMONY; 7 = VOCODER, 8 = DOUBLER ... 12 = LO-FI), `PARAGON_SNAPSHOT_PITCHVIEW=octave` (PITCH's OCTAVE / FREEZE / FORMANT view), `PARAGON_SNAPSHOT_PARAMS=id=value,...` (harmony voices: `hv1Pitch`, `hv3Active`...).
   - `PARAGON_SNAPSHOT_EXPRESSION`, `PARAGON_SNAPSHOT_PAGE=presets|settings`, `PARAGON_SNAPSHOT_PANELPAGE=n` (a paged panel's page: DELAY 0 MAIN, 1 STEREO, 2 COLOUR; REVERB 0 MAIN, 1 DECAY, 2 SPACE, 3 MOTION).
   - HARMONY's NOTES tab: `PARAGON_SNAPSHOT_HARMONYNOTES=1`, its Note Map Editor `PARAGON_SNAPSHOT_NOTEMAP=1`, held MIDI keys `PARAGON_SNAPSHOT_MIDI=60,64,67`, the FX view `PARAGON_SNAPSHOT_HARMONYFX=1`, the GLOBAL view `PARAGON_SNAPSHOT_HARMONYGLOBAL=1`, snapshots `PARAGON_SNAPSHOT_STORE=1,2,5` and `PARAGON_SNAPSHOT_SNAPSHOTS=1`, the MODS page `PARAGON_SNAPSHOT_MODS=0-9` (M1-M4, A1, A2, AM, PT, SP, MIDI), a drawn M1 `PARAGON_SNAPSHOT_DRAWN=1` and modulators on controls `PARAGON_SNAPSHOT_MODULATE=hv1Pitch:1:0.04,...`.
-  - `PARAGON_SNAPSHOT_FINISH=black|neon`, `PARAGON_SNAPSHOT_LOUD=1` (a note over full scale: the LIMITER light on), `PARAGON_SNAPSHOT_PLAY=seconds` (a sung note first).
+  - `PARAGON_SNAPSHOT_FINISH=aurora` (default Obsidian), `PARAGON_SNAPSHOT_RACK=hidden`, `PARAGON_SNAPSHOT_LOUD=1` (a note over full scale: the LIMITER light on), `PARAGON_SNAPSHOT_PLAY=seconds` (a sung note first).
   - MARS: `PARAGON_SNAPSHOT_BLOCK=4`, `PARAGON_SNAPSHOT_PANELPAGE=0-3` (BANDS, GLOBAL, MOD, SLOTS), `PARAGON_SNAPSHOT_MODTAB=n` (0 XLFO 1 ... 9 XY 2).
   - Render, look, crop and zoom before claiming a visual change is right.
 
