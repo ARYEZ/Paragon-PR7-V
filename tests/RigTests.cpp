@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H to P): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H to Q): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -780,6 +780,73 @@ TEST_CASE ("The album banks (H to P): screams torn up, cleans clean, growls an o
     CHECK (perBank[13] == 15);  // N
     CHECK (perBank[14] == 15);  // O
     CHECK (perBank[15] == 15);  // P
+    CHECK (perBank[16] == 15);  // Q
+}
+
+TEST_CASE ("Bank Q: the delayed screams ring on in echoes after the scream stops", "[rigs]")
+{
+    // The owner's ask for bank Q: the drummer's "delayed screaming effect".
+    // A 0.6 s scream (the sung vowel, through each rig's torn-up drive), then
+    // silence: the echoes must carry on, clearly, where the scream has
+    // stopped, and well above the same rig with its DELAY off.
+    constexpr double rate = 48000.0;
+    std::vector<float> phrase ((size_t) (2.0 * rate), 0.0f);
+    for (size_t i = 0; i < (size_t) (0.6 * rate); ++i)
+    {
+        const auto t = (double) i / rate;
+        const auto f0 = 220.0 * (1.0 + 0.01 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+        const auto fade = std::min (1.0, std::min (t, 0.6 - t) / 0.01);
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * 220.0 - 700.0) / 400.0, 2.0)) + 0.1;
+            phrase[i] += (float) (fade * 0.025 * shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+        }
+    }
+    // The level (dB) of a stretch of the output, both sides.
+    const auto render = [&] (const juce::String& name, bool delay)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (name));
+        if (! delay)
+            r.set (ParamIDs::delayOn, 0.0f);
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        std::vector<float> out;
+        for (size_t start = 0; start + 256 <= phrase.size(); start += 256)
+        {
+            buffer.clear();
+            std::copy (phrase.begin() + (long) start, phrase.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            for (int i = 0; i < 256; ++i)
+                out.push_back (std::abs (buffer.getSample (0, i)) + std::abs (buffer.getSample (1, i)));
+        }
+        return out;
+    };
+    const auto levelDb = [] (const std::vector<float>& out, double from, double to)
+    {
+        double sum = 0.0;
+        const auto a = (size_t) (from * rate), b = (size_t) (to * rate);
+        for (size_t i = a; i < b; ++i)
+            sum += (double) out[i] * out[i];
+        return 10.0 * std::log10 (sum / (double) (b - a) + 1.0e-20);
+    };
+    for (const auto* name : { "Echo Scream Throw", "Slap Trail Scream", "Ping Trail Scream" })
+    {
+        const auto echoed = render (name, true), dry = render (name, false);
+        const auto scream = levelDb (echoed, 0.2, 0.6);
+        // After the scream: from 50 ms past its end (the room and the
+        // drive's tail die quickly) for the next 0.6 s.
+        const auto tail = levelDb (echoed, 0.65, 1.25) - scream;
+        const auto tailWithoutDelay = levelDb (dry, 0.65, 1.25) - scream;
+        CAPTURE (name, tail, tailWithoutDelay);
+        if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
+            std::cout << name << ": the echoes are " << tail << " dB against the scream, " << tailWithoutDelay
+                      << " dB with the DELAY off\n";
+        // The echoes are clearly heard (within 15 dB of the scream)...
+        CHECK (tail > -15.0);
+        // ...and they are the delay's, not the room's.
+        CHECK (tail - tailWithoutDelay > 12.0);
+    }
 }
 
 TEST_CASE ("The album banks' glitch edits (L, N, O) really chop the words, and leave most of them standing", "[rigs]")

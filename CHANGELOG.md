@@ -2,6 +2,34 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.55.0
+
+- **A new bank of 15 factory rigs, bank Q, inspired by the vocal sounds on Sevendust's *Next*** (2005, produced by Shawn Grove with the band; Morgan Rose also co-produced and mixed): **Lajon Witherspoon's soulful, powerful lead** (tag **Sung**) and **Morgan Rose's screams** (tag **Scream**) trading lines, and above all, as you asked, **Morgan's delayed screaming effect, heard best on "Silence"**. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | Voice | What it does | Inspired by |
+  |---|---|---|---|
+  | **Q01 Rising Champion Belt** | Lajon | A soulful, powerful lead, the strong double just off centre, an echo under, a plate | "Hero" |
+  | **Q02 Scarred Snarl Scream** | Morgan | A raw scream torn up on two bands, doubled tight either side | "Ugly" |
+  | **Q03 Fragment Soul Chorus** | Lajon | A big soulful chorus, the strong double and a wide pair, a dotted echo, a plate | "Pieces" |
+  | **Q04 Echo Scream Throw** | Morgan | **The delayed scream, reading 1:** a torn scream thrown into a quarter-note echo that keeps going after the scream stops, the echoes thinned and roughened | "Silence" |
+  | **Q05 Slap Trail Scream** | Morgan | **The delayed scream, reading 2:** fast sixteenth-note repeats stacking into a stuttering trail behind the scream | "Silence" |
+  | **Q06 Ping Trail Scream** | Morgan | **The delayed scream, reading 3:** the echoes bouncing left and right at a dotted eighth, a long trail, a little dark room | "Silence" |
+  | **Q07 Hushed Soul Verse** | Lajon | Soft and close before the storm, one faint take, a plate | "Silence" (its verses) |
+  | **Q08 Living Testament Hook** | Lajon | A sung soulful hook, the strong double, a dotted echo under | "This Life" |
+  | **Q09 Fallen Grind Shout** | Morgan | A gritty, half-screamed shout on two bands, doubled, a short slap | "Failure" |
+  | **Q10 Faith Swell Chorus** | Lajon | A soaring soulful chorus, the strong double and a wide pair, a hall | "See and Believe" |
+  | **Q11 Abandoned Plea** | Lajon | Pushed hard into a soulful belt with tube grit, doubled tight | "Desertion" |
+  | **Q12 Wired Texture Verse** | Lajon | An electronic edge: half through a radio band, a cloud of grains behind, doubled | "Never" (a review notes its electronic effects) |
+  | **Q13 Backing Scream Layer** | Morgan | For screams under Lajon's line: two takes wide, the middle kept clear for the lead, a quarter echo trailing | The two voices together (no one song) |
+  | **Q14 Farewell Ballad** | Lajon | Soft and soulful, a faint double, a slow echo and a hall | "The Last Song" |
+  | **Q15 Soul Grit Lead** | Lajon | Lajon's rough edge for the heavier verses, tube grit, doubled tight, a slap | The heavier verses (no one song) |
+
+  - **The delayed scream, honestly:** I found nothing published on how the delay on Morgan's screams in "Silence" was done, and **I can't listen to the song here**, so Q04-Q06 are three readings of it rather than one guess: a big quarter-note throw, a fast stuttering slap trail, and a ping-pong trail. They follow your song's tempo (BeatMaker's or TAP). A new test sings a scream, stops, and checks the echoes carry on clearly afterwards (11-13 dB under the scream) and are the delay's own (13-15 dB above the same rig with its DELAY off). **Please tell me which of the three is closest and what's different** (is it more repeats or fewer, faster or slower, brighter or darker, one side or both, does the echo start while he's still screaming?) and I'll tune it to the record. Pointing me at a moment in the song helps too.
+  - **To tune it yourself:** on the DELAY page, TIME/SYNC sets the gap between repeats, FEEDBACK how many there are, MIX how loud, DUCK how much they hide while he's screaming (lower = echoes on top of the scream), and LOW/HIGH CUT how thin or dark they are.
+  - **Our reading, not the record's settings,** for the rest too, built from how this style was commonly produced. "Shadows in Red" (on some editions) has no rig.
+  - **Levels:** balanced with the other rigs (all within about 0.4 dB of the typical rig).
+- **The PRESETS page has a Bank Q button** in the two-column bank list.
+
 ## 0.54.0
 
 - **A new bank of 15 factory rigs, bank P, inspired by the vocal sounds on Stone Temple Pilots' debut, *Core*** (1992, produced and mixed by Brendan O'Brien): early-90s grunge and hard rock, Scott Weiland's deep, rich baritone, snarled in the heavy songs, crooned in the soft ones, and now and then shouted through a megaphone (the opening of "Dead & Bloated" is the famous one); recorded dry and close, the choruses doubled, short rooms and plates. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

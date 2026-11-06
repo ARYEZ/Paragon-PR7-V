@@ -113,12 +113,14 @@ namespace
 //      with a dance-machine pulse, chanted shouts, screams, a deep second voice
 //   P  a ninth album's vocal sounds (0.54.0): early-90s grunge, a deep
 //      baritone snarled, crooned and shouted through a megaphone
+//   Q  a tenth album's vocal sounds (0.55.0): alternative metal with a
+//      soulful lead and a screamer whose screams are thrown into echoes
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14, P = 15;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14, P = 15, Q = 16;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -2828,5 +2830,223 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.08f },
             { delayDuck, 0.7f }, { delayHighCut, 5000 },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.14f } }),
+        // ---- Q: a tenth album's vocal sounds -----------------------------------
+        // Mid-2000s alternative metal with two voices: a soulful, powerful
+        // lead singer (tag "Sung") and the drummer's screams (tag "Scream")
+        // trading lines with him, the screams often thrown into an echo. The
+        // owner asked above all for that delayed scream; with nothing
+        // published on how it was done, Q04-Q06 are three readings of it
+        // (a quarter-note throw, a fast slap trail, a ping-pong trail). Layers
+        // are the DOUBLER (no HARMONY). Our reading, not anyone's settings.
+
+        // A rising champion belt: a soulful, powerful lead, the strong double
+        // just off centre, an echo kept under and a plate.
+        make ("Rising Champion Belt", Q, 1, "Metal,Sung,Soul,Doubler", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A scarred snarl scream: a raw scream torn up on two bands, doubled
+        // tight either side, a small room.
+        make ("Scarred Snarl Scream", Q, 2, "Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A fragment soul chorus: a big, soulful chorus, the strong double and
+        // a wide pair, a dotted-eighth echo under and a plate.
+        make ("Fragment Soul Chorus", Q, 3, "Metal,Sung,Soul,Clean,Doubler", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.12f } }),
+
+        // An echo scream throw: the delayed scream, first reading. A torn
+        // scream, doubled tight, thrown into a quarter-note echo that keeps
+        // going after the scream stops (only lightly ducked, so the repeats
+        // ride the gaps), the echoes thinned and roughened so they sit behind.
+        make ("Echo Scream Throw", Q, 4, "Metal,Scream,Delay,Saturation", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, quarter }, { delayFeedback, 0.5f }, { delayMix, 0.45f },
+            { delayDuck, 0.15f }, { delayLowCut, 400 }, { delayHighCut, 4500 }, { delayAnalog, grit },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A slap-trail scream: the delayed scream, second reading. The scream
+        // chased by fast sixteenth-note repeats that stack into a stuttering
+        // trail behind it, darker each time round.
+        make ("Slap Trail Scream", Q, 5, "Metal,Scream,Delay,Saturation", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, sixteenth }, { delayFeedback, 0.6f }, { delayMix, 0.5f },
+            { delayDuck, 0.15f }, { delayLowCut, 400 }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A ping-trail scream: the delayed scream, third reading. The scream
+        // in the middle, its echoes bouncing left and right at a dotted
+        // eighth, a long trail into a dark hall.
+        make ("Ping Trail Scream", Q, 6, "Metal,Scream,Delay,Saturation,Reverb", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.55f },
+            { delayMix, 0.55f }, { delayDuck, 0.15f }, { delayLowCut, 350 }, { delayHighCut, 4000 }, { delayAnalog, warm },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.45f }, { reverbMix, 0.04f }, { reverbTone, 4 } }),
+
+        // A hushed soul verse: the lead soft and close before the storm, one
+        // faint take, a plate.
+        make ("Hushed Soul Verse", Q, 7, "Metal,Sung,Soul,Clean,Intimate", {
+            { rigLevel, 1.5f },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -14 }, { "dv2On", 0 }, { "dv1Pan", 0.3f }, { "dv1Drift", 0.2f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f },
+            { delayDuck, 0.7f }, { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A living testament hook: a sung, soulful hook, the strong double, a
+        // dotted-eighth echo kept under, a plate.
+        make ("Living Testament Hook", Q, 8, "Metal,Sung,Soul,Clean,Doubler", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A fallen grind shout: a gritty, half-screamed shout on two bands,
+        // doubled, a short slap.
+        make ("Fallen Grind Shout", Q, 9, "Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -8 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 600 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.7f }, { "mb2Mid", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.1f },
+            { delayMix, 0.07f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A faith swell chorus: a soaring soulful chorus, the strong double
+        // and a wide pair, an echo under and a hall.
+        make ("Faith Swell Chorus", Q, 10, "Metal,Sung,Soul,Clean,Doubler,Reverb", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.07f }, { delayDuck, 0.7f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.65f }, { reverbMix, 0.17f }, { reverbPreDelay, 30 } }),
+
+        // An abandoned plea: the lead pushed hard into a soulful belt with
+        // tube grit, doubled tight, a plate.
+        make ("Abandoned Plea", Q, 11, "Metal,Sung,Soul,Doubler,Saturation", {
+            { rigLevel, -3.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.35f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 6 }, { "dv2Detune", -6 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A wired texture verse: the lead with an electronic edge, half
+        // through a radio band, a cloud of grains behind it (GLITCH
+        // Texturizer), doubled.
+        make ("Wired Texture Verse", Q, 12, "Metal,Sung,Electronic,Glitch,Lo-Fi", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -1 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { glitchOn, 1 }, { glitchMode, texturizer }, { glitchMix, 0.2f },
+            { doublerOn, 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 }, { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f },
+            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 4 }, { lofiNoise, 1 }, { lofiMix, 0.4f } }),
+
+        // A backing scream layer: for the screams under the lead singer's
+        // line: two takes wide, the middle kept clear for the lead, a quarter
+        // echo trailing.
+        make ("Backing Scream Layer", Q, 13, "Metal,Scream,Doubler,Saturation,Delay", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq500", -1 }, { "eq1k", 1 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { doublerDirectGain, -8 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f }, { delayDuck, 0.5f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A farewell ballad: the closing song, soft and soulful, a faint
+        // double, a slow echo and a hall.
+        make ("Farewell Ballad", Q, 14, "Metal,Sung,Soul,Clean,Ballad,Reverb", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.08f }, { delayDuck, 0.6f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.2f }, { reverbPreDelay, 35 } }),
+
+        // A soul grit lead: the lead singer's rough edge for the heavier
+        // verses, tube grit, doubled tight, a slapback.
+        make ("Soul Grit Lead", Q, 15, "Metal,Sung,Soul,Doubler,Saturation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.3f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq500", 1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.35f }, { "dv2Pan", 0.35f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
     };
 }
