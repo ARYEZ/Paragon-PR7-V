@@ -15,7 +15,7 @@
 // RIG LEVEL for balancing rigs against each other instead.
 struct Rig
 {
-    static constexpr int numBanks = 14;         // A to N (factory: everyday, rock, delays, spaces, character, signature styles, moving harmonies, seven albums' sounds)
+    static constexpr int numBanks = 15;         // A to O (factory: everyday, rock, delays, spaces, character, signature styles, moving harmonies, eight albums' sounds)
     static constexpr int maxNumber = 99;
 
     juce::String name { "New Rig" };

@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.53.0
+
+- **A new bank of 15 factory rigs, bank O, inspired by the vocal sounds on Static-X's *Wisconsin Death Trip*** (1999, produced by Ulrich Wild with the band): late-90s industrial metal with a dance-machine pulse, a shouted, chanted voice locked to programmed beats, tight and dry, torn up for the screams, dreamy filtered melodies in a few choruses, and a second, deeper voice roaring behind. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **O01 Machine Disco Chant** | A rhythmic shouted chant locked to the beat, doubled dead centre, amp crunch, a touch of megaphone, dry | "Push It" (its verses) |
+  | **O02 Shove Scream Chorus** | The chorus scream torn up on two bands, doubled, a quiet octave-down take as a deeper second voice | "Push It" (its chorus) |
+  | **O03 Dreamy Filtered Hook** | A floating sung chorus half through an old radio band, a slow jet flanger, doubled wide | "I'm with Stupid" |
+  | **O04 Ache Melody Chorus** | A melodic sung chorus between the shouts, the strong double just off centre, a plate | "Bled for Days" |
+  | **O05 Grinding Riff Shout** | A crunchy, mid-heavy shout doubled tight, a quick slap | "Love Dump" |
+  | **O06 Mantra Shout** | A chanted, repeated shout four takes across, a whole crowd on the line | "I Am" |
+  | **O07 Graveyard Growl Chant** | A low, menacing chant with a full octave-down take under it, dry | "Otsego Undead" |
+  | **O08 Hypnotic Spoken Loop** | A spoken, droning voice through a phone band, now and then a slice repeated in time (GLITCH), a ping-pong echo | "The Trance Is the Motion" |
+  | **O09 Sticky Fury Scream** | A fast, furious scream torn up on two bands, doubled wide | "Sweat of the Bud" |
+  | **O10 Craving Snarl** | A jittery, sneering half-shout with crunch, a little GLITCH interference breaking it up | "Fix" |
+  | **O11 Frozen Highway Wall** | A wall of screams four takes across, torn up, a crushed copy blended in | "Wisconsin Death Trip" |
+  | **O12 Rooted Stomp Shout** | A heavy, dry shout, doubled near the centre, amp crunch, nothing else | "Stem" |
+  | **O13 Winter Drift Ballad** | The slow closer: a soft, dreamy sung voice, a slow wide chorus, a long echo, a hall | "December" |
+  | **O14 Sinking Shout** | A heavy, driving shout with crunch, doubled, a short slap | "Down" (the Japanese bonus track) |
+  | **O15 Low Backing Roar** | For the second, deeper voice roaring behind the lead: an octave-down take under a gritty roar | The band's deep backing roars (no one song) |
+
+  - **Our reading, not the record's settings:** built from how this style was commonly produced (tight doubled chants, distorted screams, filtered melodies, programmed textures), not from session notes. **I couldn't listen to the album here.** Least sure: how filtered the melodic choruses are (O03, O04) and the spoken track (O08). Tell me which rigs are off and how.
+  - **The glitch rigs** (O08, O10) are in the glitch test: they chop a test phrase often enough to hear (about a third and a fifth of it) and let most of it through.
+  - **Levels:** balanced with the other rigs (all within about 0.4 dB of the typical rig).
+- **The PRESETS page has a Bank O button**, and your own rigs can be filed in bank O too. **The bank list is now full:** the next album bank needs the list laid out again (in two columns, for example).
+
 ## 0.52.0
 
 - **A new bank of 15 factory rigs, bank N, inspired by the vocal sounds on Ultraspank's *Progress*** (2000): industrial nu-metal, one voice that goes from a tense, close whisper to a torn scream within a line, often treated like a machine (phone bands, megaphones, crushed copies, stutters and scratches) over programmed noise. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

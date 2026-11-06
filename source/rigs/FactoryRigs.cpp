@@ -109,12 +109,14 @@ namespace
 //      clean singer and a screamer, both stacked thick with the DOUBLER
 //   N  a seventh album's vocal sounds (0.52.0): industrial nu-metal, a
 //      whisper-to-scream voice treated like a machine
+//   O  an eighth album's vocal sounds (0.53.0): late-90s industrial metal
+//      with a dance-machine pulse, chanted shouts, screams, a deep second voice
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -2433,5 +2435,201 @@ std::vector<Rig> makeFactoryRigs()
             { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Pan", -0.9f }, { "dv2Pan", 0.9f },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.08f },
             { lofiOn, 1 }, { lofiType, cellPhone }, { lofiAmount, 4 }, { lofiNoise, 2 }, { lofiMix, 0.5f } }),
+        // ---- O: an eighth album's vocal sounds --------------------------------
+        // Late-90s industrial metal with a dance-machine pulse: a shouted,
+        // chanted voice locked to programmed beats, tight and dry, torn up for
+        // the screams, with dreamy, filtered melodies in a few choruses and a
+        // second, deep voice roaring behind. Layers are the DOUBLER (no
+        // HARMONY). Our reading, not anyone's settings.
+
+        // A machine-disco chant: a rhythmic, shouted chant locked to the beat,
+        // doubled dead centre, amp crunch, a touch of megaphone, dry.
+        make ("Machine Disco Chant", O, 1, "Industrial,Nu-Metal,Doubler,Saturation,Lo-Fi", {
+            { rigLevel, -2.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.35f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.2f }, { "dv2Pan", 0.2f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.1f }, { "dv2Drift", 0.1f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f },
+            { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 5 }, { lofiNoise, 0 }, { lofiMix, 0.3f } }),
+
+        // A shove scream chorus: the chorus scream torn up on two bands,
+        // doubled, with a quiet octave-down take as a second, deeper voice.
+        make ("Shove Scream Chorus", O, 2, "Industrial,Nu-Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -12 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A dreamy filtered hook: a sung, floating chorus half through an old
+        // radio band, a slow jet flanger, doubled wide, an echo.
+        make ("Dreamy Filtered Hook", O, 3, "Industrial,Nu-Metal,Lo-Fi,Modulation,Doubler", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.7f }, { "dv2Pan", 0.7f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.12f }, { modDepth, 0.5f }, { modManual, 5 }, { modRes, 4 }, { modMix, 0.3f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.08f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.12f },
+            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 4 }, { lofiNoise, 1 }, { lofiMix, 0.4f } }),
+
+        // An ache-melody chorus: a sung, melodic chorus between the shouts,
+        // the strong double just off centre, a plate.
+        make ("Ache Melody Chorus", O, 4, "Industrial,Nu-Metal,Clean,Doubler", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A grinding riff shout: a crunchy, mid-heavy shout doubled tight, a
+        // quick slapback.
+        make ("Grinding Riff Shout", O, 5, "Industrial,Nu-Metal,Doubler,Saturation", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.45f }, { "mb1Mid", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A mantra shout: a chanted, repeated shout, four takes across,
+        // crunch, almost dry: a whole crowd chanting the line.
+        make ("Mantra Shout", O, 6, "Industrial,Nu-Metal,Gang,Doubler,Saturation", {
+            { rigLevel, -2.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv3Pan", -0.4f }, { "dv4Pan", 0.4f },
+            { "dv1Drift", 0.4f }, { "dv2Drift", 0.4f }, { "dv3Drift", 0.4f }, { "dv4Drift", 0.4f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.06f } }),
+
+        // A graveyard growl chant: a low, menacing chant with a full
+        // octave-down take under it, the lows pushed, dry.
+        make ("Graveyard Growl Chant", O, 7, "Industrial,Nu-Metal,Scream,Growl,Pitch,Saturation", {
+            { rigLevel, -10 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 28 }, { photonOutput, -16 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Bass", 3 }, { "mb1Treble", -4 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 3 }, { "eq250", 2 }, { "eq2k", 1 }, { "eq8k", -5 }, { "eq16k", -8 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -2 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A hypnotic spoken loop: a spoken, droning voice through a phone
+        // band, now and then a slice repeated in time (GLITCH Sequence), a
+        // ping-pong echo.
+        make ("Hypnotic Spoken Loop", O, 8, "Industrial,Nu-Metal,Spoken,Glitch,Lo-Fi", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { glitchOn, 1 }, { glitchMode, sequenceGlitch }, { glitchDivision, sixteenthGlitch }, { glitchDensity, 3 },
+            { glitchChaos, 1 }, { glitchMix, 0.65f },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.1f },
+            { delayDuck, 0.5f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f },
+            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 5 }, { lofiNoise, 0 }, { lofiMix, 0.5f } }),
+
+        // A sticky fury scream: a fast, furious scream torn up on two bands,
+        // doubled wide, a small room.
+        make ("Sticky Fury Scream", O, 9, "Industrial,Nu-Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 600 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.8f }, { "mb2Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.7f }, { "dv2Pan", 0.7f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A craving snarl: a jittery, sneering half-shout with amp crunch, a
+        // little GLITCH interference breaking it up, doubled tight.
+        make ("Craving Snarl", O, 10, "Industrial,Nu-Metal,Glitch,Saturation,Doubler", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { glitchOn, 1 }, { glitchMode, interfereGlitch }, { glitchDivision, sixteenthGlitch }, { glitchDensity, 2.5f },
+            { glitchChaos, 3 }, { glitchMix, 0.5f },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.35f }, { "dv2Pan", 0.35f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A frozen-highway wall: the title song's wall of screams, four takes
+        // across, torn up, a crushed copy blended in.
+        make ("Frozen Highway Wall", O, 11, "Industrial,Nu-Metal,Scream,Doubler,Saturation,Lo-Fi", {
+            { rigLevel, -2.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv3Pan", -0.35f }, { "dv4Pan", 0.35f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f }, { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f },
+            { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.25f } }),
+
+        // A rooted stomp shout: a heavy, dry shout, doubled dead centre,
+        // amp crunch, nothing else.
+        make ("Rooted Stomp Shout", O, 12, "Industrial,Nu-Metal,Doubler,Saturation", {
+            { rigLevel, -4.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.1f }, { "dv2Drift", 0.1f } }),
+
+        // A winter-drift ballad: the slow closer, a soft, dreamy sung voice,
+        // a slow wide chorus, a long echo and a hall.
+        make ("Winter Drift Ballad", O, 13, "Industrial,Nu-Metal,Clean,Ballad,Modulation,Reverb", {
+            { rigLevel, 2 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Pan", -0.8f }, { "dv2Pan", 0.8f },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.3f }, { modDepth, 0.45f }, { modMix, 0.3f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.1f }, { delayDuck, 0.6f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.22f }, { reverbPreDelay, 40 } }),
+
+        // A sinking shout: a heavy, driving shout with crunch, doubled, a
+        // short slap and a small room.
+        make ("Sinking Shout", O, 14, "Industrial,Nu-Metal,Doubler,Saturation", {
+            { rigLevel, -4.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.45f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A low backing roar: for the second, deeper voice that roars behind
+        // the lead: an octave-down take under a gritty roar, wide.
+        make ("Low Backing Roar", O, 15, "Industrial,Nu-Metal,Scream,Growl,Pitch,Saturation", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -14 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.55f }, { "mb1Bass", 2 }, { "mb1Treble", -3 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 3 }, { "eq250", 1 }, { "eq2k", 0 }, { "eq4k", -2 }, { "eq8k", -6 }, { "eq16k", -6 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -0.9f }, { "dv2Pan", 0.9f },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", 0 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
     };
 }
