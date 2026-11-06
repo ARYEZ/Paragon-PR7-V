@@ -70,7 +70,8 @@ namespace
     constexpr float cleanTubeStyle = 0, warmTubeStyle = 1, saturatedTubeStyle = 2, brokenTubeStyle = 3, warmTapeStyle = 5,
                     saturatedTapeStyle = 6, americanAmpStyle = 11, britishAmpStyle = 12, crunchyAmpStyle = 14,
                     screamingAmpStyle = 15, destroyStyle = 20;
-    constexpr float texturizer = 3;                                                      // GLITCH's MODE
+    constexpr float sequenceGlitch = 1, interfereGlitch = 2, texturizer = 3;             // GLITCH's MODE
+    constexpr float thirtySecondGlitch = 1, sixteenthGlitch = 3;                         // GLITCH's LENGTH (sync)
     constexpr float naturalTune = 1, hardTune = 2;                                       // HARMONY's CORRECT (TUNE VOICE)
     constexpr float choirMap = 10;                                                       // HARMONY's CHORD map: Choir
     // MARS's modulation (effects::MarsModulation): sources, targets, XLFO SYNC.
@@ -102,12 +103,14 @@ namespace
 //      filtered and far-away voices, shouted choruses, long spaces
 //   K  a fourth album's vocal sounds (0.49.0): mid-2000s pop-rock turning
 //      darker, belted doubled choruses, hushed verses, bratty chants
+//   L  a fifth album's vocal sounds (0.50.0): nu-metal with two voices, a
+//      rapper (glitch-edited verses) and a singer (soaring hooks, screams)
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -1809,5 +1812,210 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
             { delayHighCut, 5000 },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.15f }, { reverbPreDelay, 30 } }),
+        // ---- L: a fifth album's vocal sounds ----------------------------------
+        // Turn-of-the-millennium nu-metal with two vocalists: a rapper (tight,
+        // dry, doubled, his verses often chopped, stuttered or filtered in the
+        // edit) and a singer who goes from a clean, soaring hook to a torn
+        // scream. Tags say which: "Rap" for the rapper's rigs, "Sung" or
+        // "Scream" for the singer's. Layers are the DOUBLER (no HARMONY); the
+        // edits are GLITCH, which sits before the DOUBLER so the takes stutter
+        // with the lead, as a printed edit would. Our reading, not anyone's
+        // settings.
+
+        // A stutter-edit verse: a dry, doubled rap with the words chopped in
+        // time (GLITCH Sequence: now and then a 1/16 slice repeats instead of
+        // moving on), part of it squeezed through a phone band.
+        make ("Stutter Edit Verse", L, 1, "Nu-Metal,Rap,Glitch,Lo-Fi,Doubler", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", -1 },
+            { glitchOn, 1 }, { glitchMode, sequenceGlitch }, { glitchDivision, sixteenthGlitch }, { glitchDensity, 4 },
+            { glitchChaos, 2 }, { glitchMix, 0.7f },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f },
+            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 5 }, { lofiNoise, 0 }, { lofiMix, 0.45f } }),
+
+        // A broken-signal rap: the same verse as a failing transmission
+        // (GLITCH Interfere: bits dropped out, flipped backwards or caught in
+        // a buzzing loop), through a cell-phone band, doubled tight.
+        make ("Broken Signal Rap", L, 2, "Nu-Metal,Rap,Glitch,Lo-Fi,Doubler", {
+            { rigLevel, 1.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { glitchOn, 1 }, { glitchMode, interfereGlitch }, { glitchDivision, sixteenthGlitch }, { glitchDensity, 3 },
+            { glitchChaos, 4 }, { glitchMix, 0.6f },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f },
+            { lofiOn, 1 }, { lofiType, cellPhone }, { lofiAmount, 4 }, { lofiNoise, 2 }, { lofiMix, 0.5f } }),
+
+        // A chopped-grid rap: fast 1/32 beat-repeats cut into a dry, doubled
+        // rap, more often than the stutter edit, full range (no phone band).
+        make ("Chopped Grid Rap", L, 3, "Nu-Metal,Rap,Glitch,Doubler", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { glitchOn, 1 }, { glitchMode, sequenceGlitch }, { glitchDivision, thirtySecondGlitch }, { glitchDensity, 3.5f },
+            { glitchChaos, 1 }, { glitchMix, 0.75f },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.35f }, { "dv2Pan", 0.35f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.15f }, { reverbMix, 0.04f } }),
+
+        // A nod-along rap: dry and punchy, doubled tight, a quick slapback,
+        // every word clear.
+        make ("Nod Along Rap", L, 4, "Nu-Metal,Rap,Doubler,Photon", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A measured rap verse: calm and close, gently levelled, doubled
+        // tight, a short plate: a rap that sits under a piano.
+        make ("Measured Rap Verse", L, 5, "Nu-Metal,Rap,Clean,Doubler", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.09f } }),
+
+        // A fuse-blown scream: the singer's all-out shout, torn up on a tube,
+        // doubled tight, a small room.
+        make ("Fuse Blown Scream", L, 6, "Nu-Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.7f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", 0 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.07f } }),
+
+        // A strained-grit chorus: sung hard enough to crack, a tube adding
+        // grit, the strong double just off centre, a short plate.
+        make ("Strained Grit Chorus", L, 7, "Nu-Metal,Sung,Doubler,Saturation", {
+            { rigLevel, -3.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.35f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 6 }, { "dv2Detune", -6 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.15f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A soaring hook chorus: the clean, lifted chorus, the strong double,
+        // a dotted-eighth echo kept under and a plate.
+        make ("Soaring Hook Chorus", L, 8, "Nu-Metal,Sung,Clean,Doubler", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Detune", 6 }, { "dv2Detune", -6 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.13f } }),
+
+        // A shadow-grit chorus: a dark, sung-shouted chorus with more grit,
+        // doubled and a little wider, a room.
+        make ("Shadow Grit Chorus", L, 9, "Nu-Metal,Sung,Doubler,Saturation", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A vinyl-filter verse: the sung verse half through an old radio
+        // band, a slow flanger moving through it, doubled tight.
+        make ("Vinyl Filter Verse", L, 10, "Nu-Metal,Sung,Lo-Fi,Modulation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.15f }, { modDepth, 0.5f }, { modManual, 5 }, { modRes, 4 }, { modMix, 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f },
+            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 4 }, { lofiNoise, 2 }, { lofiMix, 0.5f } }),
+
+        // An escape anthem: sung at full stretch with grit, the strong double
+        // and a pair out wide, an eighth-note echo kept under.
+        make ("Escape Anthem", L, 11, "Nu-Metal,Sung,Doubler,Saturation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 6 }, { "dv2Detune", -6 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.15f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A wounded ballad lead: softer and sung, close, a faint double, a
+        // quarter-note echo and a hall.
+        make ("Wounded Ballad Lead", L, 12, "Nu-Metal,Sung,Clean,Ballad,Reverb", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.07f }, { delayDuck, 0.7f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.17f }, { reverbPreDelay, 30 } }),
+
+        // A long bridge scream: one long, held scream, torn up hard, doubled,
+        // a quarter-note echo trailing it.
+        make ("Long Bridge Scream", L, 13, "Nu-Metal,Scream,Saturation,Delay", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 600 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.8f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.08f }, { delayDuck, 0.6f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.08f } }),
+
+        // A twin-fury scream: the scream stacked four takes across, torn up,
+        // almost dry: the heaviest wall in the bank.
+        make ("Twin Fury Scream", L, 14, "Nu-Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv3Pan", -0.35f }, { "dv4Pan", 0.35f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f }, { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.06f } }),
+
+        // A whispered undercurrent: for a whispered layer under a verse:
+        // close and bright, two takes far out to the sides, half through a
+        // phone band, a small room.
+        make ("Whispered Undercurrent", L, 15, "Nu-Metal,Whisper,Lo-Fi,Doubler", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 55 }, { abyssGain, 14 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 8 },
+            { eqOn, 1 }, { "eq63", -10 }, { "eq125", -5 }, { "eq250", -2 }, { "eq2k", 2 }, { "eq4k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.5f }, { "dv2Drift", 0.5f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.08f },
+            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.4f } }),
     };
 }

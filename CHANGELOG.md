@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.50.0
+
+- **A new bank of 15 factory rigs, bank L, inspired by the vocal sounds on Linkin Park's *Hybrid Theory*** (2000), **with rigs for both vocalists**: Mike Shinoda's rap verses (tag **Rap**) and Chester Bennington's sung hooks and screams (tags **Sung** and **Scream**). As you asked, **Mike's "Papercut" verses get the glitchy production**, in two flavours, plus a third, harder-chopped rap. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | Voice | What it does | Inspired by |
+  |---|---|---|---|
+  | **L01 Stutter Edit Verse** | Mike | A dry, doubled rap with words chopped in time: now and then a 1/16 slice repeats instead of moving on (GLITCH Sequence), part of it through a phone band | "Papercut" (its verses) |
+  | **L02 Broken Signal Rap** | Mike | The same verse as a failing transmission: bits dropped out, flipped backwards or caught in a buzzing loop (GLITCH Interfere), through a cell-phone band | "Papercut" (its verses, a rougher take) |
+  | **L03 Chopped Grid Rap** | Mike | Fast 1/32 beat-repeats cut into a dry, doubled rap, more often, full range | "Points of Authority" |
+  | **L04 Nod Along Rap** | Mike | Dry and punchy, doubled tight, a quick slap, every word clear | "A Place for My Head" (its verses) |
+  | **L05 Measured Rap Verse** | Mike | Calm and close, gently levelled, doubled tight, a short plate | "In the End" (its verses) |
+  | **L06 Fuse Blown Scream** | Chester | The all-out shout, torn up on a tube, doubled tight, a small room | "One Step Closer" |
+  | **L07 Strained Grit Chorus** | Chester | Sung hard enough to crack, grit from a tube, the strong double, a short plate | "Crawling" |
+  | **L08 Soaring Hook Chorus** | Chester | The clean, lifted chorus, the strong double, a dotted-eighth echo kept under, a plate | "In the End" (its chorus) |
+  | **L09 Shadow Grit Chorus** | Chester | A dark, sung-shouted chorus with more grit, doubled with a pair out wide | "Papercut" (its chorus) |
+  | **L10 Vinyl Filter Verse** | Chester | The sung verse half through an old radio band, a slow flanger moving through it | "With You" (its verses) |
+  | **L11 Escape Anthem** | Chester | Sung at full stretch with grit, the strong double and a wide pair | "Runaway" |
+  | **L12 Wounded Ballad Lead** | Chester | Softer and close, a faint double, a soft echo and a hall | "Pushing Me Away" |
+  | **L13 Long Bridge Scream** | Chester | One long held scream, torn up hard, doubled, a quarter-note echo trailing | "A Place for My Head" (its bridge) |
+  | **L14 Twin Fury Scream** | Chester | The scream four takes across, torn up, almost dry: the heaviest | "By Myself" |
+  | **L15 Whispered Undercurrent** | either | For a whispered layer under a verse: close, bright, two takes far out to the sides, half through a phone band | "Papercut" (its whispered layer) |
+
+  - **How the glitch works:** GLITCH sits before the DOUBLER, so the doubled takes stutter with the lead, as if the edit were printed on the vocal track. It follows the song's tempo (your DAW's, or TAP) and lands on its grid while the song plays. Measured on a rap-like test phrase, L02 changes about a quarter of the rap, L01 about half and L03 about two thirds; the rest of the words get through untouched (a new test checks they're edited often enough to hear in every bar, but never most of the time). **To tune it on the GLITCH page:** DENSITY is how often it chops, LENGTH (1/16, 1/32...) how big the pieces are, CHAOS how unpredictable, MIX how much of the edit you hear.
+  - **Our reading, not the record's settings:** built from how this style was commonly produced (tight doubled raps, chopped and filtered edits, doubled screams), not from session notes. In particular **the "Papercut" verse edits on the record were done by hand in the studio**; ours does it live and by chance, so it won't chop the same words. **I couldn't listen to the album here**, and I'm least sure about the "With You" verse treatment and the whispered layer. Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.8 dB of the typical rig).
+- **The PRESETS page has a Bank L button**, and your own rigs can be filed in bank L too.
+
 ## 0.49.0
 
 - **A new bank of 15 factory rigs, bank K, inspired by the vocal sounds on Avril Lavigne's *Under My Skin*** (2004): pop-rock turning darker, a bright lead with its own rasp, hushed close verses, bratty shouted chants, piano ballads and, above all, **the strong, tight double on the choruses** (your example: the chorus of "Nobody's Home"). Built for a singer with that tone, so **kept restrained on purpose**: the voice stays dry and upfront, grit is a touch or none (her own rasp carries it), rooms and plates are short, and the echoes sit under the voice and duck while you sing. As before, **every layer comes from the DOUBLER and none uses HARMONY**. Inside the plugin each rig is named for its sound; here is what inspired each one:

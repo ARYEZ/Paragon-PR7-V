@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H, I, J, K): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H, I, J, K, L): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -775,6 +775,78 @@ TEST_CASE ("The album banks (H, I, J, K): screams torn up, cleans clean, growls 
     CHECK (perBank[8] == 15);   // I
     CHECK (perBank[9] == 15);   // J
     CHECK (perBank[10] == 15);  // K
+    CHECK (perBank[11] == 15);  // L
+}
+
+TEST_CASE ("Bank L: the rap's glitch edits really chop the words, and leave most of them standing", "[rigs]")
+{
+    // A rap-like phrase: 120 ms syllables, each on its own pitch, with short
+    // gaps, at 120 BPM (the tempo GLITCH follows with no host). A stutter
+    // repeats a syllable where the next should be, so the output differs
+    // from the same rig with GLITCH off; a steady tone would hide that.
+    constexpr double rate = 48000.0;
+    std::vector<float> phrase ((size_t) (3.0 * rate), 0.0f);
+    const double pitches[] = { 196.0, 220.0, 174.6, 246.9, 207.7, 185.0, 233.1, 164.8 };
+    for (size_t i = 0; i < phrase.size(); ++i)
+    {
+        const auto t = (double) i / rate;
+        const auto syllable = (int) (t / 0.15);
+        const auto within = t - syllable * 0.15;
+        if (within > 0.12)
+            continue;
+        const auto envelope = std::sin (juce::MathConstants<double>::pi * within / 0.12);
+        const auto f0 = pitches[syllable % 8];
+        for (int harmonic = 1; harmonic <= 10; ++harmonic)
+            phrase[i] += (float) (0.03 * envelope / harmonic * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+    }
+    const auto render = [&] (const juce::String& name, bool glitch)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (name));
+        if (! glitch)
+            r.set (ParamIDs::glitchOn, 0.0f);
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        std::vector<float> out;
+        for (size_t start = 0; start + 256 <= phrase.size(); start += 256)
+        {
+            buffer.clear();
+            std::copy (phrase.begin() + (long) start, phrase.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+        return out;
+    };
+    for (const auto* name : { "Stutter Edit Verse", "Broken Signal Rap", "Chopped Grid Rap" })
+    {
+        const auto edited = render (name, true), plain = render (name, false);
+        // In 50 ms windows after the first half second: how many are changed
+        // by the edit (the difference within 10 dB of the plain rap)?
+        int changed = 0, windows = 0;
+        const auto window = (size_t) (0.05 * rate);
+        for (size_t start = (size_t) (0.5 * rate); start + window <= plain.size(); start += window)
+        {
+            double difference = 0.0, level = 0.0;
+            for (size_t i = start; i < start + window; ++i)
+            {
+                difference += (double) (edited[i] - plain[i]) * (edited[i] - plain[i]);
+                level += (double) plain[i] * plain[i];
+            }
+            if (level < 1.0e-9)
+                continue;
+            ++windows;
+            if (difference > 0.1 * level)
+                ++changed;
+        }
+        const auto share = (double) changed / (double) windows;
+        CAPTURE (name, changed, windows, share);
+        if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
+            std::cout << name << ": " << changed << " of " << windows << " windows edited\n";
+        // Edited often enough to hear in every bar...
+        CHECK (share > 0.15);
+        // ...but most of the words get through untouched.
+        CHECK (share < 0.75);
+    }
 }
 
 TEST_CASE ("Bank K: the choruses carry a strong, tight double and nothing is overloaded", "[rigs]")
