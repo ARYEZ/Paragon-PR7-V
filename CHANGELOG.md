@@ -2,6 +2,18 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.45.1
+
+- **Bank H now builds its layers with the DOUBLER, not HARMONY** (your call: HARMONY still needs a lot of work, and the doubler sounds much better). Five rigs changed:
+  - **H03 Wounded Hook:** the stacked third and fifth are gone; four looser takes spread wide, with an octave-down take underneath for weight.
+  - **H06 Soaring Belt:** the octave-up voice is gone; four takes wide, and the echo is now the DELAY's **Shimmer** type, which pitches each repeat up an octave (using the doubler's own pitch shifter, not HARMONY).
+  - **H07 Dream Pop Glow:** the wide harmonies are now two soft doubler takes panned far left and right, under the chorus.
+  - **H10 Glass Machine Voice:** TUNE VOICE is off; the vocoder follows your pitch by itself. As a bonus, this rig no longer adds 40 ms of delay.
+  - **H15 Finale Wall** (was Finale Choir): a choir needs HARMONY, so it's now a wall of voices: four loose takes and an octave-down take spread wide, a Shimmer echo above, a big hall.
+  - Inspired by the same songs as before; see 0.45.0's table. None of bank H needs the song's KEY set any more.
+- **Checked:** every bank H rig still sits within 1.5 dB of the typical rig's level; the cleans stay clean and the five rebuilt ones are wider than before. A test now makes sure no bank H rig switches on the HARMONY engine (harmony voices, generated notes, TUNE VOICE or FORMANT).
+- **Can't be checked here by ear:** whether the doubler versions suit the songs better is for you to judge.
+
 ## 0.45.0
 
 - **A new bank of 15 factory rigs, bank H, inspired by the vocal sounds on Spiritbox's *Eternal Blue*** (2021): one rig per vocal sound on the record, from breathy, layered cleans to fry screams and low growls. Inside the plugin each rig is named for its sound; here is what inspired each one:

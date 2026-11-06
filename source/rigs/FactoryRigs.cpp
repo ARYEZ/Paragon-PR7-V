@@ -978,8 +978,9 @@ std::vector<Rig> makeFactoryRigs()
         // ---- H: an album's vocal sounds ---------------------------------------
         // One record's range, from breathy layered cleans to fry screams and
         // low growls. Each is our reading of a sound on it (how such vocals
-        // are commonly produced), not anyone's actual settings. Where a rig
-        // stacks harmonies, set the song's KEY and SCALE in PITCH.
+        // are commonly produced), not anyone's actual settings. The layers
+        // come from the DOUBLER, not HARMONY (the owner's choice: the
+        // doubler sounds better), and none needs the song's KEY.
 
         // A breathy, airy clean that opens a song: lifted highs, two soft
         // takes far out to the sides, a ping-pong echo and a big hall that
@@ -1008,15 +1009,18 @@ std::vector<Rig> makeFactoryRigs()
             { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Detune", 4 }, { "dv2Detune", -4 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.08f } }),
 
-        // The big clean hook: four takes wide, a third and a fifth stacked
-        // low behind them, a bright plate and a quiet quarter-note echo.
-        make ("Wounded Hook", H, 3, "Metal,Clean,Doubler,Harmony", {
+        // The big clean hook: four loose takes spread wide and an octave-down
+        // take underneath for weight, a bright plate and a quiet quarter-note
+        // echo.
+        make ("Wounded Hook", H, 3, "Metal,Clean,Doubler", {
             { rigLevel, -3 },
             { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
             { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
             { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
             { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -4 },
-            { harmonyOn, 1 }, { harmonyLevel, -11 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv1Drift", 0.6f }, { "dv2Drift", 0.6f },
+            { "dv3Octave", 1 }, { "dv3Gain", -12 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { "dv4Pan", -0.4f }, { "dv4Drift", 0.6f },
             { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.7f },
             { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f }, { reverbPreDelay, 30 } }),
 
@@ -1044,28 +1048,28 @@ std::vector<Rig> makeFactoryRigs()
             { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -8 }, { "dv3Pan", 0.8f }, { "dv3Detune", 0 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.08f } }),
 
-        // A soaring clean belt: an octave-up voice glinting above, wide
-        // eighth-note echoes and a long hall for the held notes.
-        make ("Soaring Belt", H, 6, "Metal,Clean,Harmony,Reverb", {
+        // A soaring clean belt: four takes wide, a shimmer echo glinting an
+        // octave above on every repeat, and a long hall for the held notes.
+        make ("Soaring Belt", H, 6, "Metal,Clean,Doubler,Delay,Reverb", {
             { rigLevel, -6 },
             { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
             { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
             { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq2k", 1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
-            { harmonyOn, 1 }, { harmonyLevel, -11 }, { "hv1Pitch", 12 }, { "hv1Pan", 0 }, { "hv2Active", 0 },
-            { doublerOn, 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 },
-            { delayOn, 1 }, { delaySync, eighth }, { delayPingPong, 1 }, { delayFeedback, 0.35f }, { delayMix, 0.15f },
-            { delayDuck, 0.7f }, { delayHighCut, 6000 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 }, { doublerOutput, -3 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, eighth }, { delayPingPong, 1 }, { delayFeedback, 0.35f },
+            { delayMix, 0.13f }, { delayDuck, 0.7f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.28f }, { reverbDecay, 1.4f },
             { reverbDuck, 0.3f } }),
 
-        // Dreamy pop: smooth and close, a shimmering chorus on it, soft
-        // harmonies spread wide, a bright plate and a dotted-eighth echo.
-        make ("Dream Pop Glow", H, 7, "Pop,Clean,Modulation,Harmony", {
+        // Dreamy pop: smooth and close, a shimmering chorus on it, two soft
+        // takes far out to the sides, a bright plate and a dotted-eighth echo.
+        make ("Dream Pop Glow", H, 7, "Pop,Clean,Modulation,Doubler", {
             { rigLevel, 2 },
             { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 55 }, { abyssGain, 15 }, { abyssEmphasis, 0.3f },
             { deessOn, 1 }, { deessAmount, 6 },
             { eqOn, 1 }, { "eq63", -6 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 4 },
-            { harmonyOn, 1 }, { harmonyLevel, -13 }, { "hv1Pan", -0.9f }, { "hv2Pan", 0.9f },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
             { modOn, 1 }, { modType, dimension }, { modRate, 0.4f }, { modDepth, 0.4f }, { modMix, 0.3f },
             { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.14f }, { delayDuck, 0.6f },
             { delayHighCut, 6000 },
@@ -1097,14 +1101,13 @@ std::vector<Rig> makeFactoryRigs()
             { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.32f }, { reverbPreDelay, 60 },
             { reverbDuck, 0.5f }, { reverbSpin, 1.8f }, { reverbWander, 1.8f } }),
 
-        // A strange, synthetic voice: hard-tuned, with a vocoder synth
-        // singing your note under it, and a quarter-note echo. (TUNE VOICE
-        // makes PR7-V 40 ms late, as always.)
-        make ("Glass Machine Voice", H, 10, "Electronic,Tuning,Vocoder,Experimental", {
+        // A strange, synthetic voice: a vocoder synth singing your note (it
+        // follows your pitch by itself) blended with your own voice, and a
+        // quarter-note echo.
+        make ("Glass Machine Voice", H, 10, "Electronic,Vocoder,Experimental", {
             { rigLevel, -2 },
             { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
             { deessOn, 1 }, { deessAmount, 6 },
-            { harmonyCorrect, hardTune },
             { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 2 }, { "eq8k", 2 },
             { vocoderOn, 1 }, { vocoderMode, 0 }, { vocoderScale, 0.6f }, { vocoderLevel, -6 }, { vocoderDry, -2 },
             { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
@@ -1157,18 +1160,19 @@ std::vector<Rig> makeFactoryRigs()
             { delayDuck, 0.6f }, { delayHighCut, 4000 },
             { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.45f }, { reverbMix, 0.2f }, { reverbPreDelay, 20 } }),
 
-        // A closing choir: the lead stays in front while a choir built from
-        // every note you sing (GENERATE NOTES) swells wide behind it, in a
-        // big hall.
-        make ("Finale Choir", H, 15, "Metal,Clean,Harmony,Choir,Reverb", {
+        // A closing wall of voices: the lead in front, four loose takes and
+        // an octave-down take spread wide behind it, a shimmer echo above and
+        // a big hall.
+        make ("Finale Wall", H, 15, "Metal,Clean,Doubler,Reverb", {
             { rigLevel, -5 },
             { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
             { deessOn, 1 }, { deessAmount, 7 },
             { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
-            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
-            { harmonyGenerate, 1 }, { harmonyChord, choirMap }, { harmonyNoteLevel, -10 }, { harmonyNoteWidth, 1 },
-            { harmonyNoteAttack, 120 }, { harmonyNoteRelease, 400 },
-            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv1Drift", 0.8f }, { "dv2Drift", 0.8f }, { "dv4Drift", 0.8f },
+            { "dv3Octave", 1 }, { "dv3Gain", -10 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.1f },
+            { delayDuck, 0.7f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.3f }, { reverbDecay, 1.3f },
             { reverbDuck, 0.3f } }),
     };

@@ -623,7 +623,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl an octave down, the duet two voices wide", "[rigs]")
+TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -696,6 +696,14 @@ TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl 
             continue;
         ++count;
         INFO (factory.getSlotName() << " " << factory.name);
+        // The layers come from the DOUBLER: none of these uses the HARMONY
+        // engine (voices, generated notes, TUNE VOICE or FORMANT), which the
+        // owner wants used as little as possible until it's reworked.
+        for (const auto* id : { ParamIDs::harmonyOn, ParamIDs::harmonyGenerate, ParamIDs::harmonyCorrect, ParamIDs::formantOn })
+        {
+            const auto found = factory.parameters.find (id);
+            CHECK ((found == factory.parameters.end() || found->second == 0.0f));
+        }
         const auto m = measure (factory);
         CAPTURE (m.highDb, m.subDb, m.correlation);
         if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
