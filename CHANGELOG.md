@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.54.0
+
+- **A new bank of 15 factory rigs, bank P, inspired by the vocal sounds on Stone Temple Pilots' debut, *Core*** (1992, produced and mixed by Brendan O'Brien): early-90s grunge and hard rock, Scott Weiland's deep, rich baritone, snarled in the heavy songs, crooned in the soft ones, and now and then shouted through a megaphone (the opening of "Dead & Bloated" is the famous one); recorded dry and close, the choruses doubled, short rooms and plates. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **P01 Bullhorn Intro Snarl** | A snarled intro mostly through a megaphone, a little crunch, two faint takes wide, a room | "Dead & Bloated" (its megaphone opening) |
+  | **P02 Swollen Baritone Grind** | The deep baritone with grit, doubled tight, a slapback | "Dead & Bloated" |
+  | **P03 Swagger Snarl Verse** | An aggressive, sneered baritone with amp crunch, doubled tight, dry | "Sex Type Thing" |
+  | **P04 Overgrown Anthem Hook** | A big sung baritone chorus, a breath of tube warmth, the strong double, an echo under, a plate | "Wicked Garden" |
+  | **P05 Penance Croon** | A moody, low croon, close, a soft tape echo and a plate | "Sin" |
+  | **P06 Lazy Funk Drawl** | A loose, laid-back baritone over a funky groove, doubled tight, a quick slap | "Naked Sunday" |
+  | **P07 Hushed Acoustic Confession** | Soft and close over an acoustic guitar, one faint take, a small chamber | "Creep" (its verses) |
+  | **P08 Lifting Chorus Swell** | The soft song's chorus opening up, the strong double, a soft echo and a hall | "Creep" (its chorus) |
+  | **P09 Bitter Groove Lead** | A grungy, mid-heavy groove vocal with crunch, doubled, a small room | "Piece of Pie" |
+  | **P10 Velvet Baritone Verse** | The dark, rich baritone close on the mic, a faint take, a short plate | "Plush" (its verses) |
+  | **P11 Velvet Baritone Chorus** | The same voice opened up, a little tube grit, the strong double, a plate | "Plush" (its chorus) |
+  | **P12 Drowsy Haze Murmur** | A murmured, sleepy voice half through an old radio band, a slow flanger drifting through | "Wet My Bed" |
+  | **P13 Megaphone Rush Shout** | A fast, punky shout half through a megaphone, amp crunch, doubled | "Crackerman" |
+  | **P14 Drifting Current Lead** | A long, rolling rock vocal with a little grit, doubled, a tape echo and a plate | "Where the River Goes" |
+  | **P15 Long Jam Wail** | Wailing over the long closing jam, tube grit, doubled wide, a dotted echo and a hall | "Where the River Goes" (its closing jam) |
+
+  - ("No Memory" is an instrumental, so it has no rig.)
+  - **Our reading, not the record's settings:** the megaphone on "Dead & Bloated" (and, live, "Crackerman") is well known; the rest is built from how this style was commonly produced, not from session notes, and **I couldn't listen to the album here**. Least sure: the treatment on "Wet My Bed" (P12) and how wet the closing jam is (P15). Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.5 dB of the typical rig).
+- **The PRESETS page's bank list is now two columns** (ALL BANKS across the top, then the banks two to a row), so bank P fits, with room for about ten more banks below.
+
 ## 0.53.0
 
 - **A new bank of 15 factory rigs, bank O, inspired by the vocal sounds on Static-X's *Wisconsin Death Trip*** (1999, produced by Ulrich Wild with the band): late-90s industrial metal with a dance-machine pulse, a shouted, chanted voice locked to programmed beats, tight and dry, torn up for the screams, dreamy filtered melodies in a few choruses, and a second, deeper voice roaring behind. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

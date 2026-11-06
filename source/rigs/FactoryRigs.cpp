@@ -111,12 +111,14 @@ namespace
 //      whisper-to-scream voice treated like a machine
 //   O  an eighth album's vocal sounds (0.53.0): late-90s industrial metal
 //      with a dance-machine pulse, chanted shouts, screams, a deep second voice
+//   P  a ninth album's vocal sounds (0.54.0): early-90s grunge, a deep
+//      baritone snarled, crooned and shouted through a megaphone
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14, P = 15;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -2631,5 +2633,200 @@ std::vector<Rig> makeFactoryRigs()
             { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -0.9f }, { "dv2Pan", 0.9f },
             { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", 0 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+        // ---- P: a ninth album's vocal sounds ----------------------------------
+        // Early-90s grunge / hard rock: a deep, rich baritone, snarled in the
+        // heavy songs, crooned in the soft ones, now and then shouted through
+        // a megaphone; recorded dry and close, the choruses doubled, short
+        // rooms and plates. Layers are the DOUBLER (no HARMONY). Our reading,
+        // not anyone's settings.
+
+        // A bullhorn intro snarl: a snarled intro through a megaphone, most
+        // of the voice in the horn, a little crunch, a room.
+        make ("Bullhorn Intro Snarl", P, 1, "Grunge,Rock,Lo-Fi,Saturation", {
+            { rigLevel, -2.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.25f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.35f }, { reverbMix, 0.08f },
+            { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 1 }, { lofiMix, 0.6f } }),
+
+        // A swollen baritone grind: the deep baritone with grit, doubled
+        // tight, a slapback and a small room.
+        make ("Swollen Baritone Grind", P, 2, "Grunge,Rock,Doubler,Saturation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.35f }, { "mb1Bass", 1 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq1k", 1 }, { "eq2k", 1 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.35f }, { "dv2Pan", 0.35f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 110 }, { delayFeedback, 0.1f },
+            { delayMix, 0.07f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A swagger snarl verse: an aggressive, sneered baritone with amp
+        // crunch, doubled tight, dry.
+        make ("Swagger Snarl Verse", P, 3, "Grunge,Rock,Doubler,Saturation", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.4f }, { "mb1Mid", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // An overgrown anthem hook: a big sung baritone chorus, a breath of
+        // tube warmth, the strong double, a dotted-eighth echo and a plate.
+        make ("Overgrown Anthem Hook", P, 4, "Grunge,Rock,Doubler", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f } }),
+
+        // A penance croon: a moody, low croon, close, a soft tape echo and a
+        // plate.
+        make ("Penance Croon", P, 5, "Grunge,Rock,Clean,Delay", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.08f },
+            { delayDuck, 0.7f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.13f } }),
+
+        // A lazy funk drawl: a loose, laid-back baritone over a funky groove,
+        // doubled tight, a quick slap, dry.
+        make ("Lazy Funk Drawl", P, 6, "Grunge,Rock,Clean,Doubler", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 95 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A hushed acoustic confession: a soft, close voice over an acoustic
+        // guitar, one faint take, a small chamber.
+        make ("Hushed Acoustic Confession", P, 7, "Grunge,Ballad,Clean,Intimate", {
+            { rigLevel, 1.5f },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 35 }, { abyssGain, 9 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -15 }, { "dv2On", 0 }, { "dv1Pan", 0.3f },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.4f }, { reverbMix, 0.14f }, { reverbPreDelay, 15 } }),
+
+        // A lifting chorus swell: the soft song's chorus opening up, the
+        // strong double, a soft echo and a hall.
+        make ("Lifting Chorus Swell", P, 8, "Grunge,Ballad,Clean,Doubler,Reverb", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.7f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.16f } }),
+
+        // A bitter groove lead: a grungy, mid-heavy groove vocal with crunch,
+        // doubled, a small room.
+        make ("Bitter Groove Lead", P, 9, "Grunge,Rock,Doubler,Saturation", {
+            { rigLevel, -3.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 5 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.35f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq500", 1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.07f } }),
+
+        // A velvet baritone verse: the dark, rich baritone close on the mic,
+        // a faint take behind, a short plate.
+        make ("Velvet Baritone Verse", P, 10, "Grunge,Rock,Clean,Intimate", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 45 }, { abyssGain, 11 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 2 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -13 }, { "dv2On", 0 }, { "dv1Pan", -0.3f }, { "dv1Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.09f } }),
+
+        // A velvet baritone chorus: the same voice opened up, a little tube
+        // grit, the strong double, an echo kept under and a plate.
+        make ("Velvet Baritone Chorus", P, 11, "Grunge,Rock,Doubler", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 2 }, { "eq250", 1 }, { "eq2k", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.12f } }),
+
+        // A drowsy haze murmur: a murmured, sleepy voice half through an old
+        // radio band, a slow flanger drifting through it, a room.
+        make ("Drowsy Haze Murmur", P, 12, "Grunge,Lo-Fi,Modulation,Intimate", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 50 }, { abyssGain, 12 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -1 }, { "eq1k", 1 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Drift", 0.5f }, { "dv2Drift", 0.5f },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.1f }, { modDepth, 0.5f }, { modManual, 5 }, { modRes, 3 }, { modMix, 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.45f }, { reverbMix, 0.12f },
+            { lofiOn, 1 }, { lofiType, amRadio }, { lofiAmount, 4 }, { lofiNoise, 2 }, { lofiMix, 0.5f } }),
+
+        // A megaphone rush shout: a fast, punky shout half through a
+        // megaphone, amp crunch, doubled, dry.
+        make ("Megaphone Rush Shout", P, 13, "Grunge,Rock,Punk,Lo-Fi,Saturation", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.05f },
+            { lofiOn, 1 }, { lofiType, megaphone }, { lofiAmount, 6 }, { lofiNoise, 1 }, { lofiMix, 0.5f } }),
+
+        // A drifting current lead: a long, rolling rock vocal with a little
+        // grit, doubled, a tape echo and a plate.
+        make ("Drifting Current Lead", P, 14, "Grunge,Rock,Doubler,Delay", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq1k", 1 }, { "eq2k", 1 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.07f },
+            { delayDuck, 0.7f }, { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.11f } }),
+
+        // A long jam wail: the voice wailing over a long closing jam, grit
+        // from a tube, doubled wide, a dotted echo and a hall.
+        make ("Long Jam Wail", P, 15, "Grunge,Rock,Doubler,Saturation,Reverb", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 22 }, { photonOutput, -11 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.8f }, { "dv2Pan", 0.8f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.08f },
+            { delayDuck, 0.7f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.14f } }),
     };
 }

@@ -410,10 +410,21 @@ void RigBrowser::resized()
         sidebar.removeFromTop (4);
     }
     sidebar.removeFromTop (28);
-    for (auto* button : bankButtons)
+    // ALL BANKS across the top, then the banks two to a row: sixteen and
+    // more banks didn't fit one under another (0.54.0).
+    for (int i = 0; i < bankButtons.size(); ++i)
     {
-        button->setBounds (sidebar.removeFromTop (28));
-        sidebar.removeFromTop (4);
+        if (i == 0)
+        {
+            bankButtons[i]->setBounds (sidebar.removeFromTop (28));
+            sidebar.removeFromTop (4);
+            continue;
+        }
+        const auto column = (i - 1) % 2;
+        if (column == 0 && i > 1)
+            sidebar.removeFromTop (32);
+        const auto half = (sidebar.getWidth() - 4) / 2;
+        bankButtons[i]->setBounds (sidebar.getX() + column * (half + 4), sidebar.getY(), half, 28);
     }
 
     area.removeFromLeft (12);
