@@ -98,12 +98,14 @@ namespace
 //   I  a second album's vocal sounds (0.47.0): modern progressive metal,
 //      high stacked tenor cleans and tight double-tracked screams, all
 //      layered with the DOUBLER (no HARMONY)
+//   J  a third album's vocal sounds (0.48.0): early-2000s space rock,
+//      filtered and far-away voices, shouted choruses, long spaces
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -1366,6 +1368,205 @@ std::vector<Rig> makeFactoryRigs()
         // The final ascent: the closing wall, four loose takes and an
         // octave-down take spread wide, a Shimmer echo above, a huge hall.
         make ("Final Ascent Wall", I, 15, "Prog,Clean,Doubler,Reverb", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv1Drift", 0.8f }, { "dv2Drift", 0.8f }, { "dv4Drift", 0.8f },
+            { "dv3Octave", 1 }, { "dv3Gain", -10 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.12f },
+            { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.9f }, { reverbMix, 0.32f }, { reverbDecay, 1.5f },
+            { reverbDuck, 0.3f } }),
+
+        // ---- J: a third album's vocal sounds ----------------------------------
+        // Early-2000s space rock: a voice that's half sung, half shouted,
+        // often filtered or treated like a signal from far away, under huge
+        // shouted choruses, with synths and long spaces around it. Layers
+        // are the DOUBLER (no HARMONY: the owner's choice); the treated
+        // voices come from LO-FI, MODULATION, GLITCH and the VOCODER. Each is
+        // our reading of a sound, not anyone's settings.
+
+        // A cold signal verse: the voice half through a phone line, half
+        // itself, doubled tight, a short echo: a verse heard from far away.
+        make ("Cold Signal Verse", J, 1, "Rock,Space,Lo-Fi,Doubler", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -4 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, eighth }, { delayFeedback, 0.25f }, { delayMix, 0.12f },
+            { delayDuck, 0.6f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.1f },
+            { lofiOn, 1 }, { lofiType, telephone }, { lofiAmount, 5 }, { lofiNoise, 1 }, { lofiMix, 0.5f } }),
+
+        // A rally-cry chorus: shouted from the chest, pushed into a tube until
+        // it tears, four takes across, a bright plate behind.
+        make ("Rally Cry Chorus", J, 2, "Rock,Space,Scream,Doubler,Saturation", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -0.8f }, { "dv2Pan", 0.8f }, { "dv3Pan", -0.3f }, { "dv4Pan", 0.3f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.08f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.14f } }),
+
+        // An orbit lead: a sung rock lead with a little grit, doubled wide, a
+        // dotted-eighth echo bouncing side to side and a plate.
+        make ("Orbit Lead", J, 3, "Rock,Space,Doubler,Delay", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.3f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Pan", -0.9f }, { "dv2Pan", 0.9f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.13f },
+            { delayDuck, 0.7f }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.16f }, { reverbPreDelay, 30 } }),
+
+        // A breath-close whisper: almost spoken, right on the mic, gently
+        // levelled, one faint take behind and a small chamber.
+        make ("Breath Close Whisper", J, 4, "Space,Clean,Intimate,Abyss", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 50 }, { abyssGain, 12 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -1 }, { "eq250", 1 }, { "eq2k", -1 }, { "eq8k", 1 }, { "eq16k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -14 }, { "dv2On", 0 }, { "dv1Pan", -0.4f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.1f },
+            { delayDuck, 0.6f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.4f }, { reverbMix, 0.18f }, { reverbPreDelay, 20 } }),
+
+        // A static-storm scream: torn up on two bands, a little stutter and
+        // grain behind it from GLITCH, doubled tight: a scream breaking up.
+        make ("Static Storm Scream", J, 5, "Rock,Space,Scream,Saturation,Experimental", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 600 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.7f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", 0 },
+            { glitchOn, 1 }, { glitchMode, texturizer }, { glitchMix, 0.2f },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.08f } }),
+
+        // A hollow chant: low and moody, a slow phaser hollowing it out, a
+        // slapback and a room, a little dark on top.
+        make ("Hollow Chant", J, 6, "Rock,Space,Modulation,Delay", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", 1 }, { "eq500", 2 }, { "eq1k", 1 }, { "eq8k", -3 }, { "eq16k", -4 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 },
+            { modOn, 1 }, { modType, phaser }, { modRate, 0.25f }, { modDepth, 0.6f }, { modMix, 0.45f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 120 }, { delayFeedback, 0.15f },
+            { delayMix, 0.12f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.45f }, { reverbMix, 0.14f } }),
+
+        // A satellite ballad: a soft sung line, two takes far out to the
+        // sides, a quarter-note echo and a long hall.
+        make ("Satellite Ballad", J, 7, "Space,Clean,Ballad,Doubler,Reverb", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.6f }, { "dv2Drift", 0.6f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.13f }, { delayDuck, 0.7f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.28f }, { reverbPreDelay, 45 },
+            { reverbDuck, 0.4f }, { reverbDecay, 1.3f } }),
+
+        // A starfield vocoder: a synth singing your note (it follows your
+        // pitch by itself), blended under your voice, a ping-pong echo and a
+        // cathedral: a voice from the dark between the synths.
+        make ("Starfield Vocoder", J, 8, "Space,Electronic,Vocoder,Ambient", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { vocoderOn, 1 }, { vocoderMode, 0 }, { vocoderScale, 0.6f }, { vocoderLevel, -6 }, { vocoderDry, -4 },
+            { "vocOsc1Wave", 4 }, { "vocOsc1Shape", 0.4f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayPingPong, 1 }, { delayFeedback, 0.35f }, { delayMix, 0.14f },
+            { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.65f }, { reverbMix, 0.26f }, { reverbPreDelay, 40 } }),
+
+        // A marching shout: a hard, rhythmic shout locked to the drums,
+        // doubled tight and kept dry.
+        make ("Marching Shout", J, 9, "Rock,Space,Scream,Doubler,Photon", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 3 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Detune", 4 }, { "dv2Detune", -4 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.08f },
+            { delayMix, 0.08f } }),
+
+        // A twilight tenor: a gentle clean voice with a slow, wide chorus,
+        // a soft echo and a warm hall.
+        make ("Twilight Tenor", J, 10, "Space,Clean,Modulation,Reverb", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 45 }, { abyssGain, 12 }, { abyssEmphasis, 0.3f },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -12 }, { "dv2Gain", -12 },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.3f }, { modDepth, 0.4f }, { modMix, 0.25f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f },
+            { delayDuck, 0.6f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.25f }, { reverbPreDelay, 40 } }),
+
+        // A deep-space drift: the most spacious of the bank, a Shimmer echo
+        // an octave above and a slowly turning cathedral.
+        make ("Deep Space Drift", J, 11, "Space,Clean,Ambient,Delay,Reverb", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayPingPong, 1 }, { delayFeedback, 0.45f },
+            { delayMix, 0.15f }, { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.75f }, { reverbMix, 0.32f }, { reverbPreDelay, 60 },
+            { reverbDuck, 0.5f }, { reverbSpin, 1.8f }, { reverbWander, 1.8f } }),
+
+        // A machine pulse: an industrial voice, gritty, a slow jet flanger
+        // and a crushed copy of itself blended in.
+        make ("Machine Pulse", J, 12, "Rock,Space,Industrial,Saturation,Modulation,Lo-Fi", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.4f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 },
+            { modOn, 1 }, { modType, flanger }, { modRate, 0.15f }, { modDepth, 0.7f }, { modManual, 5 }, { modRes, 6 }, { modMix, 0.4f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.08f },
+            { lofiOn, 1 }, { lofiType, bitcrusher }, { lofiAmount, 4 }, { lofiNoise, 0 }, { lofiMix, 0.35f } }),
+
+        // A buried tape voice: far off and worn, as if found on an old tape
+        // after the record seems to have ended, in a dim room.
+        make ("Buried Tape Voice", J, 13, "Space,Lo-Fi,Experimental", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq4k", -2 }, { "eq8k", -4 },
+            { doublerOn, 1 }, { "dv1Gain", -12 }, { "dv2Gain", -12 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f },
+            { delayHighCut, 3500 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.55f }, { reverbMix, 0.2f },
+            { lofiOn, 1 }, { lofiType, cassette }, { lofiAmount, 5 }, { lofiNoise, 4 }, { lofiMix, 0.7f } }),
+
+        // A tremor growl: the heaviest moments, a full octave-down take under
+        // the voice, the lows pushed, the top rolled off, dry.
+        make ("Tremor Growl", J, 14, "Rock,Space,Scream,Growl,Pitch,Saturation", {
+            { rigLevel, -9 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 28 }, { photonOutput, -16 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Bass", 3 }, { "mb1Treble", -4 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 3 }, { "eq250", 2 }, { "eq2k", 1 }, { "eq8k", -5 }, { "eq16k", -8 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -2 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A horizon wall: the closing build, four loose takes and an
+        // octave-down take spread wide, a Shimmer echo above and a huge hall.
+        make ("Horizon Wall", J, 15, "Rock,Space,Clean,Doubler,Reverb", {
             { rigLevel, -5 },
             { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
             { deessOn, 1 }, { deessAmount, 7 },

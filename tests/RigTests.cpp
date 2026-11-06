@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H, I): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H, I, J): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -773,4 +773,5 @@ TEST_CASE ("The album banks (H, I): screams torn up, cleans clean, growls an oct
     }
     CHECK (perBank[7] == 15);   // H
     CHECK (perBank[8] == 15);   // I
+    CHECK (perBank[9] == 15);   // J
 }

@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.48.0
+
+- **A new bank of 15 factory rigs, bank J, inspired by the vocal sounds on Thirty Seconds to Mars' self-titled debut** (recorded in Wyoming in 2001, released in August 2002): early-2000s space rock, a voice that's half sung and half shouted, often filtered or treated like a signal from far away, under big shouted choruses, with synths and long spaces around it. As before, **every layer comes from the DOUBLER and none uses HARMONY**. The treated voices come from LO-FI, MODULATION, GLITCH and the VOCODER, which is separate from the HARMONY engine. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **J01 Cold Signal Verse** | Half the voice through a phone line, half itself, doubled tight, a short echo: a verse from far away | "Capricorn (A Brand New Name)" (its verses) |
+  | **J02 Rally Cry Chorus** | Shouted from the chest, pushed into a tube until it tears, four takes across, a bright plate | "Capricorn (A Brand New Name)" (its chorus) |
+  | **J03 Orbit Lead** | A sung rock lead with a little grit, doubled wide, a dotted-eighth echo bouncing side to side | "Edge of the Earth" |
+  | **J04 Breath Close Whisper** | Almost spoken, right on the mic, gently levelled, one faint take, a small chamber | "Fallen" |
+  | **J05 Static Storm Scream** | A scream torn up on two bands, with a little stutter and grain behind it (GLITCH), doubled tight | "Oblivion" |
+  | **J06 Hollow Chant** | Low and moody, a slow phaser hollowing it out, a slapback, a room, darker on top | "Buddha for Mary" |
+  | **J07 Satellite Ballad** | A soft sung line, two takes far out to the sides, a quarter-note echo, a long hall | "Echelon" |
+  | **J08 Starfield Vocoder** | A vocoder synth singing your note under your voice, a ping-pong echo, a cathedral | "Welcome to the Universe" |
+  | **J09 Marching Shout** | A hard, rhythmic shout locked to the drums, doubled tight, kept dry | "The Mission" |
+  | **J10 Twilight Tenor** | A gentle clean voice, a slow wide chorus, a soft tape echo, a warm hall | "End of the Beginning" |
+  | **J11 Deep Space Drift** | The most spacious: a Shimmer echo an octave above and a slowly turning cathedral | "93 Million Miles" |
+  | **J12 Machine Pulse** | An industrial voice: gritty, a slow jet flanger and a crushed copy of itself blended in | "Year Zero" (its verses) |
+  | **J13 Buried Tape Voice** | Far off and worn, as if found on an old tape after the record seems to end | "The Struggle" (the hidden track after "Year Zero") |
+  | **J14 Tremor Growl** | The heaviest moments: a full octave-down take under the voice, lows pushed, dry | The album's heaviest moments (no one song) |
+  | **J15 Horizon Wall** | The closing build: four loose takes and an octave-down take spread wide, a Shimmer echo, a huge hall | "Year Zero" (its closing build) |
+
+  - **Our reading, not the record's settings:** built from how this style of vocal is commonly produced (filtered and lo-fi verses, doubled shouted choruses, flangers and phasers, long delays and reverbs), not from session notes. **Many details are my guesses**, and these ones most of all: "Welcome to the Universe" is mostly instrumental, so J08's vocoder is a voice made to sit in its world rather than a copy of one; J14 isn't tied to any one song; I'm unsure how far "Buddha for Mary" and "Year Zero" treat the voice; and "The Struggle" is on some pressings only. **I couldn't listen to the album or the rigs here**: tell me which are off and how, and I'll adjust them.
+  - **No KEY to set:** nothing in bank J adds notes in key (the vocoder follows your pitch by itself).
+  - **Levels:** balanced with the other rigs (all within about 1.3 dB of the typical rig).
+- **The PRESETS page has a Bank J button**, and your own rigs can be filed in bank J too.
+
 ## 0.47.0
 
 - **A new bank of 15 factory rigs, bank I, inspired by the vocal sounds on Periphery's *Periphery III: Select Difficulty*** (2016): soaring, heavily stacked high-tenor cleans and tight double- and quad-tracked screams. As you asked, **every layer comes from the DOUBLER and none uses HARMONY**; the one octave-above sparkle (in three rigs) comes from the DELAY's Shimmer echo. Inside the plugin each rig is named for its sound; here is what inspired each one:
