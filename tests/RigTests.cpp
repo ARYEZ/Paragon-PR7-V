@@ -277,6 +277,45 @@ TEST_CASE ("Favourites stick, including on factory rigs", "[rigs]")
     CHECK_FALSE (reopened.findFactory ("Studio Vocal")->rig.favourite);
 }
 
+TEST_CASE ("A favourite factory rig that was renamed keeps its star under the new name", "[rigs]")
+{
+    // Favourites are kept by name: one saved before E03 and E22 moved to the
+    // DOUBLER (and were renamed) follows them.
+    TempRigFolder temp;
+    temp.folder.createDirectory();
+    temp.folder.getChildFile ("factory-favourites.txt").replaceWithText ("Harmony Stack\nSlapback\nAuto Choir");
+    RigLibrary library (temp.folder);
+    REQUIRE (library.findFactory ("Vocal Stack") != nullptr);
+    CHECK (library.findFactory ("Vocal Stack")->rig.favourite);
+    CHECK (library.findFactory ("Voice Wall")->rig.favourite);
+    CHECK (library.findFactory ("Slapback")->rig.favourite);
+    CHECK (library.findFactory ("Harmony Stack") == nullptr);
+    // ...and the file now says so.
+    CHECK (temp.folder.getChildFile ("factory-favourites.txt").loadFileAsString().contains ("Vocal Stack"));
+}
+
+TEST_CASE ("Rigs moved off HARMONY onto the DOUBLER don't switch the HARMONY engine on", "[rigs]")
+{
+    // The owner: HARMONY still needs work, the DOUBLER sounds better.
+    const juce::StringArray moved { "Vocal Stack", "Voice Wall", "Pop-Punk Chorus", "Haunted Clean", "Prog Tenor Stack", "Soaring Prog Chorus" };
+    auto found = 0;
+    for (const auto& factory : makeFactoryRigs())
+    {
+        if (! moved.contains (factory.name))
+            continue;
+        ++found;
+        INFO (factory.name);
+        for (const auto* id : { ParamIDs::harmonyOn, ParamIDs::harmonyGenerate, ParamIDs::harmonyCorrect, ParamIDs::formantOn })
+        {
+            const auto value = factory.parameters.find (id);
+            CHECK ((value == factory.parameters.end() || value->second == 0.0f));
+        }
+        const auto doubler = factory.parameters.find (ParamIDs::doublerOn);
+        CHECK ((doubler != factory.parameters.end() && doubler->second == 1.0f));
+    }
+    CHECK (found == moved.size());
+}
+
 TEST_CASE ("Rigs are sorted by bank and number, and < > wrap round", "[rigs]")
 {
     TempRigFolder temp;
