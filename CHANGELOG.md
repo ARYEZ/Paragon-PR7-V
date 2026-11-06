@@ -2,6 +2,34 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.51.0
+
+- **A new bank of 15 factory rigs, bank M, inspired by the vocal sounds on Crown the Empire's *The Resistance: Rise of the Runaways* (Deluxe Edition)** (2014; the deluxe edition, 2015, adds four tracks): theatrical metalcore with two vocalists, **Andy Leo's polished, belted cleans** (tag **Sung**) and **David Escamilla's screams** (tag **Scream**, **Growl** for the lowest). Both are stacked thick with the DOUBLER: the cleans with the strong double from bank K, the screams as walls of takes. None uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | Voice | What it does | Inspired by |
+  |---|---|---|---|
+  | **M01 Rallying Address** | spoken | A spoken call to arms through a megaphone, half clean underneath, a big hall | "A Call to Arms (Act I)" |
+  | **M02 Oath Scream** | David | A sharp mid-high scream torn up on two bands, two tight takes either side | "Initiation" |
+  | **M03 Ageless Anthem Chorus** | Andy | The big polished clean chorus: the strong double plus a wide pair, a dotted-eighth echo under, a bright plate | "Millennia" |
+  | **M04 Circuit Scream Wall** | David | Screams four takes across with an electronic edge: a crushed copy blended in and GLITCH grain behind | "Machines" |
+  | **M05 Skeleton Pact Chorus** | Andy | An arena clean chorus with a little rasp, the strong double, a plate | "Cross Our Bones" (deluxe) |
+  | **M06 Beast Growl** | David | The lowest roar, a full octave-down take under it, very dry | "MNSTR" |
+  | **M07 Doubtful Verse** | Andy | The clean voice close and quiet, one faint take, a small chamber | "Second Thoughts" |
+  | **M08 Unhinged Snarl** | either | Theatrical, half-sung, half-sneered, amp crunch, doubled tight, a slapback | "Maniacal Me" |
+  | **M09 Rewired Pulse Voice** | Andy | An electronic take on a heavy song: doubled, a slow jet flanger, a soft crushed copy blended in | "Machines" (re-invented, deluxe) |
+  | **M10 Runaway Gang Shout** | gang | The whole band shouting, four loose takes across, amp crunch | "Rise of the Runaways" |
+  | **M11 Lineage Scream** | David | A scream riding the riff, doubled tight, a quarter-note echo trailing | "Bloodline" |
+  | **M12 Ashes Ascent Chorus** | Andy | The clean voice lifted high: the strong double, a wide pair, a Shimmer echo an octave above, a hall | "The Phoenix Reborn" |
+  | **M13 Defiant Closer Belt** | Andy | The last chorus belted hard with grit, the strong double, a plate | "Johnny's Rebellion" |
+  | **M14 Captive Battle Scream** | David | A raw, driving scream on two bands, doubled tight, a small room | "Prisoners of War" (deluxe) |
+  | **M15 Unplugged Close Lead** | Andy | Natural and close for an unplugged version, a faint take, a small chamber | "Millennia" (acoustic, deluxe) |
+
+  - **Not covered:** the two short story interludes ("The Wolves of Paris (Act II)", "Satellites (Act III)"); the rigs went to the songs with the most singing. Tell me if you want them.
+  - **One honest gap:** the record's cleans are very tightly pitch-corrected. That would need TUNE VOICE, which is part of the HARMONY engine you've asked me to keep out of new rigs, so these rigs leave the tuning to the singer. If you want it on the cleans, switch TUNE VOICE (PITCH) on with your song's KEY, or ask me for tuned versions.
+  - **Our reading, not the record's settings:** built from how this style is commonly produced (thick doubled cleans, multi-tracked screams, electronic layers), not from session notes, and **I couldn't listen to the album here**. Least sure: the spoken intro (M01) and what the re-invented "Machines" (M09) does to the voice. Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.9 dB of the typical rig).
+- **The PRESETS page has a Bank M button**, and your own rigs can be filed in bank M too. Two more bank buttons (N, O) still fit on the page; a sixteenth bank will need the page's bank list rearranged.
+
 ## 0.50.0
 
 - **A new bank of 15 factory rigs, bank L, inspired by the vocal sounds on Linkin Park's *Hybrid Theory*** (2000), **with rigs for both vocalists**: Mike Shinoda's rap verses (tag **Rap**) and Chester Bennington's sung hooks and screams (tags **Sung** and **Scream**). As you asked, **Mike's "Papercut" verses get the glitchy production**, in two flavours, plus a third, harder-chopped rap. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

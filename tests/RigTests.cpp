@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H, I, J, K, L): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H to M): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -776,6 +776,7 @@ TEST_CASE ("The album banks (H, I, J, K, L): screams torn up, cleans clean, grow
     CHECK (perBank[9] == 15);   // J
     CHECK (perBank[10] == 15);  // K
     CHECK (perBank[11] == 15);  // L
+    CHECK (perBank[12] == 15);  // M
 }
 
 TEST_CASE ("Bank L: the rap's glitch edits really chop the words, and leave most of them standing", "[rigs]")
