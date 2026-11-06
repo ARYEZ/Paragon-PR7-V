@@ -201,18 +201,14 @@ descriptions below still talk about guitar.
 ## Download
 
 Get the latest version from the **[Releases](https://github.com/ARYEZ/Paragon-PR7-V/releases/latest)** page: download the zip for your
-computer. (Builds of every push also appear under **Actions** → a run → **Artifacts**.)
+computer (Windows or Linux; there are no macOS builds since 0.47.0). (Builds of every push also appear under **Actions** → a run → **Artifacts**.)
 
 Unzip it and copy `Paragon PR7-V.vst3` to your VST3 folder:
 
 | OS | VST3 folder |
 |---|---|
 | Windows | `C:\Program Files\Common Files\VST3` |
-| macOS | `~/Library/Audio/Plug-Ins/VST3` |
 | Linux | `~/.vst3` |
-
-**macOS:** the build isn't code-signed yet, so macOS will block it. After copying, run
-`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paragon PR7-V.vst3"` once.
 
 ## Making a release
 
@@ -220,8 +216,8 @@ Unzip it and copy `Paragon PR7-V.vst3` to your VST3 folder:
 2. Add a `## x.y.z` section to `CHANGELOG.md`.
 3. Commit and push.
 
-When a push carries a version that hasn't been released yet, GitHub Actions builds all three
-platforms, tags the commit `vx.y.z` and publishes the release with notes from the changelog.
+When a push carries a version that hasn't been released yet, GitHub Actions builds Windows and
+Linux, tags the commit `vx.y.z` and publishes the release with notes from the changelog.
 
 ## Building from source
 

@@ -28,6 +28,7 @@ Each version's notes appear on its GitHub Release page.
   - **No KEY to set:** nothing in bank I adds notes in key.
   - **Levels:** balanced with the other rigs (all within about 1.6 dB of the typical rig).
 - **The PRESETS page has a Bank I button**, and your own rigs can be filed in bank I too.
+- **Downloads are Windows and Linux only from now on** (your call): the macOS build kept failing to start on GitHub's side and held this release back twice, so it's been taken out. There's no macOS zip in this release or later ones.
 
 ## 0.46.0
 

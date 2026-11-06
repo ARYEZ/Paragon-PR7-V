@@ -9,6 +9,8 @@ env:
   PLUGINVAL_VERSION: v1.0.4
 
 jobs:
+  # Windows and Linux only (the owner's choice since 0.47.0: macOS runners
+  # twice failed to start, holding releases back, and the owner uses Windows).
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -20,10 +22,6 @@ jobs:
             os: ubuntu-24.04
             pluginval_zip: pluginval_Linux.zip
             pluginval_bin: ./pluginval
-          - name: macOS
-            os: macos-15
-            pluginval_zip: pluginval_macOS.zip
-            pluginval_bin: ./pluginval.app/Contents/MacOS/pluginval
           - name: Windows
             os: windows-2022
             pluginval_zip: pluginval_Windows.zip
@@ -91,8 +89,8 @@ jobs:
   # Publishes a GitHub Release whenever a push carries a version number
   # (in CMakeLists.txt) that hasn't been released yet: bump the version and
   # add a CHANGELOG.md section, push, and the release appears. Pushing a
-  # matching vX.Y.Z tag works too. The release holds the three builds
-  # above, zipped, with notes from CHANGELOG.md.
+  # matching vX.Y.Z tag works too. The release holds the builds above
+  # (Windows and Linux), zipped, with notes from CHANGELOG.md.
   release:
     name: Release
     if: github.event_name == 'push'
@@ -135,10 +133,9 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           mkdir release
           # Artifact storage drops file permissions; put the executable flag
-          # back on the macOS and Linux binaries so every host will load them.
-          chmod -R a+x "artifacts/ParagonX1-VST3-macOS/Paragon PR7-V.vst3/Contents/MacOS" \
-                       "artifacts/ParagonX1-VST3-Linux/Paragon PR7-V.vst3/Contents/x86_64-linux"
-          for os in Windows macOS Linux; do
+          # back on the Linux binary so every host will load it.
+          chmod -R a+x "artifacts/ParagonX1-VST3-Linux/Paragon PR7-V.vst3/Contents/x86_64-linux"
+          for os in Windows Linux; do
             (cd "artifacts/ParagonX1-VST3-${os}" && zip -qr "../../release/ParagonPR7-V-${TAG}-${os}-VST3.zip" "Paragon PR7-V.vst3")
           done
           ls -l release
