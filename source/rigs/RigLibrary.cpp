@@ -195,6 +195,26 @@ void RigLibrary::loadFactoryFavourites()
 {
     factoryFavourites = juce::StringArray::fromLines (folder.getChildFile (factoryFavouritesFile).loadFileAsString());
     factoryFavourites.removeEmptyStrings();
+
+    // Factory rigs renamed since (favourites are kept by name): the star
+    // moves to the new name.
+    static const std::pair<const char*, const char*> renamed[] = {
+        { "Harmony Stack", "Vocal Stack" },   // 0.46.0, on the DOUBLER
+        { "Auto Choir", "Voice Wall" },       // 0.46.0
+        { "Finale Choir", "Finale Wall" },    // 0.45.1
+    };
+    auto changed = false;
+    for (const auto& [before, after] : renamed)
+        if (const auto index = factoryFavourites.indexOf (before); index >= 0)
+        {
+            factoryFavourites.set (index, after);
+            changed = true;
+        }
+    if (changed)
+    {
+        factoryFavourites.removeDuplicates (false);
+        saveFactoryFavourites();
+    }
 }
 
 void RigLibrary::saveFactoryFavourites() const

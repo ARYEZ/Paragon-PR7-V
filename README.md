@@ -158,7 +158,7 @@ descriptions below still talk about guitar.
 - All effects start switched off, so projects made with earlier versions sound the same.
 - **Rigs:** SAVE in the header saves the current sound as a rig; **<** and **>** step through rigs; a
   `*` after the name means it's changed since loading. The **PRESETS** tab browses, searches, files
-  (banks A-G), tags and favourites rigs. The factory rigs are for the voice, in seven banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, harmonies, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop), **G** moving harmonies (HARMONY's modulators at work: a living choir, swells, a spread gospel chord, circling thirds, an arpeggiated harmony, harmonies that breathe with you, a gated choir, a harmony that rises with your pitch, a keyboard choir for MIDI).
+  (banks A-M), tags and favourites rigs. The factory rigs are for the voice, in thirteen banks: **A** everyday vocals, **B** rock and grit, **C** delays and throws, **D** spaces, **E** character (doubles, voice stacks, modulation, lo-fi), **F** signature styles (the vocal sounds of genres and eras: pop-punk, metalcore, prog metal, grunge, emo, nu-metal, deathcore, whisper pop, bedroom indie, 80s synth-pop), **G** moving harmonies (HARMONY's modulators at work: a living choir, swells, a spread gospel chord, circling thirds, an arpeggiated harmony, harmonies that breathe with you, a gated choir, a harmony that rises with your pitch, a keyboard choir for MIDI), **H** an album's vocal sounds (15 rigs inspired by the vocals on Spiritbox's *Eternal Blue*, from breathy layered cleans to fry screams and growls, layered with the DOUBLER; the CHANGELOG lists which song inspired each), **I** a second album's vocal sounds (15 rigs inspired by the vocals on Periphery's *Periphery III: Select Difficulty*: stacked high-tenor cleans and tight double-tracked screams, all layered with the DOUBLER; the CHANGELOG credits each song), **J** a third album's vocal sounds (15 rigs inspired by the vocals on Thirty Seconds to Mars' self-titled debut: filtered, far-away verses, shouted choruses, a vocoder voice and long spaces, layered with the DOUBLER; the CHANGELOG credits each song), **K** a fourth album's vocal sounds (15 rigs inspired by the vocals on Avril Lavigne's *Under My Skin*: the strong, tight chorus double, hushed verses, bratty chants and ballads, kept restrained so the voice leads; the CHANGELOG credits each song), **L** a fifth album's vocal sounds (15 rigs inspired by the vocals on Linkin Park's *Hybrid Theory*, for both vocalists: glitch-edited and doubled raps, soaring hooks and screams; the CHANGELOG credits each song), **M** a sixth album's vocal sounds (15 rigs inspired by the vocals on Crown the Empire's *The Resistance: Rise of the Runaways* (Deluxe Edition), for both vocalists: thick doubled cleans and walls of screams; the CHANGELOG credits each song).
   INPUT, LOW CUT, OUTPUT and LIMITER stay put when you switch rigs; each rig has its own **RIG LEVEL** (on the unit), which adds to OUTPUT.
 - **LOW CUT** (under INPUT): a high-pass filter for the microphone, first in the chain. It takes out
   rumble, hum and the thump of plosives ("p" and "b") below the frequency you set, 12 dB per octave.
@@ -201,18 +201,14 @@ descriptions below still talk about guitar.
 ## Download
 
 Get the latest version from the **[Releases](https://github.com/ARYEZ/Paragon-PR7-V/releases/latest)** page: download the zip for your
-computer. (Builds of every push also appear under **Actions** → a run → **Artifacts**.)
+computer (Windows or Linux; there are no macOS builds since 0.47.0). (Builds of every push also appear under **Actions** → a run → **Artifacts**.)
 
 Unzip it and copy `Paragon PR7-V.vst3` to your VST3 folder:
 
 | OS | VST3 folder |
 |---|---|
 | Windows | `C:\Program Files\Common Files\VST3` |
-| macOS | `~/Library/Audio/Plug-Ins/VST3` |
 | Linux | `~/.vst3` |
-
-**macOS:** the build isn't code-signed yet, so macOS will block it. After copying, run
-`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paragon PR7-V.vst3"` once.
 
 ## Making a release
 
@@ -220,8 +216,8 @@ Unzip it and copy `Paragon PR7-V.vst3` to your VST3 folder:
 2. Add a `## x.y.z` section to `CHANGELOG.md`.
 3. Commit and push.
 
-When a push carries a version that hasn't been released yet, GitHub Actions builds all three
-platforms, tags the commit `vx.y.z` and publishes the release with notes from the changelog.
+When a push carries a version that hasn't been released yet, GitHub Actions builds Windows and
+Linux, tags the commit `vx.y.z` and publishes the release with notes from the changelog.
 
 ## Building from source
 

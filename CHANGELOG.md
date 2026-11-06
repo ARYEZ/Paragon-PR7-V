@@ -2,6 +2,198 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.51.0
+
+- **A new bank of 15 factory rigs, bank M, inspired by the vocal sounds on Crown the Empire's *The Resistance: Rise of the Runaways* (Deluxe Edition)** (2014; the deluxe edition, 2015, adds four tracks): theatrical metalcore with two vocalists, **Andy Leo's polished, belted cleans** (tag **Sung**) and **David Escamilla's screams** (tag **Scream**, **Growl** for the lowest). Both are stacked thick with the DOUBLER: the cleans with the strong double from bank K, the screams as walls of takes. None uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | Voice | What it does | Inspired by |
+  |---|---|---|---|
+  | **M01 Rallying Address** | spoken | A spoken call to arms through a megaphone, half clean underneath, a big hall | "A Call to Arms (Act I)" |
+  | **M02 Oath Scream** | David | A sharp mid-high scream torn up on two bands, two tight takes either side | "Initiation" |
+  | **M03 Ageless Anthem Chorus** | Andy | The big polished clean chorus: the strong double plus a wide pair, a dotted-eighth echo under, a bright plate | "Millennia" |
+  | **M04 Circuit Scream Wall** | David | Screams four takes across with an electronic edge: a crushed copy blended in and GLITCH grain behind | "Machines" |
+  | **M05 Skeleton Pact Chorus** | Andy | An arena clean chorus with a little rasp, the strong double, a plate | "Cross Our Bones" (deluxe) |
+  | **M06 Beast Growl** | David | The lowest roar, a full octave-down take under it, very dry | "MNSTR" |
+  | **M07 Doubtful Verse** | Andy | The clean voice close and quiet, one faint take, a small chamber | "Second Thoughts" |
+  | **M08 Unhinged Snarl** | either | Theatrical, half-sung, half-sneered, amp crunch, doubled tight, a slapback | "Maniacal Me" |
+  | **M09 Rewired Pulse Voice** | Andy | An electronic take on a heavy song: doubled, a slow jet flanger, a soft crushed copy blended in | "Machines" (re-invented, deluxe) |
+  | **M10 Runaway Gang Shout** | gang | The whole band shouting, four loose takes across, amp crunch | "Rise of the Runaways" |
+  | **M11 Lineage Scream** | David | A scream riding the riff, doubled tight, a quarter-note echo trailing | "Bloodline" |
+  | **M12 Ashes Ascent Chorus** | Andy | The clean voice lifted high: the strong double, a wide pair, a Shimmer echo an octave above, a hall | "The Phoenix Reborn" |
+  | **M13 Defiant Closer Belt** | Andy | The last chorus belted hard with grit, the strong double, a plate | "Johnny's Rebellion" |
+  | **M14 Captive Battle Scream** | David | A raw, driving scream on two bands, doubled tight, a small room | "Prisoners of War" (deluxe) |
+  | **M15 Unplugged Close Lead** | Andy | Natural and close for an unplugged version, a faint take, a small chamber | "Millennia" (acoustic, deluxe) |
+
+  - **Not covered:** the two short story interludes ("The Wolves of Paris (Act II)", "Satellites (Act III)"); the rigs went to the songs with the most singing. Tell me if you want them.
+  - **One honest gap:** the record's cleans are very tightly pitch-corrected. That would need TUNE VOICE, which is part of the HARMONY engine you've asked me to keep out of new rigs, so these rigs leave the tuning to the singer. If you want it on the cleans, switch TUNE VOICE (PITCH) on with your song's KEY, or ask me for tuned versions.
+  - **Our reading, not the record's settings:** built from how this style is commonly produced (thick doubled cleans, multi-tracked screams, electronic layers), not from session notes, and **I couldn't listen to the album here**. Least sure: the spoken intro (M01) and what the re-invented "Machines" (M09) does to the voice. Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.9 dB of the typical rig).
+- **The PRESETS page has a Bank M button**, and your own rigs can be filed in bank M too. Two more bank buttons (N, O) still fit on the page; a sixteenth bank will need the page's bank list rearranged.
+
+## 0.50.0
+
+- **A new bank of 15 factory rigs, bank L, inspired by the vocal sounds on Linkin Park's *Hybrid Theory*** (2000), **with rigs for both vocalists**: Mike Shinoda's rap verses (tag **Rap**) and Chester Bennington's sung hooks and screams (tags **Sung** and **Scream**). As you asked, **Mike's "Papercut" verses get the glitchy production**, in two flavours, plus a third, harder-chopped rap. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | Voice | What it does | Inspired by |
+  |---|---|---|---|
+  | **L01 Stutter Edit Verse** | Mike | A dry, doubled rap with words chopped in time: now and then a 1/16 slice repeats instead of moving on (GLITCH Sequence), part of it through a phone band | "Papercut" (its verses) |
+  | **L02 Broken Signal Rap** | Mike | The same verse as a failing transmission: bits dropped out, flipped backwards or caught in a buzzing loop (GLITCH Interfere), through a cell-phone band | "Papercut" (its verses, a rougher take) |
+  | **L03 Chopped Grid Rap** | Mike | Fast 1/32 beat-repeats cut into a dry, doubled rap, more often, full range | "Points of Authority" |
+  | **L04 Nod Along Rap** | Mike | Dry and punchy, doubled tight, a quick slap, every word clear | "A Place for My Head" (its verses) |
+  | **L05 Measured Rap Verse** | Mike | Calm and close, gently levelled, doubled tight, a short plate | "In the End" (its verses) |
+  | **L06 Fuse Blown Scream** | Chester | The all-out shout, torn up on a tube, doubled tight, a small room | "One Step Closer" |
+  | **L07 Strained Grit Chorus** | Chester | Sung hard enough to crack, grit from a tube, the strong double, a short plate | "Crawling" |
+  | **L08 Soaring Hook Chorus** | Chester | The clean, lifted chorus, the strong double, a dotted-eighth echo kept under, a plate | "In the End" (its chorus) |
+  | **L09 Shadow Grit Chorus** | Chester | A dark, sung-shouted chorus with more grit, doubled with a pair out wide | "Papercut" (its chorus) |
+  | **L10 Vinyl Filter Verse** | Chester | The sung verse half through an old radio band, a slow flanger moving through it | "With You" (its verses) |
+  | **L11 Escape Anthem** | Chester | Sung at full stretch with grit, the strong double and a wide pair | "Runaway" |
+  | **L12 Wounded Ballad Lead** | Chester | Softer and close, a faint double, a soft echo and a hall | "Pushing Me Away" |
+  | **L13 Long Bridge Scream** | Chester | One long held scream, torn up hard, doubled, a quarter-note echo trailing | "A Place for My Head" (its bridge) |
+  | **L14 Twin Fury Scream** | Chester | The scream four takes across, torn up, almost dry: the heaviest | "By Myself" |
+  | **L15 Whispered Undercurrent** | either | For a whispered layer under a verse: close, bright, two takes far out to the sides, half through a phone band | "Papercut" (its whispered layer) |
+
+  - **How the glitch works:** GLITCH sits before the DOUBLER, so the doubled takes stutter with the lead, as if the edit were printed on the vocal track. It follows the song's tempo (your DAW's, or TAP) and lands on its grid while the song plays. Measured on a rap-like test phrase, L02 changes about a quarter of the rap, L01 about half and L03 about two thirds; the rest of the words get through untouched (a new test checks they're edited often enough to hear in every bar, but never most of the time). **To tune it on the GLITCH page:** DENSITY is how often it chops, LENGTH (1/16, 1/32...) how big the pieces are, CHAOS how unpredictable, MIX how much of the edit you hear.
+  - **Our reading, not the record's settings:** built from how this style was commonly produced (tight doubled raps, chopped and filtered edits, doubled screams), not from session notes. In particular **the "Papercut" verse edits on the record were done by hand in the studio**; ours does it live and by chance, so it won't chop the same words. **I couldn't listen to the album here**, and I'm least sure about the "With You" verse treatment and the whispered layer. Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.8 dB of the typical rig).
+- **The PRESETS page has a Bank L button**, and your own rigs can be filed in bank L too.
+
+## 0.49.0
+
+- **A new bank of 15 factory rigs, bank K, inspired by the vocal sounds on Avril Lavigne's *Under My Skin*** (2004): pop-rock turning darker, a bright lead with its own rasp, hushed close verses, bratty shouted chants, piano ballads and, above all, **the strong, tight double on the choruses** (your example: the chorus of "Nobody's Home"). Built for a singer with that tone, so **kept restrained on purpose**: the voice stays dry and upfront, grit is a touch or none (her own rasp carries it), rooms and plates are short, and the echoes sit under the voice and duck while you sing. As before, **every layer comes from the DOUBLER and none uses HARMONY**. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **K01 Restless Verse** | The voice alone and close, levelled firmly, a faint take behind, a small room | "Take Me Away" (its verses) |
+  | **K02 Storm Belt Chorus** | The belted chorus: the strong double just off centre plus a quieter pair wide, a breath of tape warmth, a short plate | "Take Me Away" (its chorus) |
+  | **K03 Twin Heart Chorus** | A sweet, clean chorus with the strong double, a short plate | "Together" |
+  | **K04 Brushed Off Hook** | A punchy, forward lead with attitude, doubled tight in the middle, a quick slapback | "Don't Tell Me" |
+  | **K05 Playground Chant** | A bratty shouted gang chant, four takes across, a little crunch, almost dry | "He Wasn't" |
+  | **K06 Hushed Diary Verse** | Soft and breathy on the mic, gently levelled, a faint take, a small chamber | "How Does It Feel" (its verses) |
+  | **K07 Bittersweet Anthem** | A catchy belted chorus with the strong double and a quieter pair wide, a dotted-eighth echo under it | "My Happy Ending" |
+  | **K08 Lonely Street Echo** | The moodier chorus with the strong double at its clearest, a soft tape echo and a plate | "Nobody's Home" (its chorus) |
+  | **K09 Dark Room Wail** | The most dramatic one, belted with a little tube warmth, three takes, a darker hall kept back | "Forgotten" |
+  | **K10 Shrugging Groove** | An easy-going lead, doubled tight, a faint slap, a small room | "Who Knows" |
+  | **K11 Shattered Glass Ballad** | A fragile, clean voice, two soft takes wide, a soft echo and a hall | "Fall to Pieces" |
+  | **K12 Snarling Punk Shout** | Fast and angry, a little amp crunch, doubled tight, a slap | "Freak Out" |
+  | **K13 Piano Lament** | A tender ballad voice, close and warm, one faint take, a soft echo and a hall | "Slipped Away" |
+  | **K14 Garage Punk Blast** | A raw, cheeky shout, a little crunch, doubled, a small room | "I Always Get What I Want" (the bonus track on some editions) |
+  | **K15 Rising Hall Lift** | A chorus that opens up: the strong double plus a quieter pair wide, a faint echo and a hall | "How Does It Feel" (its chorus) |
+
+  - **The strong double, measured:** in every chorus rig the doubled takes together are about as loud as the lead (within 1 dB of it), two takes just off centre, 7 cents apart and 14/22 ms behind, so they fuse into one thick voice rather than sounding like backing singers. The verses keep one faint take, 15-17 dB under. A new test checks both on the sound, and that switching the echo and the reverb off changes no rig by more than about 1 dB (they never swamp the voice).
+  - **Our reading, not the record's settings:** built from how this kind of vocal is commonly produced (tight double-tracked choruses, firm compression, de-essing, short plates), not from session notes, and **I couldn't listen to the album here**. Some calls are guesses, mainly how wet "Forgotten" and "Slipped Away" are and how the bratty chants were stacked. With your singer in front of you: if a double sounds too loud or too wide, lower takes 1 and 2 (GAIN) or bring their PAN in on the DOUBLER, and tell me which rigs are off and how.
+  - **No KEY to set:** nothing in bank K adds notes.
+  - **Levels:** balanced with the other rigs (all within about 0.3 dB of the typical rig).
+- **The PRESETS page has a Bank K button**, and your own rigs can be filed in bank K too.
+
+## 0.48.0
+
+- **A new bank of 15 factory rigs, bank J, inspired by the vocal sounds on Thirty Seconds to Mars' self-titled debut** (recorded in Wyoming in 2001, released in August 2002): early-2000s space rock, a voice that's half sung and half shouted, often filtered or treated like a signal from far away, under big shouted choruses, with synths and long spaces around it. As before, **every layer comes from the DOUBLER and none uses HARMONY**. The treated voices come from LO-FI, MODULATION, GLITCH and the VOCODER, which is separate from the HARMONY engine. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **J01 Cold Signal Verse** | Half the voice through a phone line, half itself, doubled tight, a short echo: a verse from far away | "Capricorn (A Brand New Name)" (its verses) |
+  | **J02 Rally Cry Chorus** | Shouted from the chest, pushed into a tube until it tears, four takes across, a bright plate | "Capricorn (A Brand New Name)" (its chorus) |
+  | **J03 Orbit Lead** | A sung rock lead with a little grit, doubled wide, a dotted-eighth echo bouncing side to side | "Edge of the Earth" |
+  | **J04 Breath Close Whisper** | Almost spoken, right on the mic, gently levelled, one faint take, a small chamber | "Fallen" |
+  | **J05 Static Storm Scream** | A scream torn up on two bands, with a little stutter and grain behind it (GLITCH), doubled tight | "Oblivion" |
+  | **J06 Hollow Chant** | Low and moody, a slow phaser hollowing it out, a slapback, a room, darker on top | "Buddha for Mary" |
+  | **J07 Satellite Ballad** | A soft sung line, two takes far out to the sides, a quarter-note echo, a long hall | "Echelon" |
+  | **J08 Starfield Vocoder** | A vocoder synth singing your note under your voice, a ping-pong echo, a cathedral | "Welcome to the Universe" |
+  | **J09 Marching Shout** | A hard, rhythmic shout locked to the drums, doubled tight, kept dry | "The Mission" |
+  | **J10 Twilight Tenor** | A gentle clean voice, a slow wide chorus, a soft tape echo, a warm hall | "End of the Beginning" |
+  | **J11 Deep Space Drift** | The most spacious: a Shimmer echo an octave above and a slowly turning cathedral | "93 Million Miles" |
+  | **J12 Machine Pulse** | An industrial voice: gritty, a slow jet flanger and a crushed copy of itself blended in | "Year Zero" (its verses) |
+  | **J13 Buried Tape Voice** | Far off and worn, as if found on an old tape after the record seems to end | "The Struggle" (the hidden track after "Year Zero") |
+  | **J14 Tremor Growl** | The heaviest moments: a full octave-down take under the voice, lows pushed, dry | The album's heaviest moments (no one song) |
+  | **J15 Horizon Wall** | The closing build: four loose takes and an octave-down take spread wide, a Shimmer echo, a huge hall | "Year Zero" (its closing build) |
+
+  - **Our reading, not the record's settings:** built from how this style of vocal is commonly produced (filtered and lo-fi verses, doubled shouted choruses, flangers and phasers, long delays and reverbs), not from session notes. **Many details are my guesses**, and these ones most of all: "Welcome to the Universe" is mostly instrumental, so J08's vocoder is a voice made to sit in its world rather than a copy of one; J14 isn't tied to any one song; I'm unsure how far "Buddha for Mary" and "Year Zero" treat the voice; and "The Struggle" is on some pressings only. **I couldn't listen to the album or the rigs here**: tell me which are off and how, and I'll adjust them.
+  - **No KEY to set:** nothing in bank J adds notes in key (the vocoder follows your pitch by itself).
+  - **Levels:** balanced with the other rigs (all within about 1.3 dB of the typical rig).
+- **The PRESETS page has a Bank J button**, and your own rigs can be filed in bank J too.
+
+## 0.47.0
+
+- **A new bank of 15 factory rigs, bank I, inspired by the vocal sounds on Periphery's *Periphery III: Select Difficulty*** (2016): soaring, heavily stacked high-tenor cleans and tight double- and quad-tracked screams. As you asked, **every layer comes from the DOUBLER and none uses HARMONY**; the one octave-above sparkle (in three rigs) comes from the DELAY's Shimmer echo. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **I01 Barrage Scream** | Four scream takes stacked tight round the centre, torn up on two bands, squeezed with all the buttons in, almost no room | "The Price Is Wrong" |
+  | **I02 Rapid Bark** | A rhythmic, half-rapped shout: hard, dry, two tight takes and a short slap so fast lines stay clear | "Motormouth" |
+  | **I03 High Tenor Anthem** | The big clean chorus: four takes wide, a quiet octave-down take for body, a dotted-eighth echo, a bright plate | "Marigold" (its cleans) |
+  | **I04 Layered Mid Scream** | A scream with two tight takes and an octave-down take underneath, so chorus screams sound huge | "Marigold" (its screams) |
+  | **I05 Silken Falsetto** | Airy falsetto: a slow shimmering chorus, two soft takes far out wide, a long hall | "The Way the News Goes..." |
+  | **I06 Gritty Sung Edge** | Sung, not screamed, but pushed into a tube until it grits, doubled tight | "Remain Indoors" (its sung parts) |
+  | **I07 Venomous Shriek** | A high, thin scream, the top torn up harder the louder you go, doubled tight | "Habitual Line-Crosser" |
+  | **I08 Epic Tenor Swell** | A long clean line rising into a Shimmer echo an octave above and a slowly drifting cathedral | "Absolomb" (its cleans) |
+  | **I09 Epic Low Roar** | A deep roar with a full octave-down take under it, lows pushed, very dry | "Absolomb" (its heaviest parts) |
+  | **I10 Pop Hook Polish** | Radio-ready clean: bright and close, two tight takes, a quarter-note echo, a short plate | "Catch Fire" |
+  | **I11 Dry Groove Shout** | A mid-range shout locked to the riff, doubled tight, no space at all | "Flatline" |
+  | **I12 Brutal Wide Scream** | Four scream takes, two hard left and right, the heaviest wall | "Prayer Position" |
+  | **I13 Grinding Verse Scream** | Lower and rougher, grinding through the mids, an octave-down shadow, a short slap | "Remain Indoors" (its screams) |
+  | **I14 Close Lullaby Tenor** | Soft and near the mic, gently levelled, one faint take, a small chamber | "Lune" (its opening) |
+  | **I15 Final Ascent Wall** | The closing wall: four loose takes and an octave-down take spread wide, a Shimmer echo, a huge hall | "Lune" (its finale) |
+
+  - **Our reading, not the record's settings:** built from how this style of vocal is commonly produced (stacked doubles, hard compression, saturation, delays, reverbs), not from session notes. The details are my guesses, and a few I'm less sure of than the rest: how "Motormouth", "The Way the News Goes..." and "Flatline" treat the voice. **I couldn't listen to the album or the rigs here**: tell me which are off and how, and I'll adjust them.
+  - **No KEY to set:** nothing in bank I adds notes in key.
+  - **Levels:** balanced with the other rigs (all within about 1.6 dB of the typical rig).
+- **The PRESETS page has a Bank I button**, and your own rigs can be filed in bank I too.
+- **Downloads are Windows and Linux only from now on** (your call): the macOS build kept failing to start on GitHub's side and held this release back twice, so it's been taken out. There's no macOS zip in this release or later ones.
+
+## 0.46.0
+
+- **Six more factory rigs build their layers with the DOUBLER instead of HARMONY** (your call, as with bank H in 0.45.1):
+  - **E03 Vocal Stack** (was *Harmony Stack*): the harmonies a third and a fifth above are gone; now four loose takes spread wide and an octave-down take underneath, in a hall.
+  - **E22 Voice Wall** (was *Auto Choir*): instead of a choir generated by HARMONY, four loose takes and an octave-down take spread wide, a Shimmer echo rising an octave above, a big hall.
+  - **F02 Pop-Punk Chorus:** the third above is now a quiet octave-down take, for a gang-vocal weight under the four takes.
+  - **F06 Haunted Clean:** the ghostly octave above now lives in the echoes (the DELAY's Shimmer type), with two soft doubler takes.
+  - **F07 Prog Tenor Stack:** the third and fifth above are now four takes and an octave-down take for body.
+  - **F09 Soaring Prog Chorus:** the octave-up harmony is now a Shimmer echo glinting an octave above the four takes.
+  - None of them needs the song's KEY set any more.
+- **Your favourites follow the renamed rigs:** if you'd starred *Harmony Stack* or *Auto Choir* (or bank H's *Finale Choir*, now *Finale Wall*), the star moves to the new name.
+- **Still on HARMONY, because they can't be made without it:** A08 Tuned Lead and E21 Hard Tune (they tune your voice), E30 Chipmunk and E31 Giant (they shift your voice's formant), and bank G (built around HARMONY's modulators).
+- **Checked:** the six still sit within 2 dB of the typical rig's level; tests check they switch the doubler on and leave HARMONY off, and that a renamed rig keeps its favourite. **I can't hear them here:** tell me if any lost something you liked.
+
+## 0.45.1
+
+- **Bank H now builds its layers with the DOUBLER, not HARMONY** (your call: HARMONY still needs a lot of work, and the doubler sounds much better). Five rigs changed:
+  - **H03 Wounded Hook:** the stacked third and fifth are gone; four looser takes spread wide, with an octave-down take underneath for weight.
+  - **H06 Soaring Belt:** the octave-up voice is gone; four takes wide, and the echo is now the DELAY's **Shimmer** type, which pitches each repeat up an octave (using the doubler's own pitch shifter, not HARMONY).
+  - **H07 Dream Pop Glow:** the wide harmonies are now two soft doubler takes panned far left and right, under the chorus.
+  - **H10 Glass Machine Voice:** TUNE VOICE is off; the vocoder follows your pitch by itself. As a bonus, this rig no longer adds 40 ms of delay.
+  - **H15 Finale Wall** (was Finale Choir): a choir needs HARMONY, so it's now a wall of voices: four loose takes and an octave-down take spread wide, a Shimmer echo above, a big hall.
+  - Inspired by the same songs as before; see 0.45.0's table. None of bank H needs the song's KEY set any more.
+- **Checked:** every bank H rig still sits within 1.5 dB of the typical rig's level; the cleans stay clean and the five rebuilt ones are wider than before. A test now makes sure no bank H rig switches on the HARMONY engine (harmony voices, generated notes, TUNE VOICE or FORMANT).
+- **Can't be checked here by ear:** whether the doubler versions suit the songs better is for you to judge.
+
+## 0.45.0
+
+- **A new bank of 15 factory rigs, bank H, inspired by the vocal sounds on Spiritbox's *Eternal Blue*** (2021): one rig per vocal sound on the record, from breathy, layered cleans to fry screams and low growls. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **H01 Breath-Lit Intro** | Breathy, airy clean: lifted highs, two soft takes far out to the sides, ping-pong echo and a big hall, both ducking under the words | "Sun Killer" (its clean opening) |
+  | **H02 Serrated Fry Scream** | High fry scream: lows kept tight, the rest torn up (more the harder you push), mids forward, two tight takes, almost no room | "Sun Killer" (its screams) |
+  | **H03 Wounded Hook** | The big clean hook: four takes wide, a third and a fifth stacked low behind, a bright plate | "Hurt You" (the chorus) |
+  | **H04 Venom Verse** | Hard, mid-heavy, dry verse scream, squeezed with all the buttons in | "Hurt You" (the verses) |
+  | **H05 Twin Throat Duet** | Two screamers trading lines: a second take hard left and an octave-down throat on the right | "Yellowjacket" (the duet with Sam Carter) |
+  | **H06 Soaring Belt** | Soaring clean belt: an octave-up voice glinting above, wide echoes, a long hall | "The Summit" |
+  | **H07 Dream Pop Glow** | Dreamy pop: smooth, a shimmering chorus, soft harmonies spread wide, bright plate | "Secret Garden" |
+  | **H08 Riff Snarl** | Tight, rhythmic snarl: hard attack, saturated, a short analog slap, almost no space | "Silk in the Strings" |
+  | **H09 Ethereal Haze** | Ethereal haze: an octave-up shimmer echo and a slowly drifting cathedral, ducked | "Halcyon" |
+  | **H10 Glass Machine Voice** | Synthetic voice: hard-tuned, a vocoder synth singing your note under it | "We Live in a Strange World" |
+  | **H11 Cavern Growl** | Low growl: a full octave-down take under the voice, lows pushed, very dry | "Holy Roller" |
+  | **H12 Ocean Drift** | Floating clean: a long, drifting tape echo and a big hall with short lows | "Eternal Blue" (its cleans) |
+  | **H13 Tidal Scream** | A scream thrown into space: a long hall and echo that bloom in the gaps | "Eternal Blue" (its heavier parts) |
+  | **H14 Fragile Lullaby** | Fragile, close ballad voice: gently levelled, warm, a small chamber, a soft tape echo | "Constance" |
+  | **H15 Finale Choir** | Closing choir: a choir built from every note you sing swells wide behind the lead | "Circle With Me" |
+
+  - **Our reading, not the record's settings:** each rig is built from how vocals like these are commonly produced (doubling, compression, saturation, delays, reverbs, harmonies), not from any session notes. The details (delay times, how much reverb, which harmony) are my guesses. **I couldn't listen to the album or to the rigs here**, so these are starting points to tune by ear: tell me which ones are off and how, and I'll adjust them.
+  - **Set KEY and SCALE in PITCH** to the song's for the rigs with harmonies or tuning (H03, H07, H10, H15), so the added notes land in key.
+  - **H10 turns TUNE VOICE on**, so while it's loaded PR7-V runs 40 ms late (reported to BeatMaker, as always with TUNE VOICE).
+  - **Levels:** like every factory rig, they're balanced so switching between them doesn't jump in volume.
+- **The PRESETS page has a Bank H button**, and your own rigs can be filed in bank H too.
+
 ## 0.44.0
 
 - **The finishes have new names, and the unit opens black** (your decisions, as on PR7-G 0.60.0):
