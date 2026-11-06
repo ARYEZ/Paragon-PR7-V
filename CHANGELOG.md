@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.52.0
+
+- **A new bank of 15 factory rigs, bank N, inspired by the vocal sounds on Ultraspank's *Progress*** (2000): industrial nu-metal, one voice that goes from a tense, close whisper to a torn scream within a line, often treated like a machine (phone bands, megaphones, crushed copies, stutters and scratches) over programmed noise. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **N01 Coiled Verse** | Tense and close, almost whispered, half through a phone band, a faint take behind | "Push" (its verses) |
+  | **N02 Industrial Scream Surge** | The chorus scream, torn up on two bands, doubled tight, a crushed copy blended in | "Push" (its chorus) |
+  | **N03 Collapsing Wall Chorus** | Sung hard into a shout with grit, the strong double and a wide pair, a short plate | "Crumble" |
+  | **N04 Scratched Signal Verse** | Through an old radio band and broken up like a record under a DJ's hand (GLITCH Interfere) | "Stuck" (DJ Kilmore's turntables) |
+  | **N05 Hungry Snarl** | A gritty, half-sung sneer with amp crunch, doubled tight, a slapback | "Feed" |
+  | **N06 Crooked Grin Melody** | A melodic sung line with a slow jet flanger through it, doubled, an echo and a plate | "Smile" |
+  | **N07 Metronome Stutter Shout** | A rhythmic shout with now and then a 1/16 slice repeated in time (GLITCH Sequence) | "Click" |
+  | **N08 Snide Megaphone Rant** | A sneering shouted rant through a megaphone, half clean underneath, a little crunch | "Jackass" |
+  | **N09 Fracture Scream** | The hardest scream, torn up on two bands, doubled wide, a short slap | "Crack" |
+  | **N10 Bitter Gratitude Lead** | A sung lead with a little grit, doubled, a tape echo trailing and a plate | "Thanks" |
+  | **N11 Departure Drift Verse** | A moody clean voice, a slow wide chorus, a soft echo and a hall | "Left" |
+  | **N12 Long Fade Epic** | The long closing song: doubled wide, a ping-pong echo, a slowly turning cathedral | "Where" |
+  | **N13 Hidden Dawn Whisper** | Soft and far off, as if left on a tape after the record seems to end | "Maybe Tomorrow" (the hidden track) |
+  | **N14 Machine Room Growl** | The heaviest moments, a full octave-down take under the voice, dry | The album's heaviest moments (no one song) |
+  | **N15 Static Programmed Voice** | The voice as part of the programming: half through a cell-phone band, a cloud of grains behind, doubled wide | The album's industrial programming (no one song) |
+
+  - **Our reading, not the record's settings, and more of a guess than the other banks:** this album is less documented than the others, and I found nothing on how its vocals were recorded or treated. The rigs follow how this style was commonly produced (phone-band and megaphone verses, doubled screams, programmed textures). **I couldn't listen to the album here**, so I matched songs to sounds from their character, not from hearing them; "Smile", "Thanks" and "Left" are my weakest guesses. Tell me which rigs are off and how, or which songs have the treated voices you're after.
+  - **The glitch rigs** (N04, N07) are tested like bank L's: they chop the words often enough to hear in every bar (about a fifth and a third of a test phrase) and let most of them through.
+  - **Levels:** balanced with the other rigs (all within about 0.3 dB of the typical rig).
+- **The PRESETS page has a Bank N button**, and your own rigs can be filed in bank N too. One more bank button (O) still fits; after that the page's bank list needs rearranging.
+
 ## 0.51.0
 
 - **A new bank of 15 factory rigs, bank M, inspired by the vocal sounds on Crown the Empire's *The Resistance: Rise of the Runaways* (Deluxe Edition)** (2014; the deluxe edition, 2015, adds four tracks): theatrical metalcore with two vocalists, **Andy Leo's polished, belted cleans** (tag **Sung**) and **David Escamilla's screams** (tag **Scream**, **Growl** for the lowest). Both are stacked thick with the DOUBLER: the cleans with the strong double from bank K, the screams as walls of takes. None uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

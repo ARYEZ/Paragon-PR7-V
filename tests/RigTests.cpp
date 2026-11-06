@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H to M): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H to N): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -777,9 +777,10 @@ TEST_CASE ("The album banks (H to M): screams torn up, cleans clean, growls an o
     CHECK (perBank[10] == 15);  // K
     CHECK (perBank[11] == 15);  // L
     CHECK (perBank[12] == 15);  // M
+    CHECK (perBank[13] == 15);  // N
 }
 
-TEST_CASE ("Bank L: the rap's glitch edits really chop the words, and leave most of them standing", "[rigs]")
+TEST_CASE ("The album banks' glitch edits (L, N) really chop the words, and leave most of them standing", "[rigs]")
 {
     // A rap-like phrase: 120 ms syllables, each on its own pitch, with short
     // gaps, at 120 BPM (the tempo GLITCH follows with no host). A stutter
@@ -818,7 +819,7 @@ TEST_CASE ("Bank L: the rap's glitch edits really chop the words, and leave most
         }
         return out;
     };
-    for (const auto* name : { "Stutter Edit Verse", "Broken Signal Rap", "Chopped Grid Rap" })
+    for (const auto* name : { "Stutter Edit Verse", "Broken Signal Rap", "Chopped Grid Rap", "Scratched Signal Verse", "Metronome Stutter Shout" })
     {
         const auto edited = render (name, true), plain = render (name, false);
         // In 50 ms windows after the first half second: how many are changed
