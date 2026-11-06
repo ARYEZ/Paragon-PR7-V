@@ -83,6 +83,7 @@ Until these are done, PR7-V *is* PR7-G as far as a DAW is concerned. The two wou
 - Bump `project(ParagonX1 VERSION x.y.z)` in CMakeLists.txt and add a matching `## x.y.z` section at the top of CHANGELOG.md, then push.
 - CI builds Windows, macOS and Linux and publishes a GitHub Release with the three zips, using that changelog section as the notes.
 - After pushing, check the release published (all three zips) about 15 minutes later, **and that its tag points at your commit**: CI skips publishing a version that already exists, so if another session released the same number first, yours silently isn't published (0.18.0: AEON was released first; GENERATE NOTES went out as 0.19.0). Before bumping, fetch main and take the next number after anything released.
+- **A job cancelled before it starts** (0.47.0: the macOS job got no runner and was cancelled after 15 minutes with no steps run; Linux and Windows passed) skips the release job, so nothing is published. It isn't a code failure: look at the jobs' steps first. The session can't re-run it (403), and an empty commit isn't allowed, so push the next real change (a docs note will do) with the same version: the tag doesn't exist yet, so CI publishes from the new commit.
 - The owner installs from GitHub Releases on **Windows** and works in **BeatMaker**.
 
 ## How the owner likes to work
