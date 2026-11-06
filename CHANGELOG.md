@@ -2,6 +2,34 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.49.0
+
+- **A new bank of 15 factory rigs, bank K, inspired by the vocal sounds on Avril Lavigne's *Under My Skin*** (2004): pop-rock turning darker, a bright lead with its own rasp, hushed close verses, bratty shouted chants, piano ballads and, above all, **the strong, tight double on the choruses** (your example: the chorus of "Nobody's Home"). Built for a singer with that tone, so **kept restrained on purpose**: the voice stays dry and upfront, grit is a touch or none (her own rasp carries it), rooms and plates are short, and the echoes sit under the voice and duck while you sing. As before, **every layer comes from the DOUBLER and none uses HARMONY**. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **K01 Restless Verse** | The voice alone and close, levelled firmly, a faint take behind, a small room | "Take Me Away" (its verses) |
+  | **K02 Storm Belt Chorus** | The belted chorus: the strong double just off centre plus a quieter pair wide, a breath of tape warmth, a short plate | "Take Me Away" (its chorus) |
+  | **K03 Twin Heart Chorus** | A sweet, clean chorus with the strong double, a short plate | "Together" |
+  | **K04 Brushed Off Hook** | A punchy, forward lead with attitude, doubled tight in the middle, a quick slapback | "Don't Tell Me" |
+  | **K05 Playground Chant** | A bratty shouted gang chant, four takes across, a little crunch, almost dry | "He Wasn't" |
+  | **K06 Hushed Diary Verse** | Soft and breathy on the mic, gently levelled, a faint take, a small chamber | "How Does It Feel" (its verses) |
+  | **K07 Bittersweet Anthem** | A catchy belted chorus with the strong double and a quieter pair wide, a dotted-eighth echo under it | "My Happy Ending" |
+  | **K08 Lonely Street Echo** | The moodier chorus with the strong double at its clearest, a soft tape echo and a plate | "Nobody's Home" (its chorus) |
+  | **K09 Dark Room Wail** | The most dramatic one, belted with a little tube warmth, three takes, a darker hall kept back | "Forgotten" |
+  | **K10 Shrugging Groove** | An easy-going lead, doubled tight, a faint slap, a small room | "Who Knows" |
+  | **K11 Shattered Glass Ballad** | A fragile, clean voice, two soft takes wide, a soft echo and a hall | "Fall to Pieces" |
+  | **K12 Snarling Punk Shout** | Fast and angry, a little amp crunch, doubled tight, a slap | "Freak Out" |
+  | **K13 Piano Lament** | A tender ballad voice, close and warm, one faint take, a soft echo and a hall | "Slipped Away" |
+  | **K14 Garage Punk Blast** | A raw, cheeky shout, a little crunch, doubled, a small room | "I Always Get What I Want" (the bonus track on some editions) |
+  | **K15 Rising Hall Lift** | A chorus that opens up: the strong double plus a quieter pair wide, a faint echo and a hall | "How Does It Feel" (its chorus) |
+
+  - **The strong double, measured:** in every chorus rig the doubled takes together are about as loud as the lead (within 1 dB of it), two takes just off centre, 7 cents apart and 14/22 ms behind, so they fuse into one thick voice rather than sounding like backing singers. The verses keep one faint take, 15-17 dB under. A new test checks both on the sound, and that switching the echo and the reverb off changes no rig by more than about 1 dB (they never swamp the voice).
+  - **Our reading, not the record's settings:** built from how this kind of vocal is commonly produced (tight double-tracked choruses, firm compression, de-essing, short plates), not from session notes, and **I couldn't listen to the album here**. Some calls are guesses, mainly how wet "Forgotten" and "Slipped Away" are and how the bratty chants were stacked. With your singer in front of you: if a double sounds too loud or too wide, lower takes 1 and 2 (GAIN) or bring their PAN in on the DOUBLER, and tell me which rigs are off and how.
+  - **No KEY to set:** nothing in bank K adds notes.
+  - **Levels:** balanced with the other rigs (all within about 0.3 dB of the typical rig).
+- **The PRESETS page has a Bank K button**, and your own rigs can be filed in bank K too.
+
 ## 0.48.0
 
 - **A new bank of 15 factory rigs, bank J, inspired by the vocal sounds on Thirty Seconds to Mars' self-titled debut** (recorded in Wyoming in 2001, released in August 2002): early-2000s space rock, a voice that's half sung and half shouted, often filtered or treated like a signal from far away, under big shouted choruses, with synths and long spaces around it. As before, **every layer comes from the DOUBLER and none uses HARMONY**. The treated voices come from LO-FI, MODULATION, GLITCH and the VOCODER, which is separate from the HARMONY engine. Inside the plugin each rig is named for its sound; here is what inspired each one:

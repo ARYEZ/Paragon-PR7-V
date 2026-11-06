@@ -100,12 +100,14 @@ namespace
 //      layered with the DOUBLER (no HARMONY)
 //   J  a third album's vocal sounds (0.48.0): early-2000s space rock,
 //      filtered and far-away voices, shouted choruses, long spaces
+//   K  a fourth album's vocal sounds (0.49.0): mid-2000s pop-rock turning
+//      darker, belted doubled choruses, hushed verses, bratty chants
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -1578,5 +1580,234 @@ std::vector<Rig> makeFactoryRigs()
             { delayDuck, 0.7f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.9f }, { reverbMix, 0.32f }, { reverbDecay, 1.5f },
             { reverbDuck, 0.3f } }),
+
+        // ---- K: a fourth album's vocal sounds ---------------------------------
+        // Mid-2000s pop-rock turning darker, for a bright, slightly nasal
+        // mezzo voice with its own rasp. Kept restrained on purpose (the owner
+        // records a singer with that tone and asked that the effects never
+        // swamp it): the voice dry and upfront, the choruses double-tracked
+        // strong and tight (the owner: "the strong double effect she uses a
+        // lot especially for choruses": takes about 2 dB under the lead, just off
+        // centre, a few cents apart, so they fuse into one thick voice; the
+        // owner's example: the chorus of the song behind K08), grit a touch or
+        // none (the singer's own rasp carries it), short rooms and plates,
+        // echoes tucked under and ducked. Layers are the DOUBLER (no HARMONY).
+        // Each is our reading of a sound, not anyone's settings.
+
+        // A restless verse: the voice alone and close, levelled firmly, a
+        // faint tight take behind it and a small room.
+        make ("Restless Verse", K, 1, "Rock,Pop,Clean,Doubler", {
+            { rigLevel, 3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 14 }, { photonOutput, -7 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -14 }, { "dv2On", 0 }, { "dv1Pan", 0.2f }, { "dv1Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.07f } }),
+
+        // A storm belt chorus: the big chorus belted with the strong,
+        // tight double: two takes 2 dB under the lead, just off centre,
+        // so the three sound as one thick voice, and a quieter pair out wide.
+        // A breath of tape warmth, a short plate, an echo kept under.
+        make ("Storm Belt Chorus", K, 2, "Rock,Pop,Doubler", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { driveOn, 1 }, { "mb1Style", warmTapeStyle }, { "mb1Drive", 0.12f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.15f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A twin-heart chorus: a sweet, clean pop chorus with the strong
+        // double (two takes nearly as loud as the lead), a short plate, a
+        // faint quarter-note echo.
+        make ("Twin Heart Chorus", K, 3, "Pop,Clean,Doubler", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -16 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.11f }, { reverbPreDelay, 20 } }),
+
+        // A brushed-off hook: a punchy, forward pop-rock lead with attitude,
+        // doubled tight in the middle, a quick slapback.
+        make ("Brushed Off Hook", K, 4, "Rock,Pop,Clean,Doubler,Photon", {
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 16 }, { photonOutput, -8 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Detune", 4 }, { "dv2Detune", -4 }, { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.08f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A playground chant: a bratty, shouted gang chant, four takes spread
+        // across, a little crunch, almost dry.
+        make ("Playground Chant", K, 5, "Rock,Punk,Pop,Doubler", {
+            { rigLevel, 1.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.2f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv3Gain", -8 }, { "dv4Gain", -8 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv3Pan", -0.5f }, { "dv4Pan", 0.5f },
+            { "dv1Drift", 0.4f }, { "dv2Drift", 0.4f }, { "dv3Drift", 0.4f }, { "dv4Drift", 0.4f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.06f } }),
+
+        // A hushed diary verse: soft and breathy on the mic, levelled gently
+        // by the opto, a faint take behind, a small chamber.
+        make ("Hushed Diary Verse", K, 6, "Pop,Clean,Intimate,Abyss", {
+            { rigLevel, 2 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 35 }, { abyssGain, 9 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -16 }, { "dv2On", 0 }, { "dv1Pan", -0.2f }, { "dv1Drift", 0.2f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.15f }, { delayMix, 0.05f },
+            { delayDuck, 0.7f }, { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.35f }, { reverbMix, 0.11f }, { reverbPreDelay, 15 } }),
+
+        // A bittersweet anthem: a catchy chorus belted over guitars with the
+        // strong double just off centre and a quieter pair out wide, a
+        // dotted-eighth echo under it and a short plate.
+        make ("Bittersweet Anthem", K, 7, "Rock,Pop,Clean,Doubler", {
+            { rigLevel, -1.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 18 }, { photonOutput, -9 }, { photonAttack, 4 }, { photonRelease, 6 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A lonely street echo: the moodier chorus with the strong double at
+        // its clearest (the owner's example of the effect): two takes nearly
+        // as loud as the lead, just off centre, tight and a few cents apart,
+        // so the three fuse into one thick voice, a soft tape echo trailing
+        // it and a plate, both kept under the voice.
+        make ("Lonely Street Echo", K, 8, "Rock,Pop,Clean,Doubler", {
+            { rigLevel, -0.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 16 }, { photonOutput, -8 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f },
+            { delayDuck, 0.8f }, { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.11f } }),
+
+        // A dark-room wail: the most dramatic one, belted hard with a little
+        // tube warmth, three takes, a darker hall kept back.
+        make ("Dark Room Wail", K, 9, "Rock,Doubler,Reverb", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv3Gain", -9 },
+            { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f }, { "dv3Pan", 0 },
+            { "dv1Detune", 6 }, { "dv2Detune", -6 }, { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.13f }, { reverbTone, 4 } }),
+
+        // A shrugging groove: an upbeat, easy-going lead, doubled tight, a
+        // faint slap and a small room, so the rhythm of the words leads.
+        make ("Shrugging Groove", K, 10, "Pop,Rock,Clean,Doubler", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Detune", 4 }, { "dv2Detune", -4 }, { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.08f },
+            { delayMix, 0.05f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A shattered-glass ballad: a fragile, clean voice, two soft takes
+        // wide, a soft echo and a hall, nothing swirling.
+        make ("Shattered Glass Ballad", K, 11, "Pop,Ballad,Clean,Doubler,Reverb", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -11 }, { "dv2Gain", -11 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.4f }, { "dv2Drift", 0.4f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.06f }, { delayDuck, 0.7f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.16f }, { reverbPreDelay, 30 } }),
+
+        // A snarling punk shout: fast and angry, a little amp crunch, doubled
+        // tight, a slap and nothing else.
+        make ("Snarling Punk Shout", K, 12, "Rock,Punk,Doubler,Saturation", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.3f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 85 }, { delayFeedback, 0.06f },
+            { delayMix, 0.05f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A piano lament: a tender ballad voice, close and warm, one faint
+        // take, a slow soft echo and a hall.
+        make ("Piano Lament", K, 13, "Ballad,Clean,Intimate,Reverb", {
+            { rigLevel, 1 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 35 }, { abyssGain, 9 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -16 }, { "dv2On", 0 }, { "dv1Pan", 0.2f }, { "dv1Drift", 0.2f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.06f },
+            { delayDuck, 0.7f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.65f }, { reverbMix, 0.17f }, { reverbPreDelay, 35 },
+            { reverbDecay, 1.2f } }),
+
+        // A garage punk blast: a raw, cheeky shout, a little crunch, doubled,
+        // a small room and nothing else.
+        make ("Garage Punk Blast", K, 14, "Rock,Punk,Doubler,Saturation", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", crunchyAmpStyle }, { "mb1Drive", 0.25f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq1k", 1 }, { "eq2k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.7f }, { "dv2Pan", 0.7f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.06f } }),
+
+        // A rising hall lift: a chorus that opens up, the strong double just
+        // off centre and a quieter pair wide, a faint echo and a hall, still
+        // clean and clear.
+        make ("Rising Hall Lift", K, 15, "Pop,Rock,Clean,Doubler,Reverb", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.6f }, { reverbMix, 0.15f }, { reverbPreDelay, 30 } }),
     };
 }

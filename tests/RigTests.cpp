@@ -663,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("The album banks (H, I, J): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H, I, J, K): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -774,4 +774,126 @@ TEST_CASE ("The album banks (H, I, J): screams torn up, cleans clean, growls an 
     CHECK (perBank[7] == 15);   // H
     CHECK (perBank[8] == 15);   // I
     CHECK (perBank[9] == 15);   // J
+    CHECK (perBank[10] == 15);  // K
+}
+
+TEST_CASE ("Bank K: the choruses carry a strong, tight double and nothing is overloaded", "[rigs]")
+{
+    // The owner records a singer with this album's tone and asked for two
+    // things: the strong double the choruses are known for, and effects that
+    // never swamp the voice. Both are measured on the same sung vowel as the
+    // album-bank test (220 Hz, harmonics to 2.6 kHz, nothing above).
+    constexpr double rate = 48000.0;
+    std::vector<float> phrase ((size_t) (2.0 * rate), 0.0f);
+    for (size_t i = 0; i < phrase.size(); ++i)
+    {
+        const auto t = (double) i / rate;
+        const auto f0 = 220.0 * (1.0 + 0.01 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * 220.0 - 700.0) / 400.0, 2.0)) + 0.1;
+            phrase[i] += (float) (0.025 * shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+        }
+    }
+    // The level (dB) of a steady second, both sides, the rig as saved or
+    // with one of its effects switched off after loading.
+    const auto levelDb = [&] (const juce::String& name, const char* offId)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (name));
+        if (offId != nullptr)
+            r.set (offId, 0.0f);
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        double sum = 0.0;
+        size_t count = 0;
+        for (size_t start = 0; start + 256 <= phrase.size(); start += 256)
+        {
+            buffer.clear();
+            std::copy (phrase.begin() + (long) start, phrase.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            if (start < (size_t) (0.8 * rate))
+                continue;
+            for (int channel = 0; channel < 2; ++channel)
+                for (int i = 0; i < 256; ++i)
+                    sum += (double) buffer.getSample (channel, i) * buffer.getSample (channel, i);
+            count += 512;
+        }
+        return 10.0 * std::log10 (sum / (double) count + 1.0e-20);
+    };
+
+    // The strong double, measured as the takes against the lead: the rig
+    // with its echo and space off, once with only the DOUBLER's takes
+    // (DIRECT off) and once with only the lead (the DOUBLER off). A breathy,
+    // noise-like voice band is used here: copies of a perfectly steady tone
+    // line up with it and partly cancel, which a real voice doesn't do.
+    std::vector<float> breath ((size_t) (2.0 * rate), 0.0f);
+    {
+        juce::Random random (7);
+        float low = 0.0f, lower = 0.0f;
+        for (auto& sample : breath)
+        {
+            low += 0.25f * (random.nextFloat() * 2.0f - 1.0f - low);     // under about 2.5 kHz
+            lower += 0.03f * (low - lower);                               // less below about 230 Hz
+            sample = 0.4f * (low - lower);
+        }
+    }
+    const auto partDb = [&] (const juce::String& name, const char* offId)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (name));
+        r.set (ParamIDs::delayOn, 0.0f);
+        r.set (ParamIDs::reverbOn, 0.0f);
+        r.set (offId, 0.0f);
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        double sum = 0.0;
+        size_t count = 0;
+        for (size_t start = 0; start + 256 <= breath.size(); start += 256)
+        {
+            buffer.clear();
+            std::copy (breath.begin() + (long) start, breath.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            if (start < (size_t) (0.8 * rate))
+                continue;
+            for (int channel = 0; channel < 2; ++channel)
+                for (int i = 0; i < 256; ++i)
+                    sum += (double) buffer.getSample (channel, i) * buffer.getSample (channel, i);
+            count += 512;
+        }
+        return 10.0 * std::log10 (sum / (double) count + 1.0e-20);
+    };
+    const auto takesAgainstLead = [&] (const char* name)
+    {
+        const auto db = partDb (name, ParamIDs::doublerDirectOn) - partDb (name, ParamIDs::doublerOn);
+        CAPTURE (name, db);
+        if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
+            std::cout << name << ": the takes are " << db << " dB against the lead\n";
+        return db;
+    };
+    // In each chorus the takes together are about as loud as the lead,
+    // K08 (the owner's example) included. Two takes 2 dB under measure
+    // about -0.5 to -1 dB (the shifter that detunes them costs about 1.5 dB);
+    // a polite double, two takes 7 dB under, would sit several dB lower...
+    for (const auto* name : { "Storm Belt Chorus", "Twin Heart Chorus", "Bittersweet Anthem", "Lonely Street Echo", "Rising Hall Lift" })
+        CHECK (takesAgainstLead (name) > -2.0);
+    // ...while a verse keeps its one take faint.
+    for (const auto* name : { "Restless Verse", "Hushed Diary Verse", "Piano Lament" })
+        CHECK (takesAgainstLead (name) < -10.0);
+
+    // Nothing overloaded: the echoes and the space stay under the voice.
+    // Switching DELAY and REVERB off takes away less than 1.5 dB.
+    for (const auto& factory : makeFactoryRigs())
+    {
+        if (factory.bank != 10)
+            continue;
+        const auto full = levelDb (factory.name, nullptr);
+        const auto noDelay = levelDb (factory.name, ParamIDs::delayOn);
+        const auto noReverb = levelDb (factory.name, ParamIDs::reverbOn);
+        CAPTURE (factory.name, full - noDelay, full - noReverb);
+        if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
+            std::cout << factory.name << ": delay adds " << full - noDelay << " dB, reverb " << full - noReverb << " dB\n";
+        CHECK (full - noDelay < 1.5);
+        CHECK (full - noReverb < 1.5);
+    }
 }
