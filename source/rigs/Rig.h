@@ -15,7 +15,7 @@
 // RIG LEVEL for balancing rigs against each other instead.
 struct Rig
 {
-    static constexpr int numBanks = 8;          // A to H (factory: everyday, rock, delays, spaces, character, signature styles, moving harmonies, an album's sounds)
+    static constexpr int numBanks = 9;          // A to I (factory: everyday, rock, delays, spaces, character, signature styles, moving harmonies, two albums' sounds)
     static constexpr int maxNumber = 99;
 
     juce::String name { "New Rig" };
@@ -64,7 +64,7 @@ struct Rig
     static HarmonyModShapes readModShapes (const juce::XmlElement& parent);
 
     juce::String getSlotName() const;           // e.g. "A01"
-    static juce::String bankName (int bank);    // "A".."H"
+    static juce::String bankName (int bank);    // "A".."I"
 
     std::unique_ptr<juce::XmlElement> toXml() const;
     // Returns nothing if the XML isn't a rig.

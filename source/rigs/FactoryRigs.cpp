@@ -95,12 +95,15 @@ namespace
 //      alternating airy layered cleans and screams, named for the sound
 //      (the release notes say which songs inspired them; nothing in the
 //      plugin names an artist, album or song)
+//   I  a second album's vocal sounds (0.47.0): modern progressive metal,
+//      high stacked tenor cleans and tight double-tracked screams, all
+//      layered with the DOUBLER (no HARMONY)
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -1178,6 +1181,201 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.1f },
             { delayDuck, 0.7f },
             { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.3f }, { reverbDecay, 1.3f },
+            { reverbDuck, 0.3f } }),
+
+        // ---- I: a second album's vocal sounds ---------------------------------
+        // Modern progressive metal: a high, soaring tenor stacked into a wall
+        // of takes, and screams double- and quad-tracked tight, as that style
+        // is commonly produced. Every layer is the DOUBLER (no HARMONY: the
+        // owner's choice), with the DELAY's Shimmer for any octave above.
+        // Each is our reading of a sound, not anyone's settings.
+
+        // A barrage of screams: four takes stacked tight around the centre,
+        // torn up on two bands, everything squeezed with all the buttons in,
+        // almost no room.
+        make ("Barrage Scream", I, 1, "Metal,Prog,Scream,Doubler,Saturation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 400 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", 0 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f }, { "dv3Pan", -0.25f }, { "dv4Pan", 0.25f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f }, { "dv3Drift", 0.3f }, { "dv4Drift", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.15f }, { reverbMix, 0.06f } }),
+
+        // A rapid bark: a rhythmic, half-rapped shout, hard and dry,
+        // two tight takes and a short slap, so fast lines stay clear.
+        make ("Rapid Bark", I, 2, "Metal,Prog,Scream,Rap,Doubler", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 7 }, { photonRelease, 7 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.55f }, { "mb1Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq4k", 2 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Delay", 14 }, { "dv2Delay", 19 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 80 }, { delayFeedback, 0.08f },
+            { delayMix, 0.1f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.1f }, { reverbMix, 0.04f } }),
+
+        // A high tenor anthem: the big clean chorus, four takes spread wide
+        // with a quiet octave-down take for body, a dotted-eighth echo and a
+        // bright plate.
+        make ("High Tenor Anthem", I, 3, "Metal,Prog,Clean,Doubler", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7500 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -2 }, { "eq2k", 1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv1Drift", 0.5f }, { "dv2Drift", 0.5f }, { "dv4Drift", 0.5f },
+            { "dv3Octave", 1 }, { "dv3Gain", -14 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.12f },
+            { delayDuck, 0.7f }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.6f }, { reverbMix, 0.22f }, { reverbPreDelay, 35 } }),
+
+        // A layered mid scream: the scream itself, two tight takes, and an
+        // octave-down take underneath so the chorus screams sound huge.
+        make ("Layered Mid Scream", I, 4, "Metal,Prog,Scream,Doubler,Pitch", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Mid", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", 0 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -10 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.08f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.08f } }),
+
+        // A silken falsetto: airy and light, a slow shimmering chorus, two
+        // soft takes far out to the sides and a long hall.
+        make ("Silken Falsetto", I, 5, "Prog,Clean,Ambient,Modulation,Doubler", {
+            { rigLevel, 2 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 50 }, { abyssGain, 14 }, { abyssEmphasis, 0.4f },
+            { deessOn, 1 }, { deessFreq, 7500 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq250", -2 }, { "eq8k", 3 }, { "eq16k", 5 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.3f }, { modDepth, 0.4f }, { modMix, 0.25f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.14f }, { delayDuck, 0.7f },
+            { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.3f }, { reverbPreDelay, 50 },
+            { reverbDuck, 0.4f }, { reverbDecay, 1.3f } }),
+
+        // A gritty clean: sung, not screamed, but pushed into a tube until it
+        // grits, doubled tight, for heavy verses.
+        make ("Gritty Sung Edge", I, 6, "Metal,Prog,Saturation,Doubler", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, 0 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.35f },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, eighth }, { delayFeedback, 0.2f }, { delayMix, 0.1f },
+            { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.35f }, { reverbMix, 0.12f } }),
+
+        // A venomous shriek: a high, thin scream, the top pushed and torn up
+        // harder the louder you go, doubled tight.
+        make ("Venomous Shriek", I, 7, "Metal,Prog,Scream,Saturation,Mars", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 900 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.6f }, { "mb2Presence", 4 },
+            { "mmSlot1Source", envelopeFollower1 }, { "mmSlot1Target", band2Drive }, { "mmSlot1Amount", 0.3f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -6 }, { "eq250", -3 }, { "eq2k", 3 }, { "eq4k", 3 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Detune", 5 }, { "dv2Detune", -5 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.07f } }),
+
+        // An epic tenor swell: a long clean line rising into a Shimmer echo an
+        // octave above and a slowly drifting cathedral.
+        make ("Epic Tenor Swell", I, 8, "Prog,Clean,Ambient,Delay,Reverb", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 4 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 }, { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayPingPong, 1 }, { delayFeedback, 0.45f },
+            { delayMix, 0.15f }, { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.3f }, { reverbPreDelay, 60 },
+            { reverbDuck, 0.5f }, { reverbSpin, 1.6f }, { reverbWander, 1.6f } }),
+
+        // An epic low roar: a deep, guttural roar with a full octave-down
+        // take under it, the lows pushed and the top rolled off, very dry.
+        make ("Epic Low Roar", I, 9, "Metal,Prog,Scream,Growl,Pitch,Saturation", {
+            { rigLevel, -9 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 28 }, { photonOutput, -16 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.5f }, { "mb1Bass", 3 }, { "mb1Treble", -4 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 3 }, { "eq250", 2 }, { "eq2k", 1 }, { "eq8k", -5 }, { "eq16k", -8 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -2 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A polished pop hook: radio-ready, bright and close, two tight takes,
+        // a quarter-note echo and a short plate.
+        make ("Pop Hook Polish", I, 10, "Pop,Prog,Clean,Doubler", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 4 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 }, { "dv1Detune", 5 }, { "dv2Detune", -5 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.16f }, { reverbPreDelay, 25 } }),
+
+        // A dry groove shout: a mid-range shout locked to the riff, doubled
+        // tight, no space at all.
+        make ("Dry Groove Shout", I, 11, "Metal,Prog,Scream,Doubler,Photon", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, 2 },
+            { driveOn, 1 }, { "mb1Style", americanAmpStyle }, { "mb1Drive", 0.6f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Detune", 4 }, { "dv2Detune", -4 } }),
+
+        // A brutal wide scream: four takes, two hard left and right, the
+        // others tucked in, torn up and squeezed: the heaviest wall.
+        make ("Brutal Wide Scream", I, 12, "Metal,Prog,Scream,Doubler,Saturation", {
+            { rigLevel, -7 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.55f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq500", 1 }, { "eq2k", 3 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv3Pan", -0.3f }, { "dv4Pan", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.06f } }),
+
+        // A grinding verse scream: lower and rougher, grinding through the
+        // mids, an octave-down shadow and a short slap.
+        make ("Grinding Verse Scream", I, 13, "Metal,Prog,Scream,Saturation,Delay", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.65f }, { "mb1Mid", 3 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", 1 }, { "eq500", 2 }, { "eq1k", 2 }, { "eq8k", 0 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -14 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 110 }, { delayFeedback, 0.12f },
+            { delayMix, 0.1f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.06f } }),
+
+        // A close lullaby tenor: soft, near the mic, gently levelled, one
+        // faint take behind, in a small chamber.
+        make ("Close Lullaby Tenor", I, 14, "Ballad,Clean,Intimate,Abyss", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq2k", -1 }, { "eq8k", 1 }, { "eq16k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -14 }, { "dv2On", 0 }, { "dv1Pan", 0.3f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.09f },
+            { delayDuck, 0.6f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.45f }, { reverbMix, 0.2f }, { reverbPreDelay, 20 } }),
+
+        // The final ascent: the closing wall, four loose takes and an
+        // octave-down take spread wide, a Shimmer echo above, a huge hall.
+        make ("Final Ascent Wall", I, 15, "Prog,Clean,Doubler,Reverb", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -3 },
+            { "dv1Pan", -1 }, { "dv2Pan", 1 }, { "dv1Drift", 0.8f }, { "dv2Drift", 0.8f }, { "dv4Drift", 0.8f },
+            { "dv3Octave", 1 }, { "dv3Gain", -10 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.35f }, { delayMix, 0.12f },
+            { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.9f }, { reverbMix, 0.32f }, { reverbDecay, 1.5f },
             { reverbDuck, 0.3f } }),
     };
 }

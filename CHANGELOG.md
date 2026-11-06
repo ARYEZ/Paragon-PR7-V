@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.47.0
+
+- **A new bank of 15 factory rigs, bank I, inspired by the vocal sounds on Periphery's *Periphery III: Select Difficulty*** (2016): soaring, heavily stacked high-tenor cleans and tight double- and quad-tracked screams. As you asked, **every layer comes from the DOUBLER and none uses HARMONY**; the one octave-above sparkle (in three rigs) comes from the DELAY's Shimmer echo. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **I01 Barrage Scream** | Four scream takes stacked tight round the centre, torn up on two bands, squeezed with all the buttons in, almost no room | "The Price Is Wrong" |
+  | **I02 Rapid Bark** | A rhythmic, half-rapped shout: hard, dry, two tight takes and a short slap so fast lines stay clear | "Motormouth" |
+  | **I03 High Tenor Anthem** | The big clean chorus: four takes wide, a quiet octave-down take for body, a dotted-eighth echo, a bright plate | "Marigold" (its cleans) |
+  | **I04 Layered Mid Scream** | A scream with two tight takes and an octave-down take underneath, so chorus screams sound huge | "Marigold" (its screams) |
+  | **I05 Silken Falsetto** | Airy falsetto: a slow shimmering chorus, two soft takes far out wide, a long hall | "The Way the News Goes..." |
+  | **I06 Gritty Sung Edge** | Sung, not screamed, but pushed into a tube until it grits, doubled tight | "Remain Indoors" (its sung parts) |
+  | **I07 Venomous Shriek** | A high, thin scream, the top torn up harder the louder you go, doubled tight | "Habitual Line-Crosser" |
+  | **I08 Epic Tenor Swell** | A long clean line rising into a Shimmer echo an octave above and a slowly drifting cathedral | "Absolomb" (its cleans) |
+  | **I09 Epic Low Roar** | A deep roar with a full octave-down take under it, lows pushed, very dry | "Absolomb" (its heaviest parts) |
+  | **I10 Pop Hook Polish** | Radio-ready clean: bright and close, two tight takes, a quarter-note echo, a short plate | "Catch Fire" |
+  | **I11 Dry Groove Shout** | A mid-range shout locked to the riff, doubled tight, no space at all | "Flatline" |
+  | **I12 Brutal Wide Scream** | Four scream takes, two hard left and right, the heaviest wall | "Prayer Position" |
+  | **I13 Grinding Verse Scream** | Lower and rougher, grinding through the mids, an octave-down shadow, a short slap | "Remain Indoors" (its screams) |
+  | **I14 Close Lullaby Tenor** | Soft and near the mic, gently levelled, one faint take, a small chamber | "Lune" (its opening) |
+  | **I15 Final Ascent Wall** | The closing wall: four loose takes and an octave-down take spread wide, a Shimmer echo, a huge hall | "Lune" (its finale) |
+
+  - **Our reading, not the record's settings:** built from how this style of vocal is commonly produced (stacked doubles, hard compression, saturation, delays, reverbs), not from session notes. The details are my guesses, and a few I'm less sure of than the rest: how "Motormouth", "The Way the News Goes..." and "Flatline" treat the voice. **I couldn't listen to the album or the rigs here**: tell me which are off and how, and I'll adjust them.
+  - **No KEY to set:** nothing in bank I adds notes in key.
+  - **Levels:** balanced with the other rigs (all within about 1.6 dB of the typical rig).
+- **The PRESETS page has a Bank I button**, and your own rigs can be filed in bank I too.
+
 ## 0.46.0
 
 - **Six more factory rigs build their layers with the DOUBLER instead of HARMONY** (your call, as with bank H in 0.45.1):

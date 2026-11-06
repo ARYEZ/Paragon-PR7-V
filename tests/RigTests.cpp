@@ -1,3 +1,4 @@
+#include <map>
 #include <iostream>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -662,7 +663,7 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
 
-TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl an octave down, the duet two voices wide, no HARMONY", "[rigs]")
+TEST_CASE ("The album banks (H, I): screams torn up, cleans clean, growls an octave down, the duet two voices wide, no HARMONY", "[rigs]")
 {
     // The same sung vowel as the level test: 220 Hz with vibrato, its
     // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
@@ -728,12 +729,12 @@ TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl 
         return Measures { 10.0 * std::log10 (high / total + 1.0e-12), 10.0 * std::log10 (sub / total + 1.0e-12), lr / std::sqrt (ll * rr + 1.0e-24) };
     };
 
-    auto count = 0;
+    std::map<int, int> perBank;
     for (const auto& factory : makeFactoryRigs())
     {
-        if (factory.bank != 7)
+        if (factory.bank < 7)   // H and later: one album each
             continue;
-        ++count;
+        ++perBank[factory.bank];
         INFO (factory.getSlotName() << " " << factory.name);
         // The layers come from the DOUBLER: none of these uses the HARMONY
         // engine (voices, generated notes, TUNE VOICE or FORMANT), which the
@@ -757,8 +758,8 @@ TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl 
         // The cleans stay clean.
         if (factory.tags.contains ("Clean"))
             CHECK (m.highDb < -25.0);
-        // The growl: a full octave down under the voice, strong.
-        if (factory.name == "Cavern Growl")
+        // A growl: a full octave down under the voice, strong.
+        if (factory.tags.contains ("Growl"))
             CHECK (m.subDb > -22.0);
         // The duet: two different throats, one an octave down, spread across.
         if (factory.name == "Twin Throat Duet")
@@ -770,5 +771,6 @@ TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl 
         // none is a plain mono copy of what came in.
         CHECK (m.correlation < 0.995);
     }
-    CHECK (count == 15);
+    CHECK (perBank[7] == 15);   // H
+    CHECK (perBank[8] == 15);   // I
 }
