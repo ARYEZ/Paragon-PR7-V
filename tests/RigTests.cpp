@@ -622,3 +622,106 @@ TEST_CASE ("Classic left the compressor's menu (0.41.0): new rigs start on Reviv
     fresh.setAttribute ("parameterVersion", 38);
     CHECK (Rig::fromXml (fresh)->parameters.count (ParamIDs::compType) == 0);
 }
+
+TEST_CASE ("Bank H, an album's sounds: screams torn up, cleans clean, the growl an octave down, the duet two voices wide", "[rigs]")
+{
+    // The same sung vowel as the level test: 220 Hz with vibrato, its
+    // harmonics up to 2.6 kHz and nothing above. Anything a rig puts above
+    // 3.5 kHz, then, it made: distortion (or a pitch shift up).
+    constexpr double rate = 48000.0;
+    std::vector<float> phrase ((size_t) (2.0 * rate), 0.0f);
+    for (size_t i = 0; i < phrase.size(); ++i)
+    {
+        const auto t = (double) i / rate;
+        const auto f0 = 220.0 * (1.0 + 0.01 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * 220.0 - 700.0) / 400.0, 2.0)) + 0.1;
+            phrase[i] += (float) (0.025 * shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * t));
+        }
+    }
+
+    struct Measures { double highDb, subDb, correlation; };
+    const auto measure = [&] (const Rig& factory)
+    {
+        RigRig r;
+        r.processor.loadRig (r.entryNamed (factory.name));
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        std::vector<float> left, right;
+        for (size_t start = 0; start + 256 <= phrase.size(); start += 256)
+        {
+            buffer.clear();
+            std::copy (phrase.begin() + (long) start, phrase.begin() + (long) start + 256, buffer.getWritePointer (0));
+            r.processor.processBlock (buffer, midi);
+            left.insert (left.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+            right.insert (right.end(), buffer.getReadPointer (1), buffer.getReadPointer (1) + 256);
+        }
+        // The spectrum of a steady second (0.8 s in, past every attack), both sides summed.
+        constexpr int order = 15, size = 1 << order;
+        juce::dsp::FFT fft (order);
+        std::vector<float> data ((size_t) size * 2, 0.0f);
+        const auto from = (size_t) (0.8 * rate);
+        for (int i = 0; i < size; ++i)
+        {
+            const auto window = 0.5f - 0.5f * std::cos (juce::MathConstants<float>::twoPi * (float) i / (float) size);
+            data[(size_t) i] = window * (left[from + (size_t) i] + right[from + (size_t) i]);
+        }
+        fft.performFrequencyOnlyForwardTransform (data.data());
+        double total = 0.0, high = 0.0, sub = 0.0;
+        for (int bin = 1; bin < size / 2; ++bin)
+        {
+            const auto hz = bin * rate / size;
+            const auto energy = (double) data[(size_t) bin] * data[(size_t) bin];
+            total += energy;
+            if (hz > 3500.0)
+                high += energy;
+            if (hz > 95.0 && hz < 125.0)
+                sub += energy;
+        }
+        double lr = 0.0, ll = 0.0, rr = 0.0;
+        for (size_t i = from; i < from + (size_t) size; ++i)
+        {
+            lr += (double) left[i] * right[i];
+            ll += (double) left[i] * left[i];
+            rr += (double) right[i] * right[i];
+        }
+        return Measures { 10.0 * std::log10 (high / total + 1.0e-12), 10.0 * std::log10 (sub / total + 1.0e-12), lr / std::sqrt (ll * rr + 1.0e-24) };
+    };
+
+    auto count = 0;
+    for (const auto& factory : makeFactoryRigs())
+    {
+        if (factory.bank != 7)
+            continue;
+        ++count;
+        INFO (factory.getSlotName() << " " << factory.name);
+        const auto m = measure (factory);
+        CAPTURE (m.highDb, m.subDb, m.correlation);
+        if (std::getenv ("PARAGON_RIG_MEASURES") != nullptr)
+            std::cout << factory.getSlotName() << " " << factory.name << ": high " << m.highDb << " dB, sub " << m.subDb
+                      << " dB, correlation " << m.correlation << "\n";
+
+        // The screams are torn up: clear distortion above the voice's own
+        // harmonics (the growl's top is rolled off on purpose, so it's
+        // checked by its low octave instead).
+        if (factory.tags.contains ("Scream") && ! factory.tags.contains ("Growl"))
+            CHECK (m.highDb > -23.0);
+        // The cleans stay clean.
+        if (factory.tags.contains ("Clean"))
+            CHECK (m.highDb < -25.0);
+        // The growl: a full octave down under the voice, strong.
+        if (factory.name == "Cavern Growl")
+            CHECK (m.subDb > -22.0);
+        // The duet: two different throats, one an octave down, spread across.
+        if (factory.name == "Twin Throat Duet")
+        {
+            CHECK (m.subDb > -30.0);
+            CHECK (m.correlation < 0.85);
+        }
+        // Every one of them does something to the voice in stereo or tone:
+        // none is a plain mono copy of what came in.
+        CHECK (m.correlation < 0.995);
+    }
+    CHECK (count == 15);
+}

@@ -51,6 +51,7 @@ namespace
     constexpr float modOneBar = 4, modEighth = 10, modSixteenth = 13;                    // RATE SYNC
     constexpr float outward = 0;                                                         // SP MODE
     constexpr float threePartStack = 9, gospelStack = 17;                                // more CHORD maps
+    constexpr float thirdAndFifth = 3, octaveUpMap = 5;                                  // and two more
 
     // Choices, by their index in each list (see the effects' typeNames).
     constexpr float classicComp = 0, daybreakComp = 1, revival = 2, photonComp = 3, abyssComp = 4;   // DYNAMICS' TYPE
@@ -90,12 +91,16 @@ namespace
 //      metalcore, prog, grunge...), named for the style, not any artist
 //   G  moving harmonies: HARMONY's modulators (0.33.0-0.34.0) at work, one
 //      idea each; all but the last work from your voice alone
+//   H  an album's vocal sounds (0.45.0): one rig per sound on one record,
+//      alternating airy layered cleans and screams, named for the sound
+//      (the release notes say which songs inspired them; nothing in the
+//      plugin names an artist, album or song)
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -969,5 +974,202 @@ std::vector<Rig> makeFactoryRigs()
             { { harmonyNoteLevel, HMod::velocity, 0.15f },     // soft keys about 10 dB quieter than hard ones
               { harmonyNoteWidth, HMod::modWheel, 0.7f },
               { harmonyGlobalPitch, HMod::pitchWheel, 2.0f / 24.0f } }),
+
+        // ---- H: an album's vocal sounds ---------------------------------------
+        // One record's range, from breathy layered cleans to fry screams and
+        // low growls. Each is our reading of a sound on it (how such vocals
+        // are commonly produced), not anyone's actual settings. Where a rig
+        // stacks harmonies, set the song's KEY and SCALE in PITCH.
+
+        // A breathy, airy clean that opens a song: lifted highs, two soft
+        // takes far out to the sides, a ping-pong echo and a big hall that
+        // both duck under the words.
+        make ("Breath-Lit Intro", H, 1, "Metal,Clean,Ambient,Delay,Reverb", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 50 }, { abyssGain, 14 }, { abyssEmphasis, 0.4f },
+            { deessOn, 1 }, { deessFreq, 7500 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq250", -2 }, { "eq4k", 1 }, { "eq8k", 3 }, { "eq16k", 5 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.4f }, { delayMix, 0.18f },
+            { delayDuck, 0.7f }, { delayLowCut, 400 }, { delayHighCut, 7000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.3f }, { reverbPreDelay, 50 },
+            { reverbDuck, 0.4f }, { reverbDecay, 1.3f }, { reverbBassRt, 0.6f } }),
+
+        // A high, serrated fry scream: the lows kept tight and the rest torn
+        // up (more the harder you push), mids forward so the words cut, two
+        // tight takes and almost no room.
+        make ("Serrated Fry Scream", H, 2, "Metal,Scream,Saturation,Mars", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 5 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 400 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.15f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.5f }, { "mb2Presence", 3 },
+            { "mmSlot1Source", envelopeFollower1 }, { "mmSlot1Target", band2Drive }, { "mmSlot1Amount", 0.3f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -4 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq4k", 1 }, { "eq8k", -3 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 }, { "dv1Detune", 4 }, { "dv2Detune", -4 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.08f } }),
+
+        // The big clean hook: four takes wide, a third and a fifth stacked
+        // low behind them, a bright plate and a quiet quarter-note echo.
+        make ("Wounded Hook", H, 3, "Metal,Clean,Doubler,Harmony", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -3 }, { "eq250", -1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 }, { doublerOutput, -4 },
+            { harmonyOn, 1 }, { harmonyLevel, -11 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.1f }, { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.2f }, { reverbPreDelay, 30 } }),
+
+        // A venomous verse scream: hard, mid-heavy and dry, squeezed with all
+        // the buttons in so every syllable hits at the same level.
+        make ("Venom Verse", H, 4, "Metal,Scream,Saturation,Photon", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.6f }, { "mb1Mid", 3 }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -6 }, { "dv2Gain", -6 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.15f }, { reverbMix, 0.06f } }),
+
+        // Two screamers trading lines: your scream, a second take hard left,
+        // and an octave-down throat on the right, so it sounds like two
+        // different voices rather than one doubled.
+        make ("Twin Throat Duet", H, 5, "Metal,Scream,Doubler,Pitch", {
+            { rigLevel, -7 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.45f }, { "mb1Treble", -2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", 1 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq8k", -3 },
+            { doublerOn, 1 }, { doublerDirectPan, 0.2f },
+            { "dv1Gain", -3 }, { "dv1Pan", -1 }, { "dv1Detune", -12 }, { "dv1Delay", 28 },
+            { "dv2On", 0 },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -8 }, { "dv3Pan", 0.8f }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.08f } }),
+
+        // A soaring clean belt: an octave-up voice glinting above, wide
+        // eighth-note echoes and a long hall for the held notes.
+        make ("Soaring Belt", H, 6, "Metal,Clean,Harmony,Reverb", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq2k", 1 }, { "eq4k", 2 }, { "eq8k", 3 }, { "eq16k", 3 },
+            { harmonyOn, 1 }, { harmonyLevel, -11 }, { "hv1Pitch", 12 }, { "hv1Pan", 0 }, { "hv2Active", 0 },
+            { doublerOn, 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 },
+            { delayOn, 1 }, { delaySync, eighth }, { delayPingPong, 1 }, { delayFeedback, 0.35f }, { delayMix, 0.15f },
+            { delayDuck, 0.7f }, { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.28f }, { reverbDecay, 1.4f },
+            { reverbDuck, 0.3f } }),
+
+        // Dreamy pop: smooth and close, a shimmering chorus on it, soft
+        // harmonies spread wide, a bright plate and a dotted-eighth echo.
+        make ("Dream Pop Glow", H, 7, "Pop,Clean,Modulation,Harmony", {
+            { rigLevel, 2 },
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 55 }, { abyssGain, 15 }, { abyssEmphasis, 0.3f },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq250", -1 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 4 },
+            { harmonyOn, 1 }, { harmonyLevel, -13 }, { "hv1Pan", -0.9f }, { "hv2Pan", 0.9f },
+            { modOn, 1 }, { modType, dimension }, { modRate, 0.4f }, { modDepth, 0.4f }, { modMix, 0.3f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.3f }, { delayMix, 0.14f }, { delayDuck, 0.6f },
+            { delayHighCut, 6000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.55f }, { reverbMix, 0.22f }, { reverbPreDelay, 35 } }),
+
+        // A tight, rhythmic snarl: fast and hard on the attack, saturated,
+        // a short analog slap and almost no space, for riffs the voice
+        // locks to.
+        make ("Riff Snarl", H, 8, "Metal,Scream,Saturation,Delay", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 7 }, { photonRelease, 6 }, { photonRatio, 3 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.55f }, { "mb1Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 2 }, { "eq4k", 2 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv1Gain", -7 }, { "dv2Gain", -7 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 90 }, { delayFeedback, 0.1f },
+            { delayMix, 0.12f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.1f }, { reverbMix, 0.05f } }),
+
+        // An ethereal haze: every word rising into an octave-up shimmer and a
+        // slowly drifting cathedral, ducked so the line itself stays clear.
+        make ("Ethereal Haze", H, 9, "Metal,Clean,Ambient,Delay,Reverb", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -18 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq8k", 2 }, { "eq16k", 4 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 },
+            { delayOn, 1 }, { delayType, shimmer }, { delaySync, quarter }, { delayFeedback, 0.45f }, { delayMix, 0.16f },
+            { delayPingPong, 1 }, { delayDuck, 0.7f },
+            { reverbOn, 1 }, { reverbType, cathedral }, { reverbSize, 0.7f }, { reverbMix, 0.32f }, { reverbPreDelay, 60 },
+            { reverbDuck, 0.5f }, { reverbSpin, 1.8f }, { reverbWander, 1.8f } }),
+
+        // A strange, synthetic voice: hard-tuned, with a vocoder synth
+        // singing your note under it, and a quarter-note echo. (TUNE VOICE
+        // makes PR7-V 40 ms late, as always.)
+        make ("Glass Machine Voice", H, 10, "Electronic,Tuning,Vocoder,Experimental", {
+            { rigLevel, -2 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { harmonyCorrect, hardTune },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 2 }, { "eq8k", 2 },
+            { vocoderOn, 1 }, { vocoderMode, 0 }, { vocoderScale, 0.6f }, { vocoderLevel, -6 }, { vocoderDry, -2 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.12f }, { delayDuck, 0.6f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.16f } }),
+
+        // A low cavern growl: a full octave-down take under the voice, the
+        // lows pushed, the top rolled off, very dry and very heavy.
+        make ("Cavern Growl", H, 11, "Metal,Scream,Growl,Pitch,Saturation", {
+            { rigLevel, -9 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 28 }, { photonOutput, -16 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", screamingAmpStyle }, { "mb1Drive", 0.55f }, { "mb1Bass", 3 }, { "mb1Treble", -4 },
+            { eqOn, 1 }, { "eq63", -2 }, { "eq125", 3 }, { "eq250", 2 }, { "eq2k", 1 }, { "eq8k", -5 }, { "eq16k", -8 },
+            { doublerOn, 1 }, { "dv1On", 0 }, { "dv2On", 0 }, { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -2 },
+            { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A floating, oceanic clean: smooth levelling, a long tape echo
+        // that drifts, and a big hall with the lows kept short so it never
+        // turns to mud.
+        make ("Ocean Drift", H, 12, "Metal,Clean,Ambient,Delay,Reverb", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 50 }, { abyssGain, 13 },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq250", -1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -9 }, { "dv2Gain", -9 }, { "dv1Drift", 0.7f }, { "dv2Drift", 0.7f },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.45f }, { delayMix, 0.18f },
+            { delayDuck, 0.6f }, { delayModDepth, 0.3f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.85f }, { reverbMix, 0.3f }, { reverbPreDelay, 50 },
+            { reverbDecay, 1.5f }, { reverbBassRt, 0.6f }, { reverbCrossover, 300 }, { reverbDuck, 0.4f } }),
+
+        // A scream thrown into space: torn up and doubled like the others,
+        // but sent into a long hall and echo that bloom in the gaps.
+        make ("Tidal Scream", H, 13, "Metal,Scream,Saturation,Reverb,Delay", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.45f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq8k", -2 },
+            { doublerOn, 1 }, { "dv1Gain", -5 }, { "dv2Gain", -5 },
+            { delayOn, 1 }, { delaySync, quarter }, { delayPingPong, 1 }, { delayFeedback, 0.35f }, { delayMix, 0.14f },
+            { delayDuck, 0.8f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.75f }, { reverbMix, 0.25f }, { reverbDuck, 0.7f },
+            { reverbBassRt, 0.5f } }),
+
+        // A fragile, close ballad voice: gently levelled, warm, every breath
+        // kept, in a small chamber with a soft tape echo.
+        make ("Fragile Lullaby", H, 14, "Ballad,Clean,Intimate,Abyss", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 6500 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", 1 }, { "eq250", 1 }, { "eq2k", -1 }, { "eq8k", 1 }, { "eq16k", 2 },
+            { delayOn, 1 }, { delayType, tapeDelay }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.1f },
+            { delayDuck, 0.6f }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, chamber }, { reverbSize, 0.45f }, { reverbMix, 0.2f }, { reverbPreDelay, 20 } }),
+
+        // A closing choir: the lead stays in front while a choir built from
+        // every note you sing (GENERATE NOTES) swells wide behind it, in a
+        // big hall.
+        make ("Finale Choir", H, 15, "Metal,Clean,Harmony,Choir,Reverb", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 }, { "eq16k", 3 },
+            { harmonyOn, 1 }, { "hv1Active", 0 }, { "hv2Active", 0 },
+            { harmonyGenerate, 1 }, { harmonyChord, choirMap }, { harmonyNoteLevel, -10 }, { harmonyNoteWidth, 1 },
+            { harmonyNoteAttack, 120 }, { harmonyNoteRelease, 400 },
+            { doublerOn, 1 }, { "dv1Gain", -8 }, { "dv2Gain", -8 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.8f }, { reverbMix, 0.3f }, { reverbDecay, 1.3f },
+            { reverbDuck, 0.3f } }),
     };
 }

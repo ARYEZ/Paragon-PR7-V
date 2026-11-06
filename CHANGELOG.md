@@ -2,6 +2,34 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.45.0
+
+- **A new bank of 15 factory rigs, bank H, inspired by the vocal sounds on Spiritbox's *Eternal Blue*** (2021): one rig per vocal sound on the record, from breathy, layered cleans to fry screams and low growls. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **H01 Breath-Lit Intro** | Breathy, airy clean: lifted highs, two soft takes far out to the sides, ping-pong echo and a big hall, both ducking under the words | "Sun Killer" (its clean opening) |
+  | **H02 Serrated Fry Scream** | High fry scream: lows kept tight, the rest torn up (more the harder you push), mids forward, two tight takes, almost no room | "Sun Killer" (its screams) |
+  | **H03 Wounded Hook** | The big clean hook: four takes wide, a third and a fifth stacked low behind, a bright plate | "Hurt You" (the chorus) |
+  | **H04 Venom Verse** | Hard, mid-heavy, dry verse scream, squeezed with all the buttons in | "Hurt You" (the verses) |
+  | **H05 Twin Throat Duet** | Two screamers trading lines: a second take hard left and an octave-down throat on the right | "Yellowjacket" (the duet with Sam Carter) |
+  | **H06 Soaring Belt** | Soaring clean belt: an octave-up voice glinting above, wide echoes, a long hall | "The Summit" |
+  | **H07 Dream Pop Glow** | Dreamy pop: smooth, a shimmering chorus, soft harmonies spread wide, bright plate | "Secret Garden" |
+  | **H08 Riff Snarl** | Tight, rhythmic snarl: hard attack, saturated, a short analog slap, almost no space | "Silk in the Strings" |
+  | **H09 Ethereal Haze** | Ethereal haze: an octave-up shimmer echo and a slowly drifting cathedral, ducked | "Halcyon" |
+  | **H10 Glass Machine Voice** | Synthetic voice: hard-tuned, a vocoder synth singing your note under it | "We Live in a Strange World" |
+  | **H11 Cavern Growl** | Low growl: a full octave-down take under the voice, lows pushed, very dry | "Holy Roller" |
+  | **H12 Ocean Drift** | Floating clean: a long, drifting tape echo and a big hall with short lows | "Eternal Blue" (its cleans) |
+  | **H13 Tidal Scream** | A scream thrown into space: a long hall and echo that bloom in the gaps | "Eternal Blue" (its heavier parts) |
+  | **H14 Fragile Lullaby** | Fragile, close ballad voice: gently levelled, warm, a small chamber, a soft tape echo | "Constance" |
+  | **H15 Finale Choir** | Closing choir: a choir built from every note you sing swells wide behind the lead | "Circle With Me" |
+
+  - **Our reading, not the record's settings:** each rig is built from how vocals like these are commonly produced (doubling, compression, saturation, delays, reverbs, harmonies), not from any session notes. The details (delay times, how much reverb, which harmony) are my guesses. **I couldn't listen to the album or to the rigs here**, so these are starting points to tune by ear: tell me which ones are off and how, and I'll adjust them.
+  - **Set KEY and SCALE in PITCH** to the song's for the rigs with harmonies or tuning (H03, H07, H10, H15), so the added notes land in key.
+  - **H10 turns TUNE VOICE on**, so while it's loaded PR7-V runs 40 ms late (reported to BeatMaker, as always with TUNE VOICE).
+  - **Levels:** like every factory rig, they're balanced so switching between them doesn't jump in volume.
+- **The PRESETS page has a Bank H button**, and your own rigs can be filed in bank H too.
+
 ## 0.44.0
 
 - **The finishes have new names, and the unit opens black** (your decisions, as on PR7-G 0.60.0):
