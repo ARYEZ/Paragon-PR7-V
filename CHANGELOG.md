@@ -2,6 +2,33 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.56.0
+
+- **A new bank of 15 factory rigs, bank R, inspired by the vocal sounds on Soilwork's *Stabbing the Drama*** (2005, produced by Daniel Bergstrand and Jens Bogren): mid-2000s melodic death metal, Björn "Speed" Strid switching between a harsh, mid-high scream in the verses (tag **Scream**) and big, melodic clean choruses (tag **Clean**), both stacked thick and produced tight. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
+
+  | Rig | What it does | Inspired by |
+  |---|---|---|
+  | **R01 Knife Edge Scream** | The verse scream, mid-high and harsh, torn up on two bands, doubled tight either side | "Stabbing the Drama" (its verses) |
+  | **R02 Melodic Lift Chorus** | The big clean chorus: the strong double just off centre plus a wide pair, a dotted echo under, a bright plate | "Stabbing the Drama" (its chorus) |
+  | **R03 Swarm Rasp Scream** | A raspier, buzzing scream with the top torn harder, doubled, a short slap | "One with the Flies" |
+  | **R04 Pride Snarl Scream** | A sneering mid scream grinding through the mids, doubled tight, dry | "Weapon of Vanity" |
+  | **R05 Downcast Anthem** | A sorrowful, soaring clean chorus, the strong double, a quarter echo under, a plate | "The Crestfallen" |
+  | **R06 Raw Wire Scream** | A tense, tight verse scream, doubled close, almost dry | "Nerve" (its verses) |
+  | **R07 Raw Wire Chorus** | The chorus sung full out with a little grit, the strong double, a plate | "Nerve" (its chorus) |
+  | **R08 Deadlock Roar** | A heavier, lower scream with a quiet octave-down shadow, doubled | "Stalemate" |
+  | **R09 Far Horizon Melody** | A long, melodic clean line, doubled wide, a ping-pong echo and a hall | "Distance" |
+  | **R10 Watcher Scream** | A scream spread wide, two takes hard left and right, a quarter echo trailing | "Observation Slave" |
+  | **R11 Momentum Rush Scream** | A fast, relentless scream, doubled tight, a small room | "Fate in Motion" |
+  | **R12 Glowing Ring Scream** | A scream with a ringing dotted echo behind it, the repeats dark and thin | "Blind Eye Halo" |
+  | **R13 Hopeful Closer Ballad** | A soft, clean closing voice, two soft takes wide, a slow echo and a hall | "If Possible" |
+  | **R14 Briar Path Chorus** | An anthem chorus sung with a little rasp, the strong double and a wide pair | "Wherever Thorns May Grow" (the limited-edition bonus track) |
+  | **R15 Shadow Scream Layer** | For screams under a clean chorus: two takes wide, the middle kept clear for the clean lead | The screams-under-cleans layering (no one song) |
+
+  - **One honest gap:** the record's choruses often stack melodic harmony lines over the lead. That would need the HARMONY engine, which you've asked me to keep out of new rigs, so these rigs give the strong double and leave the harmonies to your singer's own takes. I can add a HARMONY version of a chorus rig if you want one.
+  - **Our reading, not the record's settings:** built from how this style was commonly produced, not from session notes, and **I couldn't listen to the album here**. Tell me which rigs are off and how.
+  - **Levels:** balanced with the other rigs (all within about 0.7 dB of the typical rig).
+- **The PRESETS page has a Bank R button** in the two-column bank list.
+
 ## 0.55.0
 
 - **A new bank of 15 factory rigs, bank Q, inspired by the vocal sounds on Sevendust's *Next*** (2005, produced by Shawn Grove with the band; Morgan Rose also co-produced and mixed): **Lajon Witherspoon's soulful, powerful lead** (tag **Sung**) and **Morgan Rose's screams** (tag **Scream**) trading lines, and above all, as you asked, **Morgan's delayed screaming effect, heard best on "Silence"**. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:
