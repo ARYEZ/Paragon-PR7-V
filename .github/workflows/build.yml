@@ -32,14 +32,48 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 45
+        # The runners' Azure Ubuntu mirror sometimes can't be reached (0.56.0:
+        # "Temporary failure resolving 'azure.archive.ubuntu.com'" for every
+        # package, after 38 minutes of hanging). So: short timeouts and
+        # retries per file, up to three tries in all, and after a failed try
+        # switch the sources to Ubuntu's own archive; and if the runner's own
+        # DNS is what fails, switch it to public resolvers.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build xvfb \
+          APT_OPTS="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          PACKAGES="ninja-build xvfb \
             libasound2-dev libjack-jackd2-dev ladspa-sdk \
             libfreetype-dev libfontconfig1-dev \
             libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev \
             libxrandr-dev libxrender-dev libxi-dev \
-            libegl-dev libglu1-mesa-dev mesa-common-dev
+            libegl-dev libglu1-mesa-dev mesa-common-dev"
+          use_public_dns_and_main_archive() {
+            echo "::warning::switching to public DNS (1.1.1.1, 8.8.8.8) and archive.ubuntu.com"
+            sudo resolvectl dns eth0 1.1.1.1 8.8.8.8 2>/dev/null || true
+            sudo rm -f /etc/resolv.conf
+            printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' | sudo tee /etc/resolv.conf >/dev/null
+            sudo sed -i -e 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#g' \
+                        -e 's#http://azure.archive.ubuntu.com/ubuntu/\?#http://archive.ubuntu.com/ubuntu/#g' \
+                        /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+          }
+          # 0.56.0's re-run: even archive.ubuntu.com couldn't be resolved,
+          # while github.com could: the runner's own DNS was failing. Check
+          # first, so a broken resolver costs seconds, not three slow tries.
+          if ! getent hosts azure.archive.ubuntu.com >/dev/null; then
+            echo "::warning::azure.archive.ubuntu.com doesn't resolve"
+            use_public_dns_and_main_archive
+          fi
+          for attempt in 1 2 3; do
+            if sudo timeout 600 apt-get $APT_OPTS update && \
+               sudo timeout 900 apt-get $APT_OPTS install -y --fix-missing $PACKAGES; then
+              exit 0
+            fi
+            echo "::warning::apt try $attempt failed"
+            use_public_dns_and_main_archive
+            getent hosts archive.ubuntu.com || echo "::warning::archive.ubuntu.com still doesn't resolve"
+            sleep 30
+          done
+          exit 1
 
       - name: Configure
         shell: bash
