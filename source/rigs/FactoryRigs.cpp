@@ -115,12 +115,14 @@ namespace
 //      baritone snarled, crooned and shouted through a megaphone
 //   Q  a tenth album's vocal sounds (0.55.0): alternative metal with a
 //      soulful lead and a screamer whose screams are thrown into echoes
+//   R  an eleventh album's vocal sounds (0.56.0): melodic death metal, harsh
+//      verse screams and big clean choruses from one voice
 //
 // Most start with a compressor and the de-esser, as a vocal chain would.
 std::vector<Rig> makeFactoryRigs()
 {
     using namespace ParamIDs;
-    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14, P = 15, Q = 16;
+    constexpr int A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9, K = 10, L = 11, M = 12, N = 13, O = 14, P = 15, Q = 16, R = 17;
 
     return {
         // ---- A: everyday vocals ------------------------------------------
@@ -3048,5 +3050,209 @@ std::vector<Rig> makeFactoryRigs()
             { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.08f },
             { delayMix, 0.06f },
             { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+        // ---- R: an eleventh album's vocal sounds ------------------------------
+        // Mid-2000s melodic death metal: one voice switching between a harsh,
+        // mid-high scream in the verses and big, melodic clean choruses,
+        // both stacked thick and produced tight and polished. Layers are the
+        // DOUBLER (no HARMONY: the cleans' layered melodies on the record are
+        // left to the singer's own takes). Our reading, not anyone's settings.
+
+        // A knife-edge scream: the verse scream, mid-high and harsh, torn up
+        // on two bands, doubled tight either side, a small room.
+        make ("Knife Edge Scream", R, 1, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.6f }, { "dv2Pan", 0.6f },
+            { "dv1Drift", 0.2f }, { "dv2Drift", 0.2f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.06f } }),
+
+        // A melodic lift chorus: the big clean chorus after the screams, the
+        // strong double just off centre and a wide pair, a dotted echo under
+        // and a bright plate.
+        make ("Melodic Lift Chorus", R, 2, "Melodeath,Metal,Clean,Doubler", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.2f }, { delayMix, 0.06f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.45f }, { reverbMix, 0.13f } }),
+
+        // A swarm rasp scream: a raspier, buzzing scream with the top torn
+        // harder, doubled, a short slap.
+        make ("Swarm Rasp Scream", R, 3, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -4.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 900 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.8f }, { "mb2Presence", 4 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -4 }, { "eq250", -2 }, { "eq2k", 3 }, { "eq4k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Detune", 5 }, { "dv2Detune", -5 },
+            { delayOn, 1 }, { delayType, analogDelay }, { delaySync, syncOff }, { delayTime, 100 }, { delayFeedback, 0.1f },
+            { delayMix, 0.06f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A pride snarl scream: a sneering mid scream, grinding through the
+        // mids, doubled tight, dry.
+        make ("Pride Snarl Scream", R, 4, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -7.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonEight },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Mid", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.4f }, { "dv2Pan", 0.4f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.05f } }),
+
+        // A downcast anthem: a sorrowful, soaring clean chorus, the strong
+        // double, a quarter echo under and a plate.
+        make ("Downcast Anthem", R, 5, "Melodeath,Metal,Clean,Doubler", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -22 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq250", -1 }, { "eq2k", 1 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.25f }, { delayMix, 0.07f }, { delayDuck, 0.8f },
+            { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.5f }, { reverbMix, 0.14f } }),
+
+        // A raw-wire scream: a tense, tight verse scream, doubled close,
+        // almost dry.
+        make ("Raw Wire Scream", R, 6, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 6 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 600 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 }, { "eq8k", -1 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.3f }, { "dv2Pan", 0.3f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.04f } }),
+
+        // A raw-wire chorus: the same song's chorus sung full out with a
+        // little grit, the strong double, an eighth echo under, a plate.
+        make ("Raw Wire Chorus", R, 7, "Melodeath,Metal,Doubler,Saturation", {
+            { rigLevel, -4 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", saturatedTubeStyle }, { "mb1Drive", 0.3f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { delayOn, 1 }, { delaySync, eighth }, { delayFeedback, 0.15f }, { delayMix, 0.05f }, { delayDuck, 0.8f },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A deadlock roar: a heavier, lower scream grinding on one band, a
+        // quiet octave-down shadow, doubled.
+        make ("Deadlock Roar", R, 8, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Mid", 2 },
+            { eqOn, 1 }, { "eq63", -6 }, { "eq125", -1 }, { "eq500", 1 }, { "eq1k", 2 }, { "eq2k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv3On", 1 }, { "dv3Octave", 1 }, { "dv3Gain", -14 }, { "dv3Pan", 0 }, { "dv3Detune", 0 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.05f } }),
+
+        // A far-horizon melody: a long, melodic clean line, doubled wide, a
+        // ping-pong echo and a hall.
+        make ("Far Horizon Melody", R, 9, "Melodeath,Metal,Clean,Doubler,Reverb", {
+            { rigLevel, -4.5f },
+            { compOn, 1 }, { compType, revival }, { revivalCompression, -20 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 7 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 2 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.8f }, { "dv2Pan", 0.8f },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayPingPong, 1 }, { delayFeedback, 0.3f }, { delayMix, 0.08f },
+            { delayDuck, 0.7f }, { delayHighCut, 5000 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.65f }, { reverbMix, 0.17f }, { reverbPreDelay, 30 } }),
+
+        // A watcher scream: a scream spread wide, two takes hard left and
+        // right, a quarter echo trailing.
+        make ("Watcher Scream", R, 10, "Melodeath,Metal,Scream,Doubler,Delay", {
+            { rigLevel, -5 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.75f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.25f }, { "dv2Drift", 0.25f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.2f }, { delayMix, 0.07f }, { delayDuck, 0.7f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.25f }, { reverbMix, 0.05f } }),
+
+        // A momentum rush scream: a fast, relentless scream, doubled tight,
+        // nothing but a small room.
+        make ("Momentum Rush Scream", R, 11, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -6.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 26 }, { photonOutput, -13 }, { photonAttack, 6 }, { photonRelease, 7 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.8f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -3 }, { "dv2Gain", -3 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.2f }, { reverbMix, 0.04f } }),
+
+        // A glowing-ring scream: a scream with a ringing echo behind it, the
+        // repeats dark and thin so they sit back, a plate.
+        make ("Glowing Ring Scream", R, 12, "Melodeath,Metal,Scream,Delay,Saturation", {
+            { rigLevel, -5.5f },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { marsBands, 1 }, { marsCross1, 500 },
+            { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.2f },
+            { "mb2Style", brokenTubeStyle }, { "mb2Drive", 0.75f }, { "mb2Presence", 3 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq1k", 2 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { "dv1Gain", -4 }, { "dv2Gain", -4 }, { "dv1Pan", -0.5f }, { "dv2Pan", 0.5f },
+            { delayOn, 1 }, { delaySync, dottedEighth }, { delayFeedback, 0.35f }, { delayMix, 0.12f }, { delayDuck, 0.5f },
+            { delayLowCut, 400 }, { delayHighCut, 4000 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.08f } }),
+
+        // A hopeful closer ballad: a soft, clean closing voice, two soft
+        // takes wide, a slow echo and a hall.
+        make ("Hopeful Closer Ballad", R, 13, "Melodeath,Metal,Clean,Ballad,Reverb", {
+            { compOn, 1 }, { compType, abyssComp }, { abyssPeakReduction, 40 }, { abyssGain, 10 },
+            { deessOn, 1 }, { deessFreq, 7000 }, { deessAmount, 6 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq4k", 1 }, { "eq8k", 1 },
+            { doublerOn, 1 }, { "dv1Gain", -10 }, { "dv2Gain", -10 }, { "dv1Pan", -0.7f }, { "dv2Pan", 0.7f },
+            { delayOn, 1 }, { delaySync, quarter }, { delayFeedback, 0.3f }, { delayMix, 0.08f }, { delayDuck, 0.6f },
+            { delayHighCut, 4500 },
+            { reverbOn, 1 }, { reverbType, hall }, { reverbSize, 0.7f }, { reverbMix, 0.2f }, { reverbPreDelay, 35 } }),
+
+        // A briar-path chorus: an anthem chorus sung with a little rasp, the
+        // strong double and a wide pair, a plate.
+        make ("Briar Path Chorus", R, 14, "Melodeath,Metal,Doubler,Saturation", {
+            { rigLevel, -3 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 20 }, { photonOutput, -10 }, { photonAttack, 4 }, { photonRelease, 5 }, { photonRatio, photonEight },
+            { deessOn, 1 }, { deessAmount, 6 },
+            { driveOn, 1 }, { "mb1Style", warmTubeStyle }, { "mb1Drive", 0.25f },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -2 }, { "eq1k", 1 }, { "eq2k", 2 }, { "eq4k", 1 },
+            { doublerOn, 1 }, { "dv3On", 1 }, { "dv4On", 1 },
+            { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -0.45f }, { "dv2Pan", 0.45f },
+            { "dv1Detune", 7 }, { "dv2Detune", -7 }, { "dv1Delay", 14 }, { "dv2Delay", 22 },
+            { "dv1Drift", 0.15f }, { "dv2Drift", 0.15f },
+            { "dv3Gain", -9 }, { "dv4Gain", -9 }, { "dv3Pan", -1 }, { "dv4Pan", 1 },
+            { reverbOn, 1 }, { reverbType, plate }, { reverbSize, 0.4f }, { reverbMix, 0.1f } }),
+
+        // A shadow scream layer: for screams under a clean chorus: two takes
+        // wide, the middle kept clear for the clean lead.
+        make ("Shadow Scream Layer", R, 15, "Melodeath,Metal,Scream,Doubler,Saturation", {
+            { rigLevel, -1 },
+            { compOn, 1 }, { compType, photonComp }, { photonInput, 24 }, { photonOutput, -12 }, { photonAttack, 5 }, { photonRelease, 6 }, { photonRatio, photonAll },
+            { driveOn, 1 }, { "mb1Style", brokenTubeStyle }, { "mb1Drive", 0.7f }, { "mb1Presence", 2 },
+            { eqOn, 1 }, { "eq63", -8 }, { "eq125", -3 }, { "eq500", -1 }, { "eq1k", 1 }, { "eq2k", 3 },
+            { doublerOn, 1 }, { doublerDirectGain, -8 }, { "dv1Gain", -2 }, { "dv2Gain", -2 }, { "dv1Pan", -1 }, { "dv2Pan", 1 },
+            { "dv1Drift", 0.3f }, { "dv2Drift", 0.3f },
+            { reverbOn, 1 }, { reverbType, room }, { reverbSize, 0.3f }, { reverbMix, 0.06f } }),
     };
 }
