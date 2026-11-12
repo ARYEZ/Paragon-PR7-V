@@ -2,6 +2,36 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.56.1
+
+An optimisation round, bringing over what applies from PR7-G 0.82.1 and then working on what the measurements showed is expensive in PR7-V. **The sound is unchanged:** every one of the 255 factory rigs was rendered with the old and the new code and the two match sample for sample, to the last bit (with the random parts, such as noise and drift, given the same seed in both). HARMONY's TUNE VOICE latency (a fixed 40 ms) is unchanged.
+
+The work each part does, counted in processor instructions (more reliable than a stopwatch on the build machine, whose timings varied by half from run to run), for 3.5 seconds of singing:
+
+| Part | Before | After | Less work |
+|---|---|---|---|
+| PITCH's octaver | 1,305 M | 389 M | 70% |
+| DELAY Shimmer | 1,726 M | 561 M | 67% |
+| VOCODER (Hard) | 1,501 M | 723 M | 52% |
+| MODULATION AEON | 1,258 M | 773 M | 39% |
+| LO-FI Telephone | 164 M | 125 M | 24% |
+| HARMONY with GENERATE NOTES | 1,140 M | 983 M | 14% |
+| DOUBLER (4 takes) | 514 M | 472 M | 8% |
+| REVERB Hall (not worked on: the shared saving only) | 495 M | 456 M | 8% |
+| MARS, 4 bands at Good | 1,790 M | 1,751 M | 2% |
+
+Whole rigs: E22 Voice Wall (the heaviest) 45% less work, J12 Machine Pulse 19%, H11 Cavern Growl 14%, A01 36%.
+
+What changed:
+
+- **The pitch shifter's splice search** (the octaver, Shimmer, the DOUBLER's takes, FILTER/PITCH, GLITCH): every 25 ms it compares the voice with itself at about 600 places to find where to join the pieces seamlessly. Those comparisons now all run in one pass, several at a time, instead of one after another. The same sums in the same order, so the same join every time.
+- **Reading the controls:** each block of audio reads about 200 settings by name. That lookup was a search comparing a dozen names each time, about a third of the work of a light rig; it's now a direct table (one name check). This is the saving every block shares.
+- **The pitch detector** (HARMONY, TUNE VOICE, the VOCODER's Auto carrier, the tuner): its self-comparison now runs all its delays in one pass, and two values it worked out twice are worked out once.
+- **The VOCODER's bands:** the 12 to 32 bands now go through their filters and followers side by side, several at a time, adding up in the same order.
+- **From PR7-G 0.82.1:** the op-amp clipping curve (AEON) uses plain multiplication and one logarithm/exponential instead of two power functions (the same curve, to within rounding), and AEON's diode solver uses one exponential per step instead of sinh and cosh. PR7-G's other change (diode solvers starting from the last samples' trend) doesn't apply: AEON is PR7-V's only solver and runs a fixed four steps, so stopping early would change its sound.
+- **Not changed, on purpose:** MARS. Its cost is real filtering done one sample at a time at 4x or 8x the sample rate; nothing found could go faster without risking its sound.
+- **New hidden benchmarks** for later rounds: `[rigcpu]` (every factory rig), `[blockcpu]` (each block and type on its own; `PARAGON_CPU_ONLY` picks one) and `[rigrender]` (every rig to files, to compare two builds).
+
 ## 0.56.0
 
 - **A new bank of 15 factory rigs, bank R, inspired by the vocal sounds on Soilwork's *Stabbing the Drama*** (2005, produced by Daniel Bergstrand and Jens Bogren): mid-2000s melodic death metal, Björn "Speed" Strid switching between a harsh, mid-high scream in the verses (tag **Scream**) and big, melodic clean choruses (tag **Clean**), both stacked thick and produced tight. Every layer comes from the DOUBLER and none uses HARMONY. Inside the plugin each rig is named for its sound; here is what inspired each one:

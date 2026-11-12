@@ -257,6 +257,31 @@ private:
     float expressionAmount() const noexcept;   // position mapped through MIN/MAX
 
     juce::AudioProcessorValueTreeState parameters;
+    // param()'s lookup table (0.56.1): every parameter's ID and value, by an
+    // open-addressing hash of the ID. Built in the constructor, read only after.
+    struct ParameterTable
+    {
+        ParameterTable (juce::AudioProcessorValueTreeState&, juce::AudioProcessor&);
+        std::atomic<float>* find (const char* id) const noexcept;
+
+        static size_t hashOf (const char* id) noexcept
+        {
+            auto hash = (uint32_t) 2166136261u;   // FNV-1a
+            for (; *id != 0; ++id)
+                hash = (hash ^ (uint8_t) *id) * 16777619u;
+            return hash;
+        }
+
+        struct Slot
+        {
+            size_t hash = 0;
+            std::string id;
+            std::atomic<float>* value = nullptr;
+        };
+        std::vector<Slot> slots;
+        size_t mask = 0;
+    };
+    const ParameterTable parameterTable;
     std::atomic<float>* inputGainDb = nullptr;
     std::atomic<float>* outputGainDb = nullptr;
 
