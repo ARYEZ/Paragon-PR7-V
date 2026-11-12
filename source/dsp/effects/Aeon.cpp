@@ -325,13 +325,15 @@ namespace effects
             for (int iteration = 0; iteration < 4; ++iteration)
             {
                 const auto x = juce::jlimit (-40.0, 40.0, vd / diodeNVt);
-                const auto id = 2.0 * diodeIs * std::sinh (x);
-                const auto slope = 2.0 * diodeIs * std::cosh (x) / diodeNVt;
+                const auto ex = std::exp (x), exInverse = 1.0 / ex;   // 2 Is sinh and its slope from one exp (0.56.1)
+                const auto id = diodeIs * (ex - exInverse);
+                const auto slope = diodeIs * (ex + exInverse) / diodeNVt;
                 const auto error = (vd + limiterR11 * id) / limiterR12 + id - current;
                 vd -= error / ((1.0 + limiterR11 * slope) / limiterR12 + slope);
             }
             limiterVolts = vd;
-            const auto limited = -(vd + limiterR11 * 2.0 * diodeIs * std::sinh (juce::jlimit (-40.0, 40.0, vd / diodeNVt)));
+            const auto exOut = std::exp (juce::jlimit (-40.0, 40.0, vd / diodeNVt));
+            const auto limited = -(vd + limiterR11 * diodeIs * (exOut - 1.0 / exOut));
 
             // Into the BBD through the anti-alias filter.
             bbd[(size_t) bbdWrite] = (float) antiAlias.process (opAmpClip (limited, opAmpRail));

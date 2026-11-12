@@ -22,6 +22,7 @@ void PitchDetector::prepare (double newSampleRate)
 
     reduced.assign ((size_t) windowSize, 0.0f);
     difference.assign ((size_t) windowSize / 2, 0.0f);
+    refined.assign ((size_t) (2 * decimation + 4), 0.0);   // refineAtHostRate's lags
 }
 
 std::optional<PitchDetector::Result> PitchDetector::detect (const float* samples, int numSamples)
@@ -51,15 +52,24 @@ std::optional<PitchDetector::Result> PitchDetector::detect (const float* samples
     const auto length = windowSize / 2;
 
     // Step 1-2: difference function d(lag) = sum (x[i] - x[i+lag])^2.
-    for (int lag = 1; lag <= maxLag; ++lag)
+    // Worked out for all lags at once (0.56.1): one pass over i, adding into
+    // every lag's sum. Each sum still adds its terms in the same order (i from
+    // 0 up), so the results are the same to the last bit, but neighbouring
+    // lags read neighbouring samples and are done several at a time.
+    std::fill (difference.begin() + 1, difference.begin() + maxLag + 1, 0.0f);
     {
-        float sum = 0.0f;
+        auto* sums = difference.data();
+        const auto* x = reduced.data();
         for (int i = 0; i < length; ++i)
         {
-            const auto delta = reduced[(size_t) i] - reduced[(size_t) (i + lag)];
-            sum += delta * delta;
+            const auto here = x[i];
+            const auto* later = x + i;
+            for (int lag = 1; lag <= maxLag; ++lag)
+            {
+                const auto delta = here - later[lag];
+                sums[lag] += delta * delta;
+            }
         }
-        difference[(size_t) lag] = sum;
     }
 
     // Step 3: cumulative mean normalised difference, so a perfect match is 0
@@ -104,26 +114,33 @@ std::optional<PitchDetector::Result> PitchDetector::detect (const float* samples
 // for the parabola to be accurate to a cent. So with the period now known
 // roughly, search the few lags around it again using the full-rate audio,
 // where the same note spans ~4-8x more samples.
-double PitchDetector::refineAtHostRate (const float* start, double roughPeriod) const
+double PitchDetector::refineAtHostRate (const float* start, double roughPeriod)
 {
     const auto length = windowSizeAtHostRate() / 2;
     const auto centre = (int) std::round (roughPeriod);
     const auto first = juce::jmax (2, centre - decimation - 1);
     const auto last = juce::jmin (windowSizeAtHostRate() - length - 1, centre + decimation + 1);
 
-    auto differenceAt = [&] (int lag)
-    {
-        double sum = 0.0;
-        for (int i = 0; i < length; ++i)
-        {
-            const auto delta = (double) start[i] - (double) start[i + lag];
-            sum += delta * delta;
-        }
-        return sum;
-    };
-
     if (last - first < 2)
         return roughPeriod;
+
+    // Every lag from first to last, each worked out once (0.56.1; the two
+    // either side of the best used to be worked out twice), all in one pass
+    // over i. Each sum adds its terms in the same order as before.
+    const auto lags = last - first + 1;
+    jassert (lags <= (int) refined.size());
+    std::fill (refined.begin(), refined.begin() + lags, 0.0);
+    for (int i = 0; i < length; ++i)
+    {
+        const auto here = (double) start[i];
+        const auto* later = start + i + first;
+        for (int n = 0; n < lags; ++n)
+        {
+            const auto delta = here - (double) later[n];
+            refined[(size_t) n] += delta * delta;
+        }
+    }
+    const auto differenceAt = [this, first] (int lag) { return refined[(size_t) (lag - first)]; };
 
     int bestLag = first + 1;
     auto best = differenceAt (bestLag);

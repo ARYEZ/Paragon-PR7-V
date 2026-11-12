@@ -22,6 +22,12 @@ namespace effects
         maxDelay = minDelay + (float) (fadeSamples * maxRatio + jumpSamples + searchSamples + 8);
         history.assign ((size_t) juce::nextPowerOfTwo ((int) maxDelay + fadeSamples * maxRatio + 16), 0.0f);
         historyMask = (int) history.size() - 1;
+        // findSplice's working space: at most searchSamples + 1 coarse
+        // candidates, and (384 + 256) / 2 steps over the compared stretch.
+        const auto maxCandidates = (size_t) searchSamples + 2;
+        products.assign (maxCandidates, 0.0f);
+        energies.assign (maxCandidates, 0.0f);
+        evenSamples.assign (maxCandidates + (384 + 256) / 2 + 2, 0.0f);
         reset();
     }
 
@@ -79,14 +85,52 @@ namespace effects
         const auto highest = juce::jmin ((int) maxDelay - 1, (int) (centre + (float) searchSamples));
 
         // Coarse search in steps of 2, then refine either side of the best.
+        // The coarse scores are all built at once (0.56.1): one pass over the
+        // compared stretch, adding each sample into every candidate's sums.
+        // Each sum still adds its terms in the same order as score() does, so
+        // every score, and so the choice, is the same to the last bit; but the
+        // candidates' sums sit side by side and are worked out several at a
+        // time. The candidates are 2 apart and m steps by 2, so every sample
+        // they read is an even distance from the others: a copy of every
+        // other sample of the history (`evenSamples`) puts each candidate's
+        // samples next to each other.
         auto best = juce::jlimit (lowest, highest, (int) centre);
         auto bestScore = -1.0e30f;
-        for (auto candidate = lowest; candidate <= highest; candidate += 2)
-            if (const auto value = score (candidate); value > bestScore)
+        const auto count = highest >= lowest ? (highest - lowest) / 2 + 1 : 0;
+        if (count > 0)
+        {
+            const auto steps = (ahead + behind + 1) / 2;   // m = -behind, -behind + 2, ... below ahead
+            const auto farthest = lowest + 2 * (count - 1);
+            // evenSamples[j]: the sample at writeIndex - farthest - behind + 2j.
+            // Candidate `farthest - 2r` reads evenSamples[r + k] at step k.
+            const auto first = writeIndex - farthest - behind;
+            for (int j = 0; j < count + steps; ++j)
+                evenSamples[(size_t) j] = history[(size_t) ((first + 2 * j) & historyMask)];
+            std::fill (products.begin(), products.begin() + count, 0.0f);
+            std::fill (energies.begin(), energies.begin() + count, 1.0e-9f);
+            auto* product = products.data();
+            auto* energy = energies.data();
+            for (int k = 0; k < steps; ++k)
             {
-                bestScore = value;
-                best = candidate;
+                const auto a = history[(size_t) ((from - behind + 2 * k) & historyMask)];
+                const auto* b = evenSamples.data() + k;
+                for (int r = 0; r < count; ++r)
+                {
+                    product[r] += a * b[r];
+                    energy[r] += b[r] * b[r];
+                }
             }
+            // In the original order (from `lowest` up), the first best wins.
+            for (int c = 0; c < count; ++c)
+            {
+                const auto r = count - 1 - c;
+                if (const auto value = products[(size_t) r] / std::sqrt (energies[(size_t) r]); value > bestScore)
+                {
+                    bestScore = value;
+                    best = lowest + 2 * c;
+                }
+            }
+        }
         for (const auto candidate : { best - 1, best + 1 })
             if (candidate >= lowest && candidate <= highest)
                 if (const auto value = score (candidate); value > bestScore)

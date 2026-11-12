@@ -189,6 +189,18 @@ namespace effects
         double sampleRate = 48000.0;
         BypassFade bypass;
         std::array<Band, maxBands> bands;
+        // The band loop's working copy, across the bands (0.56.1; see process).
+        struct BandLanes
+        {
+            using Lane = std::array<float, maxBands>;
+            struct Filters { Lane s1 {}, s2 {}, a1 {}, a2 {}, a3 {}, k {}; };
+            std::array<Filters, 4> filters;   // voice, voice, synth, synth
+            Lane voiceLevel {}, synthLevel {}, heard {}, played {}, out {};
+
+            static void filterAll (Filters&, float x, float* out, int count) noexcept;
+            static void filterEach (Filters&, float* inOut, int count) noexcept;
+        };
+        BandLanes bandLanes;
         int numBands = 20;
         Mode bandsMode = Mode::vintage;
         float bandsShift = 1000.0f;

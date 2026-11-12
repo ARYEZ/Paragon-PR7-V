@@ -86,6 +86,33 @@ namespace effects
         return k * v1;   // unity at the centre
     }
 
+    // BandPass::process on every band at once: the same sums, band by band.
+    void Vocoder::BandLanes::filterAll (Filters& f, float x, float* out, int count) noexcept
+    {
+        for (int b = 0; b < count; ++b)
+        {
+            const auto v3 = x - f.s2[(size_t) b];
+            const auto v1 = f.a1[(size_t) b] * f.s1[(size_t) b] + f.a2[(size_t) b] * v3;
+            const auto v2 = f.s2[(size_t) b] + f.a2[(size_t) b] * f.s1[(size_t) b] + f.a3[(size_t) b] * v3;
+            f.s1[(size_t) b] = 2.0f * v1 - f.s1[(size_t) b];
+            f.s2[(size_t) b] = 2.0f * v2 - f.s2[(size_t) b];
+            out[b] = f.k[(size_t) b] * v1;
+        }
+    }
+
+    void Vocoder::BandLanes::filterEach (Filters& f, float* inOut, int count) noexcept
+    {
+        for (int b = 0; b < count; ++b)
+        {
+            const auto v3 = inOut[b] - f.s2[(size_t) b];
+            const auto v1 = f.a1[(size_t) b] * f.s1[(size_t) b] + f.a2[(size_t) b] * v3;
+            const auto v2 = f.s2[(size_t) b] + f.a2[(size_t) b] * f.s1[(size_t) b] + f.a3[(size_t) b] * v3;
+            f.s1[(size_t) b] = 2.0f * v1 - f.s1[(size_t) b];
+            f.s2[(size_t) b] = 2.0f * v2 - f.s2[(size_t) b];
+            inOut[b] = f.k[(size_t) b] * v1;
+        }
+    }
+
     void Vocoder::prepare (double newSampleRate, int maxBlockSize)
     {
         sampleRate = newSampleRate;
@@ -478,29 +505,78 @@ namespace effects
             constexpr float modeGains[] = { 2.17f, 2.0f, 1.98f };
             const auto bandsGain = modeGains[(int) bandsMode];
 
+            // The bands are worked out side by side (0.56.1): each band's
+            // filters, followers and gain in arrays across the bands, so the
+            // same steps run on several bands at once. Every band still does
+            // exactly the same sums in the same order as before (and the
+            // bands are added up in order, 0 first), so the sound is the same
+            // to the last bit. The filters' state goes back into `bands`
+            // after the block.
+            auto& lanes = bandLanes;
+            for (int b = 0; b < numBands; ++b)
+            {
+                const auto& band = bands[(size_t) b];
+                for (int f = 0; f < 4; ++f)
+                {
+                    const auto& filter = f < 2 ? band.voice[(size_t) f] : band.synth[(size_t) f - 2];
+                    auto& lane = lanes.filters[(size_t) f];
+                    lane.s1[(size_t) b] = filter.s1;
+                    lane.s2[(size_t) b] = filter.s2;
+                    lane.a1[(size_t) b] = filter.a1;
+                    lane.a2[(size_t) b] = filter.a2;
+                    lane.a3[(size_t) b] = filter.a3;
+                    lane.k[(size_t) b] = filter.k;
+                }
+                lanes.voiceLevel[(size_t) b] = band.voiceLevel;
+                lanes.synthLevel[(size_t) b] = band.synthLevel;
+            }
+
             for (int i = 0; i < numSamples; ++i)
             {
                 const auto lfo = nextLfo (settings);
                 const auto synth = renderSynth (settings, lfo, glide, voiceAttack, voiceRelease);
                 const auto voice = modulator != nullptr ? modulator[i] : 0.0f;
+                BandLanes::filterAll (lanes.filters[0], voice, lanes.heard.data(), numBands);
+                BandLanes::filterEach (lanes.filters[1], lanes.heard.data(), numBands);
+                BandLanes::filterAll (lanes.filters[2], synth, lanes.played.data(), numBands);
+                BandLanes::filterEach (lanes.filters[3], lanes.played.data(), numBands);
+                auto* heard = lanes.heard.data();
+                auto* played = lanes.played.data();
+                auto* voiceLevel = lanes.voiceLevel.data();
+                auto* synthLevel = lanes.synthLevel.data();
+                auto* out = lanes.out.data();
+                for (int b = 0; b < numBands; ++b)
+                {
+                    const auto heardLevel = std::abs (heard[b]);
+                    voiceLevel[b] += (heardLevel - voiceLevel[b]) * (heardLevel > voiceLevel[b] ? bandAttack : bandRelease);
+                    const auto playedLevel = std::abs (played[b]);
+                    synthLevel[b] += (playedLevel - synthLevel[b]) * (playedLevel > synthLevel[b] ? synthAttack : synthRelease);
+                    // The synth's band levelled, then given the voice's level.
+                    const auto gain = juce::jmin (maxBandBoost, voiceLevel[b] / juce::jmax (1.0e-5f, synthLevel[b]));
+                    out[b] = played[b] * gain;
+                }
                 auto outLeft = 0.0f, outRight = 0.0f;
                 for (int b = 0; b < numBands; ++b)
                 {
-                    auto& band = bands[(size_t) b];
-                    const auto heard = band.voice[1].process (band.voice[0].process (voice));
-                    const auto heardLevel = std::abs (heard);
-                    band.voiceLevel += (heardLevel - band.voiceLevel) * (heardLevel > band.voiceLevel ? bandAttack : bandRelease);
-                    const auto played = band.synth[1].process (band.synth[0].process (synth));
-                    const auto playedLevel = std::abs (played);
-                    band.synthLevel += (playedLevel - band.synthLevel) * (playedLevel > band.synthLevel ? synthAttack : synthRelease);
-                    // The synth's band levelled, then given the voice's level.
-                    const auto gain = juce::jmin (maxBandBoost, band.voiceLevel / juce::jmax (1.0e-5f, band.synthLevel));
-                    const auto out = played * gain;
-                    outLeft += out * band.gainLeft;
-                    outRight += out * band.gainRight;
+                    const auto& band = bands[(size_t) b];
+                    outLeft += out[b] * band.gainLeft;
+                    outRight += out[b] * band.gainRight;
                 }
                 left[(size_t) i] = outLeft * bandsGain;
                 right[(size_t) i] = outRight * bandsGain;
+            }
+
+            for (int b = 0; b < numBands; ++b)
+            {
+                auto& band = bands[(size_t) b];
+                for (int f = 0; f < 4; ++f)
+                {
+                    auto& filter = f < 2 ? band.voice[(size_t) f] : band.synth[(size_t) f - 2];
+                    filter.s1 = lanes.filters[(size_t) f].s1[(size_t) b];
+                    filter.s2 = lanes.filters[(size_t) f].s2[(size_t) b];
+                }
+                band.voiceLevel = lanes.voiceLevel[(size_t) b];
+                band.synthLevel = lanes.synthLevel[(size_t) b];
             }
 
             // MIX: PAN, then the low and high cuts.

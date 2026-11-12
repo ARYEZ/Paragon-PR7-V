@@ -31,6 +31,8 @@ namespace effects
         float findSplice (float fromDelay, float direction, float ratioNow) const noexcept;
 
         std::vector<float> history;   // a circular buffer, a power of two long
+        // findSplice's working space (sized in prepare, so it never allocates).
+        mutable std::vector<float> products, energies, evenSamples;
         int historyMask = 0, writeIndex = 0;
         float headDelay = 0.0f, fadingDelay = 0.0f;
         int fadeRemaining = 0;

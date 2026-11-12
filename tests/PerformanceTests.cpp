@@ -7,6 +7,15 @@
 #include "Parameters.h"
 #include "PluginProcessor.h"
 #include "dsp/TapTempo.h"
+#include "dsp/effects/CompGate.h"
+#include "dsp/effects/Delay.h"
+#include "dsp/effects/FilterPitch.h"
+#include "dsp/effects/Glitch.h"
+#include "dsp/effects/LoFi.h"
+#include "dsp/effects/Mars.h"
+#include "dsp/effects/Modulation.h"
+#include "dsp/effects/Reverb.h"
+#include "dsp/effects/Vocoder.h"
 #include "rigs/UndoHistory.h"
 
 using Catch::Matchers::WithinAbs;
@@ -398,4 +407,192 @@ TEST_CASE ("CPU with everything off", "[.][cpu]")
                 ranged->setValueNotifyingHost (0.0f);
             }
     measure ("every ...On switch off");
+}
+
+namespace
+{
+    // A sung phrase for the benchmarks and renders: a vowel (harmonics up to
+    // 2.6 kHz, a formant near 700 Hz) with vibrato, moving between notes
+    // every 0.3 s with short gaps between syllables, so pitch trackers,
+    // TUNE VOICE, HARMONY, the VOCODER and the gates all have work to do.
+    float sungSample (long n)
+    {
+        const auto t = (double) n / sampleRate;
+        static constexpr double notes[] = { 220.0, 246.9, 261.6, 293.7, 329.6, 293.7, 261.6, 196.0 };
+        const auto syllable = (int) (t / 0.3);
+        const auto within = t - syllable * 0.3;
+        if (within > 0.27)
+            return 0.0f;
+        const auto envelope = std::sin (juce::MathConstants<double>::pi * within / 0.27);
+        const auto f0 = notes[syllable % 8] * (1.0 + 0.01 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+        // Phase from the note's own start, so a note change doesn't click.
+        double v = 0.0;
+        for (int harmonic = 1; harmonic <= 12; ++harmonic)
+        {
+            const auto shape = 1.0 / (1.0 + std::pow ((harmonic * notes[syllable % 8] - 700.0) / 400.0, 2.0)) + 0.1;
+            v += shape * std::sin (juce::MathConstants<double>::twoPi * f0 * harmonic * within);
+        }
+        return (float) (0.06 * envelope * v);
+    }
+
+    // Plays the sung phrase for `seconds` from sample `start`.
+    void sing (ParagonX1AudioProcessor& processor, long& position, double seconds)
+    {
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        for (int b = 0; b < (int) (seconds * sampleRate / blockSize); ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i)
+                buffer.setSample (0, i, sungSample (position++));
+            processor.processBlock (buffer, midi);
+        }
+    }
+
+    // PARAGON_CPU_ONLY=text: measure only what's labelled with it (for
+    // counting instructions under valgrind, where every run takes long).
+    bool wanted (const juce::String& label)
+    {
+        const auto only = juce::SystemStats::getEnvironmentVariable ("PARAGON_CPU_ONLY", {});
+        return only.isEmpty() || label.contains (only);
+    }
+}
+
+// Hidden (run with "[rigcpu]"): the sound's share of one core for every
+// factory rig, singing, dearest first, so an optimisation round can see where
+// the time goes (0.56.1, from PR7-G 0.82.1). PARAGON_RIGCPU_SECONDS sets how
+// long each is timed (default 2); PARAGON_CPU_ONLY picks rigs by name.
+TEST_CASE ("CPU of every factory rig", "[.][rigcpu]")
+{
+    TestRig rig;
+    const auto env = juce::SystemStats::getEnvironmentVariable ("PARAGON_RIGCPU_SECONDS", "2").getDoubleValue();
+    const auto seconds = env > 0.0 ? env : 2.0;
+    std::vector<std::pair<double, juce::String>> costs;
+    long position = 0;
+    for (const auto& entry : rig.processor.getRigLibrary().getEntries())
+    {
+        const auto label = entry.rig.getSlotName() + " " + entry.rig.name;
+        if (! entry.isFactory || ! wanted (label))
+            continue;
+        rig.processor.loadRig (entry);
+        sing (rig.processor, position, 0.5);   // warm up (and let the last rig's tails go)
+        const auto startTime = juce::Time::getHighResolutionTicks();
+        sing (rig.processor, position, seconds);
+        const auto took = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - startTime);
+        costs.emplace_back (100.0 * took / seconds, label);
+    }
+    std::sort (costs.begin(), costs.end(), [] (const auto& a, const auto& b) { return a.first > b.first; });
+    double total = 0.0;
+    for (const auto& [cost, name] : costs)
+    {
+        total += cost;
+        std::printf ("%6.2f%%  %s\n", cost, name.toRawUTF8());
+    }
+    std::printf ("%zu rigs, mean %.2f%% of a core\n", costs.size(), total / (double) juce::jmax ((size_t) 1, costs.size()));
+}
+
+// Hidden (run with "[blockcpu]"): each block on its own, from everything off,
+// in its usual settings (every TYPE / MODE / STYLE where it has them), singing:
+// its share of one core. PARAGON_CPU_ONLY picks one by label.
+TEST_CASE ("CPU of each block on its own", "[.][blockcpu]")
+{
+    TestRig rig;
+    const auto set = [&rig] (const juce::String& id, float plainValue)
+    {
+        auto& p = *rig.processor.getParameters().getParameter (id);
+        p.setValueNotifyingHost (p.convertTo0to1 (plainValue));
+    };
+    const auto allOff = [&rig, &set]
+    {
+        for (auto* parameter : static_cast<juce::AudioProcessor&> (rig.processor).getParameters())
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+                ranged->setValueNotifyingHost (ranged->getDefaultValue());
+        for (auto* parameter : static_cast<juce::AudioProcessor&> (rig.processor).getParameters())
+            if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+                if (ranged->getParameterID().endsWith ("On") && ranged->getParameterID() != "bypass"
+                    && ! ranged->getParameterID().startsWith ("hv") && ! ranged->getParameterID().startsWith ("mb")
+                    && ! ranged->getParameterID().startsWith ("dv"))
+                    ranged->setValueNotifyingHost (0.0f);
+        juce::ignoreUnused (set);
+    };
+    long position = 0;
+    const auto measure = [&] (const juce::String& label, std::function<void()> setUp)
+    {
+        if (! wanted (label))
+            return;
+        allOff();
+        setUp();
+        sing (rig.processor, position, 0.5);
+        const auto startTime = juce::Time::getHighResolutionTicks();
+        constexpr double seconds = 3.0;
+        sing (rig.processor, position, seconds);
+        const auto took = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - startTime);
+        std::printf ("%-36s %6.2f%% of a core\n", label.toRawUTF8(), 100.0 * took / seconds);
+    };
+    measure ("everything off", [] {});
+    for (int type = 0; type < effects::CompGate::typeNames.size(); ++type)
+        measure ("dynamics " + effects::CompGate::typeNames[type], [&, type] { set (ParamIDs::compOn, 1); set (ParamIDs::compType, (float) type); });
+    measure ("de-esser", [&] { set (ParamIDs::deessOn, 1); });
+    for (int type = 0; type < effects::FilterPitch::typeNames.size(); ++type)
+        measure ("filter/pitch " + effects::FilterPitch::typeNames[type], [&, type] { set (ParamIDs::fpOn, 1); set (ParamIDs::fpType, (float) type); });
+    measure ("octaver", [&] { set (ParamIDs::octOn, 1); });
+    for (int quality = 0; quality < effects::Mars::qualityNames.size(); ++quality)
+        for (const int bands : { 1, 4 })
+            measure ("mars " + juce::String (bands) + " band(s) " + effects::Mars::qualityNames[quality],
+                     [&, quality, bands] { set (ParamIDs::driveOn, 1); set (ParamIDs::marsBands, (float) (bands - 1)); set (ParamIDs::marsQuality, (float) quality); });
+    measure ("graphic eq", [&] { set (ParamIDs::eqOn, 1); });
+    for (int mode = 0; mode < effects::Glitch::modeNames.size(); ++mode)
+        measure ("glitch " + effects::Glitch::modeNames[mode], [&, mode] { set (ParamIDs::glitchOn, 1); set (ParamIDs::glitchMode, (float) mode); });
+    measure ("harmony (default voices)", [&] { set (ParamIDs::harmonyOn, 1); });
+    measure ("harmony + generate notes", [&] { set (ParamIDs::harmonyOn, 1); set (ParamIDs::harmonyGenerate, 1); });
+    measure ("tune voice natural", [&] { set (ParamIDs::harmonyCorrect, 1); });
+    measure ("tune voice hard", [&] { set (ParamIDs::harmonyCorrect, 2); });
+    measure ("formant +5", [&] { set (ParamIDs::formantOn, 1); set (ParamIDs::formantShift, 5); });
+    for (int mode = 0; mode < effects::Vocoder::modeNames.size(); ++mode)
+        measure ("vocoder " + effects::Vocoder::modeNames[mode], [&, mode] { set (ParamIDs::vocoderOn, 1); set (ParamIDs::vocoderMode, (float) mode); });
+    measure ("doubler (2 takes)", [&] { set (ParamIDs::doublerOn, 1); });
+    measure ("doubler (4 takes)", [&] { set (ParamIDs::doublerOn, 1); set ("dv3On", 1); set ("dv4On", 1); });
+    for (int type = 0; type < effects::Modulation::typeNames.size(); ++type)
+        measure ("mod " + effects::Modulation::typeNames[type], [&, type] { set (ParamIDs::modOn, 1); set (ParamIDs::modType, (float) type); });
+    for (int type = 0; type < effects::Delay::typeNames.size(); ++type)
+        measure ("delay " + effects::Delay::typeNames[type], [&, type] { set (ParamIDs::delayOn, 1); set (ParamIDs::delayType, (float) type); });
+    for (int type = 0; type < effects::Reverb::typeNames.size(); ++type)
+        measure ("reverb " + effects::Reverb::typeNames[type], [&, type] { set (ParamIDs::reverbOn, 1); set (ParamIDs::reverbType, (float) type); });
+    for (int type = 0; type < effects::LoFi::typeNames.size(); ++type)
+        measure ("lofi " + effects::LoFi::typeNames[type], [&, type] { set (ParamIDs::lofiOn, 1); set (ParamIDs::lofiType, (float) type); });
+}
+
+// Hidden (run with "[rigrender]"): writes every factory rig's output (the
+// sung phrase, 2.5 s, both channels as interleaved 32-bit floats) to the
+// folder in PARAGON_RIGRENDER, one file per rig, so two builds can be compared
+// sample by sample (an optimisation must not change the sound).
+TEST_CASE ("Render every factory rig to files", "[.][rigrender]")
+{
+    const auto folder = juce::File (juce::SystemStats::getEnvironmentVariable ("PARAGON_RIGRENDER", {}));
+    REQUIRE (folder.isDirectory());
+    TestRig rig;
+    for (const auto& entry : rig.processor.getRigLibrary().getEntries())
+    {
+        if (! entry.isFactory || ! wanted (entry.rig.getSlotName() + " " + entry.rig.name))
+            continue;
+        rig.processor.loadRig (entry);
+        rig.processor.reset();
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+        juce::MemoryOutputStream out;
+        long position = 0;
+        for (int b = 0; b < (int) (2.5 * sampleRate / blockSize); ++b)
+        {
+            buffer.clear();
+            for (int i = 0; i < blockSize; ++i)
+                buffer.setSample (0, i, sungSample (position++));
+            rig.processor.processBlock (buffer, midi);
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const float frame[2] = { buffer.getSample (0, i), buffer.getSample (1, i) };
+                out.write (frame, sizeof (frame));
+            }
+        }
+        folder.getChildFile (entry.rig.getSlotName() + ".f32").replaceWithData (out.getData(), out.getDataSize());
+    }
 }

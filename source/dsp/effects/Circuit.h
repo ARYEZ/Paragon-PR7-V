@@ -11,8 +11,16 @@ namespace effects
     // an op-amp stays clean almost to its rail, then flattens.
     inline double opAmpClip (double volts, double rail) noexcept
     {
-        constexpr double hardness = 5.0;
-        return volts / std::pow (1.0 + std::pow (std::abs (volts) / rail, hardness), 1.0 / hardness);
+        // volts / (1 + |volts / rail|^5)^(1/5): the fifth power as plain
+        // multiplications and the fifth root as exp (-log1p / 5). The same
+        // curve to within rounding at about a third of the cost of two pow()
+        // calls (0.56.1, from PR7-G 0.82.1; AEON calls it three times a
+        // sample at 2x). Below about 0.04% of the rail the curve is a
+        // straight line in doubles.
+        const auto u = std::abs (volts) / rail, u2 = u * u, p = u2 * u2 * u;
+        if (p < 1.0e-17)
+            return volts;
+        return volts * std::exp (-0.2 * std::log1p (p));
     }
 
     // A small linear circuit (resistors, capacitors and ideal op-amps, one

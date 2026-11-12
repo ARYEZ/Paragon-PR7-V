@@ -53,11 +53,12 @@ public:
     static Note toNote (double frequency, double referenceA4 = 440.0);
 
 private:
-    double refineAtHostRate (const float* start, double roughPeriod) const;
+    double refineAtHostRate (const float* start, double roughPeriod);
 
     double lowHz, highHz;
     double sampleRate = 48000.0;
     int decimation = 4;
     int windowSize = 2048;   // at the reduced rate
     std::vector<float> reduced, difference;
+    std::vector<double> refined;
 };
