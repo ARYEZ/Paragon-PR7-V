@@ -2,6 +2,14 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.56.2
+
+- **AURORA is 10% less bright**, as PR7-B has it. Full pearl white was a lot to look at for long, almost dazzling. Now the pearl is drawn at 90% of its old brightness: the chassis, the face, its panels, the rack unit (FACEPLATE) and the expression pedal, shine and highlights included. Pure white becomes 230 out of 255, so it still reads clearly as a white pearl unit, just without the glare.
+  - 10% is your pick from the PR7-B mock-ups (10%, 15% and 25% less; 25% looked grey).
+  - The lettering, the printed red lines, the neon rings, the keys, the knobs and the screens keep their own colours, so they stand out a touch more against the softer pearl.
+  - **OBSIDIAN is unchanged**, pixel for pixel.
+  - Nothing in the sound changes.
+
 ## 0.56.1
 
 An optimisation round, bringing over what applies from PR7-G 0.82.1 and then working on what the measurements showed is expensive in PR7-V. **The sound is unchanged:** every one of the 255 factory rigs was rendered with the old and the new code and the two match sample for sample, to the last bit (with the random parts, such as noise and drift, given the same seed in both). HARMONY's TUNE VOICE latency (a fixed 40 ms) is unchanged.

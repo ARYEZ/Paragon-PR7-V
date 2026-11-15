@@ -100,7 +100,7 @@ namespace SlotWindow
     void drawCaption (juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text, bool isError)
     {
         g.setFont (juce::FontOptions (12.5f, isError ? juce::Font::bold : juce::Font::plain));
-        g.setColour (Finish::isBlack() ? Finish::stampEdge() : juce::Colours::white.withAlpha (0.6f));   // stamped: a fine edge under the letters
+        g.setColour (Finish::isBlack() ? Finish::stampEdge() : Finish::pearl (juce::Colours::white).withAlpha (0.6f));   // stamped: a fine edge under the letters
         g.drawFittedText (text, area.translated (0, 1), juce::Justification::centred, 1, 0.7f);
         g.setColour (isError ? (Finish::isBlack() ? ParagonColours::glow : juce::Colour (0xffc8231a)) : Finish::ink());
         g.drawFittedText (text, area, juce::Justification::centred, 1, 0.7f);

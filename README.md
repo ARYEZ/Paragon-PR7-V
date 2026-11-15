@@ -193,7 +193,7 @@ descriptions below still talk about guitar.
   - **At the right end, EXPRESSION ASSIGN.**
   Rigs are browsed and filed on the **PRESETS** page, and saved with the unit's SAVE buttons.
 - **SETTINGS:** the tuner's reference pitch, mute while tuning, the expression pedal's MIDI CC, and the unit's
-  **FINISH**: **OBSIDIAN** (pearl black, the default) or **AURORA** (pearl white), both with black keys and knobs in
+  **FINISH**: **OBSIDIAN** (pearl black, the default) or **AURORA** (pearl white, drawn 10% less bright than full white so it's easy on the eyes), both with black keys and knobs in
   neon pink-to-orange rings. The finish is saved on your computer, so every PR7-V you open uses it.
 - The paths of the loaded files are saved in your DAW project. If a file is missing when the project
   opens, the slot says so and keeps the path, so moving the file back fixes it.

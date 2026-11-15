@@ -428,6 +428,14 @@ namespace
         seam.addRoundedRectangle (bounds.reduced (fw * 0.03f), corner * 0.8f);
         g.setColour (black ? juce::Colours::black.withAlpha (0.5f) : juce::Colour (0xff4a2034).withAlpha (0.18f));
         g.strokePath (seam, juce::PathStrokeType (1.5f));
+        {
+            // Aurora's pearl less bright (auroraDimming), as the unit's: over the
+            // plate and the outer half of its bevel; the pads go on after.
+            const auto halfBevel = fw * 0.006f;
+            juce::Path pearlArea;
+            pearlArea.addRoundedRectangle (bounds.reduced (1.0f).expanded (halfBevel), corner + halfBevel);
+            Finish::dimPearl (g, pearlArea);
+        }
 
         // The two rubber pads, with the diagonal chrome band between them.
         const auto margin = fw * 0.075f;
@@ -652,7 +660,7 @@ void ExpressionPedal::paint (juce::Graphics& g)
         for (int layer = 0; layer < layers; ++layer)
         {
             const auto t = (float) layer / (float) (layers - 1);
-            g.setColour (Finish::pick (0xff7a5c6a, 0xff030303).interpolatedWith (Finish::pick (0xffeee3e9, 0xff181617), t));
+            g.setColour (Finish::pearl (Finish::pick (0xff7a5c6a, 0xff030303).interpolatedWith (Finish::pick (0xffeee3e9, 0xff181617), t)));
             g.fillPath (roundedOutline (topZ - thickness * (1.0f - t)));
         }
 

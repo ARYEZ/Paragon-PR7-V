@@ -44,6 +44,20 @@ namespace Finish
     // colours, 25% darker), across `left` to `right`. Lighting is drawn over it.
     juce::ColourGradient neonGradient (float left, float right);
 
+    // AURORA's pearl is darkened by this much (the owner: full white was "too
+    // bright, almost disorienting"): every pixel of the pearl surfaces, their
+    // sheen and highlights included, is drawn at 90% of its old value, so pure
+    // white becomes 230/255. The lettering, the neon, the keys and the screens on
+    // it keep their own colours. 10% is the owner's choice (from mock-ups of 10,
+    // 15 and 25%; 25% looked grey), as on PR7-B 0.24.3; PR7-V since 0.56.2.
+    inline constexpr float auroraDimming = 0.10f;
+
+    // Darkens a pearl surface just drawn, inside `area`, by auroraDimming on
+    // Aurora (black laid over it: each colour times 1 - auroraDimming); nothing on Obsidian.
+    void dimPearl (juce::Graphics&, const juce::Path& area);
+    // A colour of Aurora's pearl as drawn (times 1 - auroraDimming); unchanged on Obsidian.
+    juce::Colour pearl (juce::Colour);
+
     // Picks the colour for the current finish.
     inline juce::Colour pick (juce::uint32 onWhite, juce::uint32 onBlack) { return juce::Colour (isBlack() ? onBlack : onWhite); }
 }

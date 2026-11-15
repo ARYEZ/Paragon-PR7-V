@@ -22,6 +22,7 @@
 #include "dsp/effects/Delay.h"
 #include "ui/EqPresets.h"
 #include "ui/Finish.h"
+#include "ui/PedalBody.h"
 #include "ui/LedDisplay.h"
 #include "ui/ParagonLookAndFeel.h"
 #include "ui/PerformanceControls.h"
@@ -322,6 +323,53 @@ TEST_CASE ("OBSIDIAN and AURORA recolour the unit's printing, and every open win
         CHECK (image.isValid());
     }
     CHECK (rigLevelColour (*first) == Finish::ink());   // left on Obsidian, the default
+}
+
+TEST_CASE ("AURORA's pearl is 10% less bright; OBSIDIAN is unchanged", "[ui]")
+{
+    // The unit's chassis and face drawn with and without the dimming: on
+    // Aurora every pixel of the pearl comes out at 90% (to within rounding),
+    // so pure white is about 230; on Obsidian the two are identical.
+    const auto draw = [] (bool dim)
+    {
+        juce::Image image (juce::Image::ARGB, 400, 300, true, juce::SoftwareImageType());
+        juce::Graphics g (image);
+        g.fillAll (juce::Colours::black);
+        const auto grain = Finish::makeSatinGrain (400, 300, 99);
+        PedalBody::paintUnit (g, { 40.0f, 40.0f, 320.0f, 220.0f }, { 70.0f, 70.0f, 260.0f, 150.0f },
+                              [&grain] (juce::Graphics& gg) { gg.drawImageAt (grain, 0, 0); }, {}, dim);
+        return image;
+    };
+    const auto brightness = [] (juce::Colour c) { return juce::jmax (c.getRed(), c.getGreen(), c.getBlue()); };
+
+    Finish::set (Finish::Type::aurora, false);
+    const auto bright = draw (false), dimmed = draw (true);
+    int worst = 0, brightest = 0;
+    juce::Path inside;   // the chassis, 2 px in from its edge (outside it is the glow, which isn't pearl)
+    inside.addRoundedRectangle (juce::Rectangle<float> (40.0f, 40.0f, 320.0f, 220.0f).reduced (2.0f), PedalBody::Shape{}.chassisRadius - 2.0f);
+    for (int y = 40; y < 260; ++y)
+        for (int x = 40; x < 360; ++x)
+        {
+            if (! inside.contains ((float) x + 0.5f, (float) y + 0.5f))
+                continue;
+            const auto before = bright.getPixelAt (x, y), after = dimmed.getPixelAt (x, y);
+            for (const auto [b, a] : { std::pair { before.getRed(), after.getRed() }, { before.getGreen(), after.getGreen() }, { before.getBlue(), after.getBlue() } })
+                worst = juce::jmax (worst, std::abs ((int) a - juce::roundToInt ((1.0f - Finish::auroraDimming) * (float) b)));
+            brightest = juce::jmax (brightest, (int) brightness (after));
+        }
+    CHECK (worst <= 1);
+    CHECK (Finish::auroraDimming == 0.10f);
+    CHECK (brightest <= 231);
+    CHECK (brightest >= 215);   // still a white unit, not grey: the brightest pearl near 230
+
+    Finish::set (Finish::Type::obsidian, false);
+    const auto blackPlain = draw (false), blackDimmed = draw (true);
+    int blackDifference = 0;
+    for (int y = 0; y < 300; ++y)
+        for (int x = 0; x < 400; ++x)
+            if (blackPlain.getPixelAt (x, y) != blackDimmed.getPixelAt (x, y))
+                ++blackDifference;
+    CHECK (blackDifference == 0);
 }
 
 TEST_CASE ("A new window opens with the rack hidden and the expression pedal half way", "[ui][rack]")
